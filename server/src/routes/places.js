@@ -82,12 +82,22 @@ async function fetchOverpass(lat, lng, radius) {
     out center;
   `;
 
-  const response = await fetch('https://overpass-api.de/api/interpreter', {
+  // Try primary endpoint first, fall back to alternative
+  let response = await fetch('https://overpass-api.de/api/osm3s/interpreter', {
     method:  'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body:    `data=${encodeURIComponent(query)}`,
     signal:  AbortSignal.timeout(12000),
-  });
+  }).catch(() => null);
+
+  if (!response) {
+    response = await fetch('https://lz4.overpass-api.de/api/interpreter', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body:    `data=${encodeURIComponent(query)}`,
+      signal:  AbortSignal.timeout(12000),
+    });
+  }
 
   if (!response.ok) throw new Error(`Overpass HTTP ${response.status}`);
 
