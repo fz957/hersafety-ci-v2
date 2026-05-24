@@ -42,11 +42,12 @@ router.get('/danger-zones', async (req, res) => {
       .whereNotNull('place_lat')
       .whereNotNull('place_lng')
       .select(
-        knex.raw('ROUND(CAST(place_lat AS numeric), 4)::float as latitude'),
-        knex.raw('ROUND(CAST(place_lng AS numeric), 4)::float as longitude'),
+        knex.raw('ROUND(CAST(place_lat AS numeric), 4)::float as lat'),
+        knex.raw('ROUND(CAST(place_lng AS numeric), 4)::float as lng'),
         knex.raw('place_address'),
         knex.raw('place_name'),
-        knex.raw('COUNT(*) as report_count')
+        knex.raw('COUNT(*) as incident_count'),
+        knex.raw('array_agg(DISTINCT danger_type ORDER BY danger_type)::text[] as danger_types')
       )
       .groupBy(knex.raw('place_address'), knex.raw('place_name'), knex.raw('ROUND(CAST(place_lat AS numeric), 4)'), knex.raw('ROUND(CAST(place_lng AS numeric), 4)'))
       .havingRaw('COUNT(*) > 0')

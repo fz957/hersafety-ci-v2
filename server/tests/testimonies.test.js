@@ -33,7 +33,7 @@ describe('GET /api/testimonies', () => {
     expect((await request(app).get('/api/testimonies')).status).toBe(401);
   });
 
-  it('ne retourne que les témoignages approuvés de l\'org', async () => {
+  it('retourne les approuvés + les pending du user courant', async () => {
     await knex('testimonies').insert([
       { user_id: userA.id, organization_id: orgA.id, status: 'approved', ...BASE },
       { user_id: userA.id, organization_id: orgA.id, status: 'pending',  ...BASE, title: 'En attente' },
@@ -45,8 +45,10 @@ describe('GET /api/testimonies', () => {
       .set('Cookie', authCookie(userA));
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toHaveLength(1);
-    expect(res.body.data[0].status).toBe('approved');
+    // User voit: 1 approved + 1 pending (du user) = 2 total
+    expect(res.body.data).toHaveLength(2);
+    expect(res.body.data.some((t) => t.status === 'approved')).toBe(true);
+    expect(res.body.data.some((t) => t.status === 'pending')).toBe(true);
   });
 
   it('isolation cross-tenant : ne retourne pas les témoignages de orgB', async () => {

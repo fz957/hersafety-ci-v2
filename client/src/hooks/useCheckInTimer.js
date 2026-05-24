@@ -21,6 +21,19 @@ export function useCheckInTimer(activeTrack) {
   const countdownRef = useRef(null);
   const visibilityHandlerRef = useRef(null);
   const lastCheckInRef = useRef(null);
+  const swReadyRef = useRef(false);
+
+  // Attendre que le Service Worker soit prêt avant d'envoyer messages
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    navigator.serviceWorker.ready.then(() => {
+      swReadyRef.current = true;
+      console.log('[useCheckInTimer] SW prêt');
+    }).catch((err) => {
+      console.error('[useCheckInTimer] SW non disponible:', err);
+    });
+  }, []);
 
   // Fonction pour répondre "Oui, je vais bien"
   const handleCheckInYes = useCallback(async () => {
@@ -31,6 +44,15 @@ export function useCheckInTimer(activeTrack) {
       setShowCheckInModal(false);
       setMissedCheckIns(0); // Reset le compteur
       setTimeRemaining(CHECK_IN_TIMEOUT);
+
+      // Notifier le Service Worker de la réponse
+      if (swReadyRef.current && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'CHECK_IN_RESPONSE',
+          trackId: activeTrack.id,
+          action: 'yes',
+        });
+      }
     } catch (err) {
       console.error('Erreur check-in:', err.message);
     }
@@ -81,6 +103,7 @@ export function useCheckInTimer(activeTrack) {
     setShowCheckInModal(true);
     setTimeRemaining(CHECK_IN_TIMEOUT);
     lastCheckInRef.current = Date.now();
+    localStorage.setItem('checkin_tracking', lastCheckInRef.current.toString());
 
     // Countdown timer pour la réponse (2 minutes)
     if (countdownRef.current) clearInterval(countdownRef.current);
@@ -120,13 +143,32 @@ export function useCheckInTimer(activeTrack) {
       setShowCheckInModal(false);
       setMissedCheckIns(0);
       lastCheckInRef.current = null;
+      localStorage.removeItem('checkin_tracking');
+
+      // Notifier le Service Worker de l'arrêt du track
+      if (swReadyRef.current && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'TRACK_ENDED',
+        });
+      }
+
       return;
     }
 
-    // Initialiser le timestamp du dernier check-in
-    if (!lastCheckInRef.current) {
-      lastCheckInRef.current = Date.now();
+    // Notifier le Service Worker du démarrage du track
+    if (swReadyRef.current && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'TRACK_STARTED',
+        trackId: activeTrack.id,
+      });
     }
+
+    // Initialiser le timestamp du dernier check-in - restaurer depuis localStorage si exist
+    if (!lastCheckInRef.current) {
+      const stored = localStorage.getItem('checkin_tracking');
+      lastCheckInRef.current = stored ? parseInt(stored, 10) : Date.now();
+    }
+    localStorage.setItem('checkin_tracking', lastCheckInRef.current.toString());
 
     // Intervalle principal: vérifier toutes les 10 secondes si un check-in est dû
     intervalRef.current = setInterval(() => {
