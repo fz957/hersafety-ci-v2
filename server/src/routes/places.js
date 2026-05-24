@@ -29,9 +29,14 @@ const AMENITY_TO_TYPE = {
   hospital:     'hopital',
 };
 
-// Fallback safe places for Abidjan area (when Overpass API is unavailable)
+// Fallback safe places for Abidjan area
 // Distributed across all districts so there's always something close
 const FALLBACK_PLACES = [
+  // Bietry (priority for users in this area)
+  { id: 6, type: 'police', name: 'Poste Police Bietry', lat: 6.8450, lng: -5.3100, address: 'Bietry, Abidjan', phone: '+225 22 51 00 00' },
+  { id: 7, type: 'pharmacie', name: 'Pharmacie Bietry', lat: 6.8480, lng: -5.3080, address: 'Bietry, Abidjan', phone: '+225 22 51 20 00' },
+  { id: 11, type: 'pompiers', name: 'Caserne Pompiers Bietry', lat: 6.8420, lng: -5.3150, address: 'Bietry, Abidjan', phone: '+225 22 51 30 00' },
+
   // Cocody
   { id: 1, type: 'police', name: 'Poste Police Cocody', lat: 6.8382, lng: -5.2543, address: 'Cocody, Abidjan', phone: '+225 22 41 42 00' },
   { id: 2, type: 'hospital', name: 'Hôpital CHU Cocody', lat: 6.8276, lng: -5.2893, address: 'Cocody, Abidjan', phone: '+225 22 48 40 00' },
@@ -39,9 +44,6 @@ const FALLBACK_PLACES = [
   // Plateau
   { id: 4, type: 'police', name: 'Poste Police Plateau', lat: 6.8205, lng: -5.3297, address: 'Plateau, Abidjan', phone: '+225 20 21 30 00' },
   { id: 5, type: 'hospital', name: 'Hôpital Général Plateau', lat: 6.8250, lng: -5.3350, address: 'Plateau, Abidjan', phone: '+225 20 21 80 00' },
-  // Bietry
-  { id: 6, type: 'police', name: 'Poste Police Bietry', lat: 6.8450, lng: -5.3100, address: 'Bietry, Abidjan', phone: '+225 22 51 00 00' },
-  { id: 7, type: 'pharmacie', name: 'Pharmacie Bietry', lat: 6.8480, lng: -5.3080, address: 'Bietry, Abidjan', phone: '+225 22 51 20 00' },
   // Yopougon
   { id: 8, type: 'gendarmerie', name: 'Gendarmerie Yopougon', lat: 6.8000, lng: -5.3500, address: 'Yopougon, Abidjan', phone: '+225 22 50 60 00' },
   { id: 9, type: 'hospital', name: 'Hôpital Yopougon', lat: 6.7950, lng: -5.3550, address: 'Yopougon, Abidjan', phone: '+225 22 50 40 00' },
@@ -100,13 +102,11 @@ async function fetchOverpass(lat, lng, radius) {
     phone:   el.tags?.phone || el.tags?.['contact:phone'] || null,
   })).filter((p) => p.lat && p.lng);
 
-  // Sort by priority (police > gendarmerie > pharmacie > pompiers), then by distance
+  // Sort by DISTANCE ONLY - return 3 closest places regardless of type
   return places
     .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }))
-    .sort((a, b) => {
-      const priorityDiff = (PRIORITY_ORDER[a.type] || 99) - (PRIORITY_ORDER[b.type] || 99);
-      return priorityDiff !== 0 ? priorityDiff : a.distance - b.distance;
-    })
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 3)
     .map(({ distance, ...p }) => p);
 }
 
