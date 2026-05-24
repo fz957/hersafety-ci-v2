@@ -137,9 +137,9 @@ export default function Emergency() {
   // Lieux sûrs — réactivé pour l'écran d'urgence complet
   useEffect(() => {
     if (!position) return;
-    // Use 2000m radius (2km) to find realistic nearby places
-    // Commissariat, pharmacies, hôpitaux à proximité
-    api.get(`/api/places?lat=${position.lat}&lng=${position.lng}&radius=2000`)
+    // Use 5000m radius (5km) to find real safety places
+    // Prioritize verified (police, pharmacie, hôpital) over just proximity
+    api.get(`/api/places?lat=${position.lat}&lng=${position.lng}&radius=5000`)
       .then((r) => {
         const data = r.data.data || [];
         setPlaces(data.slice(0, 5)); // Show top 5 nearest places

@@ -54,7 +54,7 @@ const FALLBACK_PLACES = [
 const querySchema = Joi.object({
   lat:    Joi.number().min(-90).max(90).required(),
   lng:    Joi.number().min(-180).max(180).required(),
-  radius: Joi.number().integer().min(100).max(5000).default(2000), // 2km default for realistic nearby places
+  radius: Joi.number().integer().min(100).max(10000).default(5000), // 5km default - prioritize REAL places over just close ones
 });
 
 // Priority order for safe places
@@ -162,10 +162,9 @@ out center;`;
 
 // Fetch real places from OpenStreetMap using Nominatim API (fallback)
 async function fetchNominatim(lat, lng, radius) {
-  // Search for ALL amenities - don't restrict to specific types
-  // If user says there's a pharmacy, garage, supermarket, we show it all
+  // Search ONLY safety-critical places for emergencies
+  // Precision > Quantity - better to show verified places than many fake ones
   const searchGroups = [
-    // Priority: Safety-critical places
     [
       { query: 'police', type: 'police' },
       { query: 'commissariat police', type: 'police' },
@@ -187,24 +186,8 @@ async function fetchNominatim(lat, lng, radius) {
       { query: 'caserne pompiers', type: 'pompiers' },
       { query: 'fire station', type: 'pompiers' }
     ],
-    // Secondary: Other public places for safety
     [
-      { query: 'gendarmerie', type: 'gendarmerie' },
-      { query: 'police station', type: 'police' }
-    ],
-    // Also useful places nearby
-    [
-      { query: 'supermarche', type: 'supermarche' },
-      { query: 'supermarket', type: 'supermarche' },
-      { query: 'marche', type: 'commerce' }
-    ],
-    [
-      { query: 'garage', type: 'garage' },
-      { query: 'station essence', type: 'garage' }
-    ],
-    [
-      { query: 'taxi', type: 'taxi' },
-      { query: 'transport', type: 'transport' }
+      { query: 'gendarmerie', type: 'gendarmerie' }
     ]
   ];
 
