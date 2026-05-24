@@ -139,27 +139,43 @@ export default function Emergency() {
     api.get('/api/emergency-numbers').then((r) => setEmergencyNums(r.data.data)).catch(() => {});
   }, []);
 
-  // Lieux sûrs — utiliser Overpass POIs
+  // Lieux sûrs — /api/places primary (has distributed locations), Overpass supplemental
   useEffect(() => {
-    if (pois && pois.length > 0) {
-      console.log('[Emergency] Overpass POIs chargés:', pois.length);
-      setPlaces(pois.slice(0, 5)); // Show top 5 nearest places
-    } else if (!poiLoading && pois.length === 0) {
-      // Fallback to API if Overpass returns nothing
-      console.log('[Emergency] Pas de POIs depuis Overpass, fallback API');
-      if (!position) return;
-      api.get(`/api/places?lat=${position.lat}&lng=${position.lng}&radius=10000`)
-        .then((r) => {
-          const data = r.data.data || [];
-          console.log('[Emergency] Fallback places:', data.length);
-          setPlaces(data.slice(0, 5));
-        })
-        .catch((err) => {
-          console.error('[Emergency] Erreur fallback:', err.message);
+    if (!position) return;
+
+    console.log('[Emergency] Cherchant lieux sûrs pour', position.lat.toFixed(4), position.lng.toFixed(4));
+
+    // Primary: Use /api/places (distributed across Abidjan including Bietry)
+    api.get(`/api/places?lat=${position.lat}&lng=${position.lng}&radius=10000`)
+      .then((r) => {
+        const apiPlaces = r.data.data || [];
+        console.log('[Emergency] API places trouvés:', apiPlaces.length);
+
+        // Combine with Overpass results if available (for areas with good OSM data)
+        if (pois && pois.length > 0) {
+          console.log('[Emergency] Augmentant avec', pois.length, 'Overpass POIs');
+          const combined = [...apiPlaces, ...pois];
+          // Remove duplicates by location
+          const unique = combined.reduce((acc, p) => {
+            const exists = acc.find(x => Math.abs(x.lat - p.lat) < 0.001 && Math.abs(x.lng - p.lng) < 0.001);
+            return exists ? acc : [...acc, p];
+          }, []);
+          setPlaces(unique.slice(0, 5));
+        } else {
+          setPlaces(apiPlaces.slice(0, 5));
+        }
+      })
+      .catch((err) => {
+        console.error('[Emergency] Erreur places:', err.message);
+        // Fallback to Overpass if API fails
+        if (pois && pois.length > 0) {
+          console.log('[Emergency] Fallback Overpass:', pois.length);
+          setPlaces(pois.slice(0, 5));
+        } else {
           setPlaces([]);
-        });
-    }
-  }, [pois, poiLoading, position]);
+        }
+      });
+  }, [position, pois]);
 
   // Init: Appel initial à Claude pour commencer la conversation
   useEffect(() => {
