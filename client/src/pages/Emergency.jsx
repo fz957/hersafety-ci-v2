@@ -36,7 +36,7 @@ const getVTCLinks = (position) => {
 export default function Emergency() {
   const { state }   = useLocation();
   const navigate    = useNavigate();
-  const { position } = useGPS();
+  const { position } = useGPS({ watch: true });
 
   const [emergencyNums, setEmergencyNums] = useState([]);
   const [places, setPlaces]               = useState([]);
