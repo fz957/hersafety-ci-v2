@@ -74,8 +74,10 @@ function getDistance(lat1, lng1, lat2, lng2) {
 // Fetch real places from OpenStreetMap using Overpass API
 // Overpass is optimized for amenity queries unlike Nominatim
 async function fetchOverpass(lat, lng, radius) {
-  // Bounding box: ~16km radius (0.15 degrees)
-  const bbox = `${lat - 0.15},${lng - 0.15},${lat + 0.15},${lng + 0.15}`;
+  // Tight bounding box: ~5km radius only (0.045 degrees ≈ 5km)
+  // Don't search too far - keep results relevant to user location
+  const boxSize = 0.045; // ~5km radius
+  const bbox = `${lat - boxSize},${lng - boxSize},${lat + boxSize},${lng + boxSize}`;
 
   // Overpass query for all safety amenities
   const query = `[bbox:${lat - 0.15},${lat + 0.15},${lng - 0.15},${lng + 0.15}];
@@ -116,21 +118,35 @@ out center;`;
 
     console.log(`[Overpass] Found ${json.elements.length} amenities`);
 
-    // Convert Overpass format to our format
-    const places = json.elements
+    // Convert Overpass format to our format with distances
+    const placesWithDistance = json.elements
       .filter(el => el.lat && el.lon && el.tags && el.tags.name)
-      .map(el => ({
-        id: `${el.id}-${el.type}`,
-        type: el.tags.amenity,
-        name: el.tags.name,
-        lat: parseFloat(el.lat),
-        lng: parseFloat(el.lon),
-        address: `${el.tags.name}, Côte d'Ivoire`,
-        phone: el.tags.phone || null,
-        source: 'osm'
-      }));
+      .map(el => {
+        const distance = getDistance(lat, lng, parseFloat(el.lat), parseFloat(el.lon));
+        return {
+          id: `${el.id}-${el.type}`,
+          type: el.tags.amenity,
+          name: el.tags.name,
+          lat: parseFloat(el.lat),
+          lng: parseFloat(el.lon),
+          address: `${el.tags.name}, Côte d'Ivoire`,
+          phone: el.tags.phone || null,
+          source: 'osm',
+          distance: distance
+        };
+      })
+      // STRICT filter: only places within 5km (not 16km!)
+      .filter(p => p.distance <= 5)
+      // Sort by distance - CLOSEST first
+      .sort((a, b) => a.distance - b.distance);
 
-    console.log(`[Overpass] Valid places with names: ${places.length}`);
+    console.log(`[Overpass] Found ${placesWithDistance.length} places within 5km`);
+    if (placesWithDistance.length > 0) {
+      console.log(`[Overpass] Top 5:`, placesWithDistance.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
+    }
+
+    // Remove distance field before returning
+    const places = placesWithDistance.map(({ distance, ...p }) => p);
     return places.length > 0 ? places : null;
 
   } catch (err) {
