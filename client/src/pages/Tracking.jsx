@@ -6,7 +6,7 @@ import { Icon, Button, Card, Eyebrow, H2, BottomNav, PageShell, ScrollArea, Toas
 import { TrackingMap } from '../components/maps/TrackingMap';
 
 export default function Tracking() {
-  const { position, error: gpsError } = useGPS();
+  const { position, error: gpsError } = useGPS({ watch: true });
   const [track, setTrack]   = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const [checkins, setCheckins] = useState(0);

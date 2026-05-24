@@ -1,4 +1,5 @@
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import { useEffect } from 'react';
 import L from 'leaflet';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -11,6 +12,17 @@ const defaultIcon = L.icon({
   popupAnchor: [1, -34],
   shadowSize: [41, 41],
 });
+
+// Component to update map view when userPosition changes
+function MapUpdater({ userPosition }) {
+  const map = useMap();
+  useEffect(() => {
+    if (userPosition) {
+      map.setView([userPosition.lat, userPosition.lng], 15);
+    }
+  }, [userPosition, map]);
+  return null;
+}
 
 export function TrackingMap({ userPosition, track, checkins }) {
   // Position par défaut (Abidjan) si GPS non disponible
@@ -36,6 +48,9 @@ export function TrackingMap({ userPosition, track, checkins }) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; OpenStreetMap contributors'
         />
+
+        {/* Update map view when position changes */}
+        <MapUpdater userPosition={userPosition} />
 
         {/* Position actuelle ou par défaut */}
         <Marker position={center} icon={defaultIcon}>
