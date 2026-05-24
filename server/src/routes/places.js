@@ -373,11 +373,14 @@ async function fetchNominatim(lat, lng, radius) {
     // Sort by closest distance
     const sorted = withDistance.sort((a, b) => a.distance - b.distance);
 
-    console.log(`[Nominatim] Total: ${allPlaces.length}, unique: ${unique.length}, returning all`);
-    console.log('[Nominatim] Top 10:', sorted.slice(0, 10).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km, ${p.type})`));
+    console.log(`[Nominatim] Total: ${allPlaces.length}, unique: ${unique.length}`);
+
+    // Return top 5 closest only - no far places
+    const top5 = sorted.slice(0, 5);
+    console.log('[Nominatim] Top 5 closest:', top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km, ${p.type})`));
 
     // Remove distance field before returning
-    const result = sorted.map(({ distance, ...p }) => p);
+    const result = top5.map(({ distance, ...p }) => p);
     return result.length > 0 ? result : null;
 
   } catch (err) {
