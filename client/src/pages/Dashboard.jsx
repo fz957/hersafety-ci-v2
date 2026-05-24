@@ -18,11 +18,13 @@ const LEVELS = [
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const { triggerAlert, loading } = useEmergency();
-  const { position } = useGPS();
+  // Active le suivi GPS continu si un track est actif
+  const { position, error: gpsError } = useGPS({ watch: true });
   const navigate = useNavigate();
   const [toast, setToast] = useState(null);
   const [activeTrack, setActiveTrack] = useState(null);
   const [loadingTrack, setLoadingTrack] = useState(true);
+  const [showGpsHelp, setShowGpsHelp] = useState(false);
 
   // Hook pour les check-ins automatiques
   const {
@@ -65,7 +67,10 @@ export default function Dashboard() {
       if (lv.level === '1') {
         // Niveau 1 : démarre un trajet de suivi
         await api.post('/api/tracks', { checkin_interval_min: 1, ...extras });
-        setToast({ message: 'Suivi GPS activé. Check-in toutes les 1 min (TEST).', type: 'success' });
+        setToast({
+          message: '⚠️ Garde l\'onglet ACTIF pour les check-ins. Check-in toutes les 1 min (TEST).',
+          type: 'warn'
+        });
         return;
       }
       await triggerAlert(lv.level, extras);
@@ -115,13 +120,37 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Statut GPS */}
-      <div style={{ padding: '0 20px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ width: 8, height: 8, borderRadius: 4,
-          background: position ? HS.safe : HS.textFaint }} />
-        <span style={{ fontSize: 12, color: HS.textDim }}>
-          {position ? 'GPS connecté · Contacts actifs' : 'GPS en attente…'}
-        </span>
+      {/* Statut GPS + Aide */}
+      <div style={{ padding: '0 20px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: gpsError ? 12 : 0 }}>
+          <span style={{ width: 8, height: 8, borderRadius: 4,
+            background: position ? HS.safe : (gpsError ? HS.danger : HS.textFaint) }} />
+          <span style={{ fontSize: 12, color: HS.textDim }}>
+            {position ? '✓ GPS connecté · Tracking actif' : gpsError ? '✗ GPS bloqué' : 'GPS en attente…'}
+          </span>
+        </div>
+
+        {/* Message d'aide GPS si bloqué */}
+        {gpsError && !position && (
+          <div style={{
+            background: 'rgba(178,58,72,0.15)', border: `1px solid ${HS.danger}`,
+            padding: 12, borderRadius: 12, fontSize: 12, color: HS.textDim, lineHeight: 1.4,
+          }}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>🔒 Permissions GPS bloquées</div>
+            <div style={{ marginBottom: 10 }}>
+              Clic sur l'icône 🔒 en haut à droite → <strong>Page info</strong> → <strong>Permissions</strong> → Réinitialise <strong>Localisation</strong>
+            </div>
+            <button
+              onClick={() => setShowGpsHelp(!showGpsHelp)}
+              style={{
+                background: HS.sakura, border: 'none', color: '#fff',
+                padding: '8px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+                cursor: 'pointer'
+              }}>
+              Réessayer
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Boutons de niveau */}

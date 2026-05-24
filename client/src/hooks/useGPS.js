@@ -19,8 +19,17 @@ export function useGPS({ watch = false } = {}) {
       setLoading(false);
     };
     const onError = (err) => {
-      setError(err.message);
+      let message = err.message;
+      if (err.code === 1) {
+        message = 'Permission GPS refusée - veuillez autoriser la localisation';
+      } else if (err.code === 2) {
+        message = 'Position non disponible - vérifiez votre GPS';
+      } else if (err.code === 3) {
+        message = 'Délai dépassé - le GPS prend du temps';
+      }
+      setError(message);
       setLoading(false);
+      console.error('GPS Error:', message, err);
     };
 
     if (watch) {
