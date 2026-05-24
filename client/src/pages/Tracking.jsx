@@ -14,6 +14,7 @@ export default function Tracking() {
   const [toast, setToast]       = useState(null);
   const timerRef = useRef(null);
 
+  // Timer for elapsed time
   useEffect(() => {
     if (track) {
       timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
@@ -23,6 +24,30 @@ export default function Tracking() {
     }
     return () => clearInterval(timerRef.current);
   }, [track]);
+
+  // Send GPS position to server every 10 seconds while tracking
+  useEffect(() => {
+    if (!track || !position) return;
+
+    const updateLocation = async () => {
+      try {
+        await api.patch(`/api/tracks/${track.id}`, {
+          location_lat: position.lat,
+          location_lng: position.lng,
+        });
+      } catch (err) {
+        // Silently fail - don't disrupt UX with error toast
+        console.debug('Location update failed:', err.message);
+      }
+    };
+
+    // Send immediately first
+    updateLocation();
+
+    // Then every 10 seconds
+    const interval = setInterval(updateLocation, 10000);
+    return () => clearInterval(interval);
+  }, [track, position]);
 
   const fmt = (s) => {
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;

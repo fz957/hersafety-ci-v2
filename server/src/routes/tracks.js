@@ -106,6 +106,53 @@ router.patch('/:id/checkin', async (req, res) => {
   }
 });
 
+// ─── PATCH /api/tracks/:id ───────────────────────────────────────────────────
+// Update location waypoint (called every 10 seconds during tracking)
+
+const updateSchema = Joi.object({
+  location_lat: Joi.number().min(-90).max(90).required(),
+  location_lng: Joi.number().min(-180).max(180).required(),
+});
+
+router.patch('/:id', async (req, res) => {
+  const { error, value } = updateSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ success: false, error: error.details[0].message });
+  }
+
+  const { userId, organizationId } = req.user;
+
+  try {
+    const track = await knex('tracks')
+      .where({ id: req.params.id, user_id: userId, organization_id: organizationId, status: 'active' })
+      .first();
+
+    if (!track) {
+      return res.status(404).json({ success: false, error: 'Trajet introuvable ou déjà terminé' });
+    }
+
+    // Add waypoint to track
+    const waypoints = track.waypoints ? JSON.parse(track.waypoints) : [];
+    waypoints.push({
+      lat: value.location_lat,
+      lng: value.location_lng,
+      at: new Date().toISOString(),
+    });
+
+    const [updated] = await knex('tracks')
+      .where({ id: req.params.id })
+      .update({
+        waypoints: knex.raw('?::jsonb', [JSON.stringify(waypoints)]),
+        updated_at: new Date(),
+      })
+      .returning('*');
+
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Erreur mise à jour position' });
+  }
+});
+
 // ─── PATCH /api/tracks/:id/end ────────────────────────────────────────────────
 
 router.patch('/:id/end', async (req, res) => {
