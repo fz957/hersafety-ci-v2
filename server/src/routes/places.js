@@ -370,8 +370,8 @@ async function fetchNominatim(lat, lng, radius) {
         distance: getDistance(lat, lng, p.lat, p.lng)
       }));
 
-    // FILTER: Only keep places within 5km (walkable/drivable distance)
-    const withinRadius = withDistance.filter(p => p.distance <= 5);
+    // FILTER: Only keep places within 2km (walking distance)
+    const withinRadius = withDistance.filter(p => p.distance <= 2);
 
     // Sort by closest distance
     const sorted = withinRadius.sort((a, b) => a.distance - b.distance);
