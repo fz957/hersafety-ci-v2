@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+import { useAuth } from '../hooks/useAuth';
 import { HS, ICONS } from '../tokens';
 import { Icon, Button, Card, Input, Eyebrow, H2, Avatar, BottomNav, PageShell, ScrollArea, Toast } from '../components/ui/index.jsx';
 
@@ -17,6 +18,206 @@ const CAT_COLORS = {
   harcelement_verbal: HS.warn, agression_physique: HS.danger, agression_sexuelle: '#8B3A5C',
   vol: '#5A6B8A', suivi: HS.aloewood, detour_force: '#C97B3B', autre: HS.milkTea,
 };
+
+// Composant réutilisable pour un témoignage avec likes et commentaires
+function TestimonyCard({ testimony, onUpdate }) {
+  const { user } = useAuth();
+  const [expandComments, setExpandComments] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [commentInput, setCommentInput] = useState('');
+  const [liked, setLiked] = useState(false);
+  const [supportCount, setSupportCount] = useState(testimony.support_count);
+  const [commentCount, setCommentCount] = useState(testimony.comment_count || 0);
+
+  const fmtDate = (d) => new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+
+  // Charger l'état du like et des commentaires
+  useEffect(() => {
+    const checkLike = async () => {
+      try {
+        const res = await api.get(`/api/testimonies/${testimony.id}/like`);
+        setLiked(res.data.data.liked);
+      } catch (err) {
+        console.error('Erreur check like:', err.message);
+      }
+    };
+
+    checkLike();
+  }, [testimony.id]);
+
+  const handleLike = async () => {
+    try {
+      const res = await api.post(`/api/testimonies/${testimony.id}/like`);
+      setLiked(res.data.data.liked);
+      setSupportCount(res.data.data.support_count);
+      if (onUpdate) {
+        onUpdate({ ...testimony, support_count: res.data.data.support_count });
+      }
+    } catch (err) {
+      console.error('Erreur like:', err.message);
+    }
+  };
+
+  const handleExpandComments = async () => {
+    if (expandComments) {
+      setExpandComments(false);
+      return;
+    }
+
+    setExpandComments(true);
+    setLoadingComments(true);
+    try {
+      const res = await api.get(`/api/testimonies/${testimony.id}/comments?limit=20&offset=0`);
+      setComments(res.data.data || []);
+    } catch (err) {
+      console.error('Erreur chargement commentaires:', err.message);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  const handleAddComment = async (e) => {
+    e.preventDefault();
+    if (!commentInput.trim()) return;
+
+    try {
+      const res = await api.post(`/api/testimonies/${testimony.id}/comments`, {
+        content: commentInput,
+        is_anonymous: true,
+      });
+      setComments([...comments, res.data.data]);
+      setCommentInput('');
+      setCommentCount(commentCount + 1);
+    } catch (err) {
+      console.error('Erreur ajout commentaire:', err.message);
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    try {
+      await api.delete(`/api/testimonies/${testimony.id}/comments/${commentId}`);
+      setComments(comments.filter((c) => c.id !== commentId));
+      setCommentCount(commentCount - 1);
+    } catch (err) {
+      console.error('Erreur suppression commentaire:', err.message);
+    }
+  };
+
+  return (
+    <Card style={{ padding: 16 }}>
+      {/* En-tête */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <Avatar size={36} name={testimony.display_name || 'A'} color={CAT_COLORS[testimony.category]} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: HS.chocolate }}>
+            {testimony.is_anonymous ? (testimony.display_name || 'Anonyme') : testimony.display_name}
+          </div>
+          <div style={{ fontSize: 11, color: HS.textMute }}>{fmtDate(testimony.created_at)}</div>
+        </div>
+        <span style={{ fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 8,
+          background: HS.mistyRose, color: CAT_COLORS[testimony.category] || HS.sakuraDeep }}>
+          {CATEGORIES.find((c) => c.v === testimony.category)?.l || testimony.category}
+        </span>
+      </div>
+
+      {/* Contenu */}
+      <div style={{ fontSize: 14, fontWeight: 700, color: HS.chocolate, marginBottom: 6 }}>{testimony.title}</div>
+      <div style={{ fontSize: 13, color: HS.textDim, lineHeight: 1.55, marginBottom: 12 }}>{testimony.content}</div>
+
+      {/* Métadonnées + Likes */}
+      <div style={{ marginBottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+        <button
+          onClick={handleLike}
+          style={{
+            background: liked ? HS.sakura : HS.mistyRose, border: 'none', borderRadius: 8,
+            padding: '6px 12px', fontSize: 12, fontWeight: 700, color: liked ? '#fff' : HS.sakuraDeep,
+            display: 'flex', alignItems: 'center', gap: 6, fontFamily: HS.font, cursor: 'pointer',
+          }}>
+          <Icon d={ICONS.heart} size={14} color={liked ? '#fff' : HS.sakuraDeep} />
+          {supportCount} soutiens
+        </button>
+
+        <button
+          onClick={handleExpandComments}
+          style={{
+            background: HS.surface, border: `1px solid ${HS.border}`, borderRadius: 8,
+            padding: '6px 12px', fontSize: 12, fontWeight: 700, color: HS.chocolate,
+            display: 'flex', alignItems: 'center', gap: 6, fontFamily: HS.font, cursor: 'pointer',
+          }}>
+          <Icon d={ICONS.comment} size={14} color={HS.chocolate} />
+          {commentCount} commentaires
+        </button>
+
+        {testimony.location_label && (
+          <span style={{ fontSize: 11, color: HS.textMute }}>
+            📍 {testimony.location_label}
+          </span>
+        )}
+      </div>
+
+      {/* Commentaires (si expansé) */}
+      {expandComments && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${HS.border}` }}>
+          {/* Liste des commentaires */}
+          {loadingComments ? (
+            <div style={{ textAlign: 'center', padding: 12, color: HS.textMute, fontSize: 12 }}>Chargement…</div>
+          ) : comments.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 12, color: HS.textMute, fontSize: 12 }}>
+              Pas encore de commentaires. Sois la première !
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+              {comments.map((c) => (
+                <div key={c.id} style={{ padding: 10, background: HS.bgSoft, borderRadius: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: HS.chocolate }}>{c.display_name}</div>
+                    {c.is_owner && (
+                      <button
+                        onClick={() => handleDeleteComment(c.id)}
+                        style={{ background: 'transparent', border: 'none', color: HS.textMute,
+                          fontSize: 12, cursor: 'pointer', padding: 0 }}>
+                        Supprimer
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: HS.textDim, lineHeight: 1.4 }}>{c.content}</div>
+                  <div style={{ fontSize: 10, color: HS.textMute, marginTop: 4 }}>
+                    {new Date(c.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Formulaire ajout commentaire */}
+          <form onSubmit={handleAddComment} style={{ display: 'flex', gap: 6 }}>
+            <input
+              type="text"
+              value={commentInput}
+              onChange={(e) => setCommentInput(e.target.value)}
+              placeholder="Ajoute ton commentaire…"
+              style={{
+                flex: 1, padding: '8px 10px', borderRadius: 8, border: `1px solid ${HS.border}`,
+                background: HS.surface, color: HS.chocolate, fontFamily: HS.font, fontSize: 12,
+              }}
+            />
+            <button
+              type="submit"
+              disabled={!commentInput.trim()}
+              style={{
+                width: 36, height: 36, borderRadius: 8, background: HS.chocolate, border: 'none',
+                color: HS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: commentInput.trim() ? 'pointer' : 'not-allowed', opacity: commentInput.trim() ? 1 : 0.5,
+              }}>
+              <Icon d={ICONS.send} size={14} color={HS.bg} />
+            </button>
+          </form>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 export default function Community() {
   const [tab, setTab]         = useState('feed');
@@ -84,36 +285,9 @@ export default function Community() {
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {testimonies.map((t) => (
-                <Card key={t.id} style={{ padding: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                    <Avatar size={36} name={t.display_name || 'A'} color={CAT_COLORS[t.category]} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: HS.chocolate }}>
-                        {t.is_anonymous ? (t.display_name || 'Anonyme') : t.display_name}
-                      </div>
-                      <div style={{ fontSize: 11, color: HS.textMute }}>{fmtDate(t.created_at)}</div>
-                    </div>
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 8,
-                      background: HS.mistyRose, color: CAT_COLORS[t.category] || HS.sakuraDeep }}>
-                      {CATEGORIES.find((c) => c.v === t.category)?.l || t.category}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: HS.chocolate, marginBottom: 6 }}>{t.title}</div>
-                  <div style={{ fontSize: 13, color: HS.textDim, lineHeight: 1.55 }}>{t.content}</div>
-                  <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button style={{ background: HS.mistyRose, border: 'none', borderRadius: 8,
-                      padding: '6px 12px', fontSize: 12, fontWeight: 700, color: HS.sakuraDeep,
-                      display: 'flex', alignItems: 'center', gap: 6, fontFamily: HS.font }}>
-                      <Icon d={ICONS.heart} size={14} color={HS.sakuraDeep} />
-                      {t.support_count} soutiens
-                    </button>
-                    {t.location_label && (
-                      <span style={{ fontSize: 11, color: HS.textMute }}>
-                        📍 {t.location_label}
-                      </span>
-                    )}
-                  </div>
-                </Card>
+                <TestimonyCard key={t.id} testimony={t} onUpdate={(updated) => {
+                  setTestimonies(testimonies.map((ex) => ex.id === updated.id ? updated : ex));
+                }} />
               ))}
             </div>
           </>

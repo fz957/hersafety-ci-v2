@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
       .select(
         'id', 'organization_id', 'is_anonymous', 'display_name',
         'category', 'title', 'content', 'location_label',
-        'support_count', 'created_at'
+        'support_count', 'comment_count', 'created_at'
         // user_id délibérément exclu pour préserver l'anonymat
       )
       .orderBy('created_at', 'desc')
@@ -116,6 +116,238 @@ router.patch('/:id', requireAdmin, async (req, res) => {
     return res.json({ success: true, data: testimony });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Erreur modération témoignage' });
+  }
+});
+
+// ─── POST /api/testimonies/:id/like — Toggle like ────────────────────────────
+
+const likeSchema = Joi.object({
+  /* Pas de body requis */
+});
+
+router.post('/:testimonyId/like', async (req, res) => {
+  const { testimonyId } = req.params;
+  const { userId, organizationId } = req.user;
+
+  try {
+    // Vérifier que le témoignage existe dans l'org
+    const testimony = await knex('testimonies')
+      .where({ id: testimonyId, organization_id: organizationId, status: 'approved' })
+      .first();
+
+    if (!testimony) {
+      return res.status(404).json({ success: false, error: 'Témoignage introuvable' });
+    }
+
+    // Vérifier si l'utilisateur a déjà liké
+    const existingReaction = await knex('testimony_reactions')
+      .where({ testimony_id: testimonyId, user_id: userId })
+      .first();
+
+    if (existingReaction) {
+      // Supprimer le like (unlike)
+      await knex('testimony_reactions')
+        .where({ testimony_id: testimonyId, user_id: userId })
+        .del();
+
+      const newCount = Math.max(0, testimony.support_count - 1);
+      await knex('testimonies').where({ id: testimonyId }).update({ support_count: newCount });
+
+      return res.json({
+        success: true,
+        data: { testimony_id: testimonyId, liked: false, support_count: newCount },
+      });
+    } else {
+      // Ajouter un like
+      await knex('testimony_reactions').insert({
+        testimony_id: testimonyId,
+        user_id: userId,
+        reaction: 'support',
+      });
+
+      const newCount = testimony.support_count + 1;
+      await knex('testimonies').where({ id: testimonyId }).update({ support_count: newCount });
+
+      return res.json({
+        success: true,
+        data: { testimony_id: testimonyId, liked: true, support_count: newCount },
+      });
+    }
+  } catch (err) {
+    console.error('Like error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur like' });
+  }
+});
+
+// ─── GET /api/testimonies/:id/like — Check if user liked ──────────────────────
+
+router.get('/:testimonyId/like', async (req, res) => {
+  const { testimonyId } = req.params;
+  const { userId } = req.user;
+
+  try {
+    const reaction = await knex('testimony_reactions')
+      .where({ testimony_id: testimonyId, user_id: userId })
+      .first();
+
+    return res.json({ success: true, data: { liked: !!reaction } });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Erreur vérification like' });
+  }
+});
+
+// ─── GET /api/testimonies/:id/comments — List comments ────────────────────────
+
+const commentListSchema = Joi.object({
+  limit: Joi.number().min(1).max(100).default(10),
+  offset: Joi.number().min(0).default(0),
+});
+
+router.get('/:testimonyId/comments', async (req, res) => {
+  const { error, value } = commentListSchema.validate(req.query);
+  if (error) {
+    return res.status(400).json({ success: false, error: error.details[0].message });
+  }
+
+  const { testimonyId } = req.params;
+  const { userId, organizationId } = req.user;
+
+  try {
+    // Vérifier que le témoignage existe
+    const testimony = await knex('testimonies')
+      .where({ id: testimonyId, organization_id: organizationId, status: 'approved' })
+      .first();
+
+    if (!testimony) {
+      return res.status(404).json({ success: false, error: 'Témoignage introuvable' });
+    }
+
+    const comments = await knex('testimony_comments')
+      .where({ testimony_id: testimonyId })
+      .select('id', 'user_id', 'is_anonymous', 'display_name', 'content', 'created_at')
+      .orderBy('created_at', 'asc')
+      .limit(value.limit)
+      .offset(value.offset);
+
+    // Ajouter un flag pour indiquer si l'utilisateur est le propriétaire
+    const commentsWithOwnership = comments.map((c) => ({
+      ...c,
+      is_owner: c.user_id === userId,
+    }));
+
+    return res.json({ success: true, data: commentsWithOwnership });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Erreur récupération commentaires' });
+  }
+});
+
+// ─── POST /api/testimonies/:id/comments — Add comment ────────────────────────
+
+const commentCreateSchema = Joi.object({
+  content: Joi.string().trim().min(1).max(500).required(),
+  is_anonymous: Joi.boolean().default(false),
+});
+
+router.post('/:testimonyId/comments', async (req, res) => {
+  const { error, value } = commentCreateSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ success: false, error: error.details[0].message });
+  }
+
+  const { testimonyId } = req.params;
+  const { userId, organizationId } = req.user;
+
+  try {
+    // Vérifier que le témoignage existe
+    const testimony = await knex('testimonies')
+      .where({ id: testimonyId, organization_id: organizationId, status: 'approved' })
+      .first();
+
+    if (!testimony) {
+      return res.status(404).json({ success: false, error: 'Témoignage introuvable' });
+    }
+
+    // Vérifier que l'utilisateur n'a pas déjà commenté (max 1 comment par utilisateur)
+    const existingComment = await knex('testimony_comments')
+      .where({ testimony_id: testimonyId, user_id: userId })
+      .first();
+
+    if (existingComment) {
+      return res.status(409).json({ success: false, error: 'Vous avez déjà commenté ce témoignage' });
+    }
+
+    let display_name = null;
+    if (value.is_anonymous) {
+      const result = await knex.raw('SELECT generate_anonymous_name() AS name');
+      display_name = result.rows[0].name;
+    }
+
+    const [comment] = await knex('testimony_comments')
+      .insert({
+        testimony_id: testimonyId,
+        user_id: userId,
+        organization_id: organizationId,
+        content: value.content,
+        is_anonymous: value.is_anonymous,
+        display_name,
+      })
+      .returning('*');
+
+    // Incrémenter le compteur de commentaires
+    await knex('testimonies')
+      .where({ id: testimonyId })
+      .increment('comment_count', 1);
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        id: comment.id,
+        user_id: comment.user_id,
+        is_anonymous: comment.is_anonymous,
+        display_name: comment.display_name,
+        content: comment.content,
+        created_at: comment.created_at,
+        is_owner: true,
+      },
+    });
+  } catch (err) {
+    console.error('Comment create error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur création commentaire' });
+  }
+});
+
+// ─── DELETE /api/testimonies/:id/comments/:commentId ───────────────────────────
+
+router.delete('/:testimonyId/comments/:commentId', async (req, res) => {
+  const { testimonyId, commentId } = req.params;
+  const { userId, organizationId } = req.user;
+
+  try {
+    // Vérifier que le commentaire appartient à l'utilisateur
+    const comment = await knex('testimony_comments')
+      .where({
+        id: commentId,
+        testimony_id: testimonyId,
+        user_id: userId,
+        organization_id: organizationId,
+      })
+      .first();
+
+    if (!comment) {
+      return res.status(404).json({ success: false, error: 'Commentaire introuvable ou non propriétaire' });
+    }
+
+    // Supprimer le commentaire
+    await knex('testimony_comments').where({ id: commentId }).del();
+
+    // Décrémenter le compteur
+    await knex('testimonies')
+      .where({ id: testimonyId })
+      .decrement('comment_count', 1);
+
+    return res.json({ success: true, data: { deleted: true } });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Erreur suppression commentaire' });
   }
 });
 
