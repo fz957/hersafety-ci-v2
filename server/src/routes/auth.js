@@ -51,6 +51,7 @@ function setAuthCookies(res, accessToken, refreshToken) {
     secure:   isProd,
     sameSite: isProd ? 'strict' : 'lax',
     maxAge:   24 * 60 * 60 * 1000, // 24h
+    path:     '/',  // Important: envoi à tous les endpoints
   });
 
   res.cookie('refreshToken', refreshToken, {

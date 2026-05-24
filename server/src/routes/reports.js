@@ -32,6 +32,32 @@ const verifySchema = Joi.object({
   verification_note: Joi.string().max(500).optional(),
 });
 
+// ─── GET /api/reports/danger-zones ────────────────────────────────────────────
+// Zones dangereuses groupées par localisation (pour carte)
+
+router.get('/danger-zones', async (req, res) => {
+  try {
+    const dangerZones = await knex('reports')
+      .where({ organization_id: req.user.organizationId, status: 'verified', report_type: 'lieu' })
+      .whereNotNull('place_lat')
+      .whereNotNull('place_lng')
+      .select(
+        knex.raw('ROUND(place_lat::numeric, 4) as latitude'),
+        knex.raw('ROUND(place_lng::numeric, 4) as longitude'),
+        'place_address as area_name',
+        'place_name as zone_description',
+        knex.raw('COUNT(*) as report_count')
+      )
+      .groupBy(knex.raw('ROUND(place_lat::numeric, 4)'), knex.raw('ROUND(place_lng::numeric, 4)'), 'place_address', 'place_name')
+      .havingRaw('COUNT(*) > 0')
+      .orderBy(knex.raw('COUNT(*)'), 'desc');
+
+    return res.json({ success: true, data: dangerZones });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Erreur récupération zones dangereuses' });
+  }
+});
+
 // ─── GET /api/reports ─────────────────────────────────────────────────────────
 
 router.get('/', async (req, res) => {

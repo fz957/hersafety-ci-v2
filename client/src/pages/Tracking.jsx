@@ -3,9 +3,10 @@ import api from '../services/api';
 import { useGPS } from '../hooks/useGPS';
 import { HS, ICONS } from '../tokens';
 import { Icon, Button, Card, Eyebrow, H2, BottomNav, PageShell, ScrollArea, Toast } from '../components/ui/index.jsx';
+import { TrackingMap } from '../components/maps/TrackingMap';
 
 export default function Tracking() {
-  const { position, error: gpsError } = useGPS({ watch: true });
+  const { position, error: gpsError } = useGPS();
   const [track, setTrack]   = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const [checkins, setCheckins] = useState(0);
@@ -103,6 +104,9 @@ export default function Tracking() {
             )}
           </div>
         </Card>
+
+        {/* Carte du trajet */}
+        <TrackingMap userPosition={position} track={track} checkins={checkins} />
 
         {/* Actions */}
         {!track ? (

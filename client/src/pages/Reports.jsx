@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { HS, ICONS } from '../tokens';
 import { Icon, Button, Card, Input, Eyebrow, H2, BottomNav, PageShell, ScrollArea, Toast } from '../components/ui/index.jsx';
+// import { DangerousPlacesMap } from '../components/maps/PlacesMap'; // Désactivée pour performance
+import { useGPS } from '../hooks/useGPS';
 
 const DANGER_TYPES = [
   { v: 'harcelement_verbal',  l: 'Harcèlement verbal' },
@@ -20,8 +22,10 @@ const STATUS_STYLE = {
 };
 
 export default function Reports() {
+  const { position } = useGPS();
   const [tab, setTab]       = useState('map');
   const [reports, setReports] = useState([]);
+  const [dangerZones, setDangerZones] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast]   = useState(null);
   const [form, setForm]     = useState({
@@ -32,7 +36,15 @@ export default function Reports() {
 
   useEffect(() => {
     setLoading(true);
-    api.get('/api/reports').then((r) => setReports(r.data.data)).finally(() => setLoading(false));
+    Promise.all([
+      api.get('/api/reports'),
+      api.get('/api/reports/danger-zones'),
+    ])
+      .then(([reportsRes, zonesRes]) => {
+        setReports(reportsRes.data.data);
+        setDangerZones(zonesRes.data.data);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const setF = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -40,7 +52,12 @@ export default function Reports() {
   const submit = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/api/reports', form);
+      const payload = { ...form };
+      if (position && form.report_type === 'lieu') {
+        payload.place_lat = position.lat;
+        payload.place_lng = position.lng;
+      }
+      await api.post('/api/reports', payload);
       setToast({ message: 'Signalement soumis ✓ — merci pour ta vigilance.', type: 'success' });
       setForm({ report_type: 'lieu', danger_type: 'harcelement_verbal', description: '',
         place_name: '', place_address: '', vehicle_plate: '', vtc_app: '', is_anonymous: true });
@@ -74,6 +91,10 @@ export default function Reports() {
         {tab === 'map' ? (
           <>
             {loading && <div style={{ textAlign: 'center', padding: 24, color: HS.textMute, fontSize: 13 }}>Chargement…</div>}
+            {/* Carte zones dangereuses désactivée pour performance */}
+            {!loading && dangerZones.length > 0 && (
+              <Eyebrow style={{ marginBottom: 10 }}>Zones dangereuses ({dangerZones.length})</Eyebrow>
+            )}
             {!loading && reports.length === 0 && (
               <div style={{ textAlign: 'center', padding: 40 }}>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>🗺️</div>

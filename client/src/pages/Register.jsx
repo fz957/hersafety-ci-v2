@@ -32,7 +32,14 @@ export default function Register() {
         phone:      form.phone.trim() || undefined,
         password:   form.password,
       });
-      setUser(data.user);
+      // Fusionne les données utilisateur et organisation
+      const user = {
+        ...data.user,
+        organization_id: data.organization.id,
+        organization_name: data.organization.name,
+        organization_type: data.organization.type,
+      };
+      setUser(user);
       navigate('/onboarding');
     } catch (err) {
       setError(err.response?.data?.error || 'Erreur lors de l\'inscription');

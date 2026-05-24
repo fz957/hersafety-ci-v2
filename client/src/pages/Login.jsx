@@ -22,14 +22,21 @@ export default function Login() {
     setLoading(true);
     try {
       const data = await apiLogin(form.email, form.password);
-      setUser(data.user);
+      // Fusionne les données utilisateur et organisation
+      const user = {
+        ...data.user,
+        organization_id: data.organization.id,
+        organization_name: data.organization.name,
+        organization_type: data.organization.type,
+      };
+      setUser(user);
       // Admin et superadmin → tableau de bord admin
       // Utilisatrice normale → app
       const isAdmin = data.user.role === 'admin' || data.user.role === 'superadmin';
       if (isAdmin) {
         navigate('/admin');
       } else {
-        navigate(data.user.onboarding_done ? '/dashboard' : '/onboarding');
+        navigate(data.user.onboarding_done ? '/dashboard' : '/onboarding-emergency');
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Email ou mot de passe incorrect');

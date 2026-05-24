@@ -4,6 +4,7 @@ import { useGPS } from '../hooks/useGPS';
 import api from '../services/api';
 import { HS, ICONS } from '../tokens';
 import { Icon, Card, Eyebrow, BackButton, PageShell, ScrollArea, Spinner } from '../components/ui/index.jsx';
+// Cartes enlever pour performance — garder juste les listes
 
 const NUM_COLORS = { police: '#4A6B8A', pompiers: '#C97B3B', hopital: '#5C7F4F', gendarmerie: '#5C5C8A', autre: HS.sakuraDeep };
 const VTC = [{ n: 'Yango', est: '3 min · 1.2K F' }, { n: 'Heetch', est: '5 min · 1.5K F' }];
@@ -20,7 +21,8 @@ export default function Emergency() {
   const [elapsed, setElapsed]             = useState(0);
   const timerRef = useRef(null);
 
-  const level = state?.level || '3';
+  // Niveaux 3 et 4 fusionnés : tout va au niveau 3 complet
+  const level = '3';
 
   // Chrono
   useEffect(() => {
@@ -35,13 +37,19 @@ export default function Emergency() {
     api.get('/api/emergency-numbers').then((r) => setEmergencyNums(r.data.data)).catch(() => {});
   }, []);
 
-  // Lieux sûrs
-  useEffect(() => {
-    if (!position) return;
-    api.get(`/api/places?lat=${position.lat}&lng=${position.lng}&radius=1000`)
-      .then((r) => setPlaces(r.data.data.slice(0, 3)))
-      .catch(() => {});
-  }, [position]);
+  // Lieux sûrs — désactivé pour performance (Overpass trop lent)
+  // useEffect(() => {
+  //   if (!position) return;
+  //   api.get(`/api/places?lat=${position.lat}&lng=${position.lng}&radius=1000`)
+  //     .then((r) => {
+  //       const data = r.data.data || [];
+  //       setPlaces(data.slice(0, 3));
+  //     })
+  //     .catch((err) => {
+  //       console.error('Erreur lieux sûrs:', err.message);
+  //       setPlaces([]);
+  //     });
+  // }, [position]);
 
   // Message IA
   useEffect(() => {
