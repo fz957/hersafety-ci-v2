@@ -203,10 +203,12 @@ export default function Emergency() {
       .finally(() => setLoadingAI(false));
   }, [position, emergencyNums, places]);
 
-  // Auto-scroll vers le dernier message
+  // Scroll seulement quand Lyra répond
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (!loadingAI && messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    }
+  }, [loadingAI]);
 
   // Envoyer message utilisateur et obtenir réponse IA
   const handleSendMessage = async (e) => {
