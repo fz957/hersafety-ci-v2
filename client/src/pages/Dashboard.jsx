@@ -133,9 +133,12 @@ export default function Dashboard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: gpsError ? 12 : 0 }}>
           <span style={{ width: 8, height: 8, borderRadius: 4,
             background: position ? HS.safe : (gpsError ? HS.danger : HS.textFaint) }} />
-          <span style={{ fontSize: 12, color: HS.textDim }}>
-            {position ? '✓ GPS connecté · Tracking actif' : gpsError ? '✗ GPS bloqué' : 'GPS en attente…'}
-          </span>
+          <div style={{ fontSize: 12, color: HS.textDim }}>
+            <div>{position ? '✓ GPS connecté · Tracking actif' : gpsError ? '✗ GPS bloqué' : 'GPS en attente…'}</div>
+            {position && <div style={{ fontSize: 11, color: HS.textMute, marginTop: 2 }}>
+              📍 {position.lat.toFixed(4)}° · {position.lng.toFixed(4)}° (±{Math.round(position.accuracy)}m)
+            </div>}
+          </div>
         </div>
 
         {/* Message d'aide GPS si bloqué */}
