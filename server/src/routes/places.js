@@ -55,6 +55,20 @@ const querySchema = Joi.object({
   radius: Joi.number().integer().min(100).max(5000).default(1000),
 });
 
+// Priority order for safe places
+const PRIORITY_ORDER = { police: 1, gendarmerie: 2, pharmacie: 3, pompiers: 4, hopital: 5, autre: 6 };
+
+function getDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371; // km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 async function fetchOverpass(lat, lng, radius) {
   const amenities = Object.keys(AMENITY_TO_TYPE).join('|');
   const query = `
@@ -76,7 +90,7 @@ async function fetchOverpass(lat, lng, radius) {
   if (!response.ok) throw new Error(`Overpass HTTP ${response.status}`);
 
   const json = await response.json();
-  return (json.elements || []).map((el) => ({
+  const places = (json.elements || []).map((el) => ({
     id:      el.id,
     type:    AMENITY_TO_TYPE[el.tags?.amenity] || 'autre',
     name:    el.tags?.name || el.tags?.amenity || 'Lieu sûr',
@@ -85,6 +99,15 @@ async function fetchOverpass(lat, lng, radius) {
     address: el.tags?.['addr:full'] || el.tags?.['addr:street'] || null,
     phone:   el.tags?.phone || el.tags?.['contact:phone'] || null,
   })).filter((p) => p.lat && p.lng);
+
+  // Sort by priority (police > gendarmerie > pharmacie > pompiers > others), then by distance
+  return places
+    .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }))
+    .sort((a, b) => {
+      const priorityDiff = (PRIORITY_ORDER[a.type] || 99) - (PRIORITY_ORDER[b.type] || 99);
+      return priorityDiff !== 0 ? priorityDiff : a.distance - b.distance;
+    })
+    .map(({ distance, ...p }) => p);
 }
 
 // GET /api/places?lat=X&lng=Y&radius=1000
@@ -118,22 +141,14 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.error('[GET /api/places] Overpass API error:', err.message);
 
-    // Calculate distance between two points (Haversine formula)
-    const getDistance = (lat1, lng1, lat2, lng2) => {
-      const R = 6371; // km
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLng = (lng2 - lng1) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLng / 2) * Math.sin(dLng / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c;
-    };
-
-    // Sort fallback places by distance from user location
+    // Sort fallback places by PRIORITY first (police > gendarmerie > pharmacie > pompiers),
+    // then by distance from user location
     const sortedPlaces = FALLBACK_PLACES
       .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }))
-      .sort((a, b) => a.distance - b.distance)
+      .sort((a, b) => {
+        const priorityDiff = (PRIORITY_ORDER[a.type] || 99) - (PRIORITY_ORDER[b.type] || 99);
+        return priorityDiff !== 0 ? priorityDiff : a.distance - b.distance;
+      })
       .slice(0, 3)
       .map(({ distance, ...p }) => p); // Remove distance field
 
