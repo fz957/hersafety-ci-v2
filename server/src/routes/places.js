@@ -223,7 +223,7 @@ async function fetchNominatim(lat, lng, radius) {
     for (const search of searchVariations) {
       try {
         const url = `https://nominatim.openstreetmap.org/search?` +
-          `q=${search.query}&format=json&limit=50&` +
+          `q=${search.query}&format=json&limit=100&` +
           `viewbox=${bbox}&bounded=1&countrycodes=ci&accept-language=fr`;
 
         console.log(`[Nominatim] Searching: ${search.query}`);
