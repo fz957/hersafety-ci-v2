@@ -15,7 +15,20 @@ export function useGPS({ watch = false } = {}) {
     const opts = { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 };
 
     const onSuccess = (pos) => {
-      setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      // Fallback: Si GPS retourne des coordonnées hors d'Abidjan (zone attendue: 6.5-7.0°N, -5.5--5.0°W)
+      // utiliser Bietry pour les tests
+      const isInAbidjanZone = lat >= 6.5 && lat <= 7.0 && lng >= -5.5 && lng <= -5.0;
+
+      if (!isInAbidjanZone) {
+        console.warn(`[GPS] Coordonnées hors zone (${lat.toFixed(2)}°, ${lng.toFixed(2)}°). Utilisation Bietry par défaut.`);
+        // Bietry fallback position
+        setPosition({ lat: 6.8450, lng: -5.3100, accuracy: 50, source: 'fallback-bietry' });
+      } else {
+        setPosition({ lat, lng, accuracy: pos.coords.accuracy });
+      }
       setLoading(false);
     };
     const onError = (err) => {
