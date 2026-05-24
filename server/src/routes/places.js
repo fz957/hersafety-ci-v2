@@ -74,9 +74,9 @@ function getDistance(lat1, lng1, lat2, lng2) {
 // Fetch real places from OpenStreetMap using Overpass API
 // Overpass is optimized for amenity queries unlike Nominatim
 async function fetchOverpass(lat, lng, radius) {
-  // Tight bounding box: ~5km radius only (0.045 degrees ≈ 5km)
-  // Don't search too far - keep results relevant to user location
-  const boxSize = 0.045; // ~5km radius
+  // Very tight bounding box: ~1km radius only (0.009 degrees ≈ 1km)
+  // Only search immediately nearby - walkable distance
+  const boxSize = 0.009; // ~1km radius
   const bbox = `${lat - boxSize},${lng - boxSize},${lat + boxSize},${lng + boxSize}`;
 
   // Overpass query for all safety amenities
@@ -135,12 +135,12 @@ out center;`;
           distance: distance
         };
       })
-      // STRICT filter: only places within 5km (not 16km!)
-      .filter(p => p.distance <= 5)
+      // STRICT filter: only places within 1km (walkable distance)
+      .filter(p => p.distance <= 1)
       // Sort by distance - CLOSEST first
       .sort((a, b) => a.distance - b.distance);
 
-    console.log(`[Overpass] Found ${placesWithDistance.length} places within 5km`);
+    console.log(`[Overpass] Found ${placesWithDistance.length} places within 1km`);
     if (placesWithDistance.length > 0) {
       console.log(`[Overpass] Top 5:`, placesWithDistance.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
     }
