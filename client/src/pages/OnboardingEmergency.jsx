@@ -54,7 +54,7 @@ export default function OnboardingEmergency() {
       setToast({ message: 'Ajoute au moins 2 numéros d\'urgence', type: 'error' });
       return;
     }
-    navigate('/onboarding');
+    navigate('/onboarding-phone');
   };
 
   return (

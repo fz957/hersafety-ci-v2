@@ -40,7 +40,7 @@ export default function Register() {
         organization_type: data.organization.type,
       };
       setUser(user);
-      navigate('/onboarding');
+      navigate('/onboarding-emergency');
     } catch (err) {
       setError(err.response?.data?.error || 'Erreur lors de l\'inscription');
     } finally {

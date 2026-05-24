@@ -21,6 +21,13 @@ export default function Dashboard() {
   // Active le suivi GPS continu si un track est actif
   const { position, error: gpsError } = useGPS({ watch: true });
   const navigate = useNavigate();
+
+  // Enforce onboarding - redirect if not complete
+  useEffect(() => {
+    if (user && !user.onboarding_done) {
+      navigate('/onboarding-emergency', { replace: true });
+    }
+  }, [user, navigate]);
   const [toast, setToast] = useState(null);
   const [activeTrack, setActiveTrack] = useState(null);
   const [loadingTrack, setLoadingTrack] = useState(true);

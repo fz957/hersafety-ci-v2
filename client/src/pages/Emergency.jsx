@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import { useGPS } from '../hooks/useGPS';
 import api from '../services/api';
 import { HS, ICONS } from '../tokens';
 import { Icon, Card, Eyebrow, BackButton, PageShell, ScrollArea, Spinner } from '../components/ui/index.jsx';
 import ConfirmationModal from '../components/ConfirmationModal.jsx';
-// Cartes enlever pour performance — garder juste les listes
 
 const NUM_COLORS = { police: '#4A6B8A', pompiers: '#C97B3B', hopital: '#5C7F4F', gendarmerie: '#5C5C8A', autre: HS.sakuraDeep };
 
@@ -270,8 +270,56 @@ export default function Emergency() {
           ))}
         </div>
 
-        {/* Lieux sûrs */}
+        {/* Lieux sûrs — Carte */}
         <Eyebrow style={{ marginBottom: 10 }}>Lieux sûrs autour de toi</Eyebrow>
+        {places.length > 0 && (
+          <div style={{ height: 280, borderRadius: 14, overflow: 'hidden', border: `1px solid ${HS.border}`, marginBottom: 16 }}>
+            <MapContainer
+              center={position || { lat: 6.8276, lng: -5.2893 }}
+              zoom={14}
+              style={{ width: '100%', height: '100%' }}>
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              {/* Vous êtes ici — marqueur central */}
+              {position && (
+                <CircleMarker
+                  center={{ lat: position.lat, lng: position.lng }}
+                  radius={8}
+                  fillColor={HS.chocolate}
+                  fillOpacity={0.9}
+                  stroke
+                  weight={2}
+                  color={HS.sakuraDeep}
+                  opacity={1}>
+                  <Popup>Tu es ici</Popup>
+                </CircleMarker>
+              )}
+              {/* Lieux sûrs */}
+              {places.map((p, i) => (
+                <CircleMarker
+                  key={`${p.lat}-${p.lng}-${i}`}
+                  center={{ lat: p.lat, lng: p.lng }}
+                  radius={10}
+                  fillColor={HS.safe}
+                  fillOpacity={0.7}
+                  stroke
+                  weight={2}
+                  color={HS.safe}
+                  opacity={0.9}>
+                  <Popup>
+                    <div style={{ fontSize: 12, fontWeight: 700 }}>{p.name}</div>
+                    <div style={{ fontSize: 11, color: HS.textMute, marginTop: 4 }}>{p.type}</div>
+                    {p.phone && <div style={{ fontSize: 11, marginTop: 4 }}><a href={`tel:${p.phone}`}>{p.phone}</a></div>}
+                  </Popup>
+                </CircleMarker>
+              ))}
+            </MapContainer>
+          </div>
+        )}
+
+        {/* Lieux sûrs — Liste */}
         <div style={{ marginBottom: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {places.length === 0
             ? <div style={{ fontSize: 13, color: HS.textMute, padding: '12px 0' }}>
