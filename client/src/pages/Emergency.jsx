@@ -241,7 +241,7 @@ export default function Emergency() {
       </div>
 
       <ScrollArea style={{ padding: '20px 16px 24px' }}>
-        {/* Conversation avec Aïcha */}
+        {/* Conversation avec Lyra */}
         <Card style={{ padding: 18, marginBottom: 16,
           background: `linear-gradient(135deg, ${HS.mistyRose}, ${HS.surface})`, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -251,7 +251,7 @@ export default function Emergency() {
               <Icon d={ICONS.sparkle} size={16} color="#fff" />
             </div>
             <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2, color: HS.sakuraDeep }}>
-              AÏCHA · ASSISTANTE
+              LYRA · ASSISTANTE
             </span>
           </div>
 
