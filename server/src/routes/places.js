@@ -71,62 +71,59 @@ function getDistance(lat1, lng1, lat2, lng2) {
   return R * c;
 }
 
-async function fetchOverpass(lat, lng, radius) {
-  const amenities = Object.keys(AMENITY_TO_TYPE).join('|');
-  const query = `
-    [out:json][timeout:10];
-    (
-      node["amenity"~"^(${amenities})$"](around:${radius},${lat},${lng});
-      way["amenity"~"^(${amenities})$"](around:${radius},${lat},${lng});
-    );
-    out center;
-  `;
+// Fetch real places from OpenStreetMap using Nominatim API
+async function fetchNominatim(lat, lng, radius) {
+  const amenities = ['police', 'pharmacy', 'hospital', 'fire_station'];
+  const allPlaces = [];
 
-  // Try primary endpoint first, fall back to alternative
-  let response = await fetch('https://overpass-api.de/api/osm3s/interpreter', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body:    `data=${encodeURIComponent(query)}`,
-    signal:  AbortSignal.timeout(12000),
-  }).catch(() => null);
+  // Search for each type of amenity near the user location
+  for (const amenity of amenities) {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?` +
+        `q=${amenity}+Abidjan&format=json&limit=10&bounded=1&` +
+        `viewbox=${lng - 0.05},${lat + 0.05},${lng + 0.05},${lat - 0.05}`,
+        { signal: AbortSignal.timeout(5000) }
+      );
 
-  if (!response) {
-    response = await fetch('https://lz4.overpass-api.de/api/interpreter', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body:    `data=${encodeURIComponent(query)}`,
-      signal:  AbortSignal.timeout(12000),
-    });
+      if (!response.ok) continue;
+
+      const results = await response.json();
+      const places = results
+        .filter(p => p.lat && p.lon && p.class === 'amenity')
+        .map(p => ({
+          id:      p.osm_id,
+          type:    AMENITY_TO_TYPE[p.type] || 'autre',
+          name:    p.name || p.display_name.split(',')[0],
+          lat:     parseFloat(p.lat),
+          lng:     parseFloat(p.lon),
+          address: p.display_name.split(',').slice(1, 3).join(',').trim(),
+          phone:   null, // Nominatim doesn't provide phone
+          source:  'osm'
+        }));
+
+      allPlaces.push(...places);
+    } catch (err) {
+      console.error(`[Nominatim] Error fetching ${amenity}:`, err.message);
+    }
   }
 
-  if (!response.ok) throw new Error(`Overpass HTTP ${response.status}`);
-
-  const json = await response.json();
-  const places = (json.elements || []).map((el) => ({
-    id:      el.id,
-    type:    AMENITY_TO_TYPE[el.tags?.amenity] || 'autre',
-    name:    el.tags?.name || el.tags?.amenity || 'Lieu sûr',
-    lat:     el.type === 'way' ? el.center?.lat : el.lat,
-    lng:     el.type === 'way' ? el.center?.lon : el.lon,
-    address: el.tags?.['addr:full'] || el.tags?.['addr:street'] || null,
-    phone:   el.tags?.phone || el.tags?.['contact:phone'] || null,
-  })).filter((p) => p.lat && p.lng);
-
-  // Sort by DISTANCE ONLY - return 3 closest places regardless of type
-  const withDistance = places.map(p => ({
-    ...p,
-    distance: getDistance(lat, lng, p.lat, p.lng)
-  }));
+  // Calculate distances and sort by closest
+  const withDistance = allPlaces
+    .filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i) // Deduplicate
+    .map(p => ({
+      ...p,
+      distance: getDistance(lat, lng, p.lat, p.lng)
+    }));
 
   const sorted = withDistance.sort((a, b) => a.distance - b.distance);
   const result = sorted.slice(0, 3).map(({ distance, ...p }) => p);
 
-  console.log(`[Overpass] User at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-  console.log(`[Overpass] Found ${places.length} places, distances:`,
-    sorted.slice(0, 5).map(p => `${p.name} (${p.distance.toFixed(2)}km)`));
-  console.log(`[Overpass] Returning:`, result.map(p => `${p.name} (${p.type})`));
+  console.log(`[Nominatim] User at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+  console.log(`[Nominatim] Found ${allPlaces.length} total places`);
+  console.log(`[Nominatim] Top 3 closest:`, result.map(p => `${p.name} (${p.type}) = ${sorted.find(x => x.id === p.id).distance.toFixed(2)}km`));
 
-  return result;
+  return result.length > 0 ? result : null;
 }
 
 // GET /api/places?lat=X&lng=Y&radius=1000
@@ -149,20 +146,24 @@ router.get('/', async (req, res) => {
   console.log(`[GET /api/places] Cache miss, fetching fresh data`);
 
   try {
-    let places = await fetchOverpass(lat, lng, radius);
+    // Try Nominatim first (real OpenStreetMap data)
+    let places = await fetchNominatim(lat, lng, radius);
 
-    // Élargit automatiquement le rayon à 2 km si aucun résultat
-    if (places.length === 0 && radius < 2000) {
-      const widerKey = `${lat}_${lng}_2000`;
-      const widerCached = getCached(widerKey);
-      places = widerCached ?? await fetchOverpass(lat, lng, 2000);
-      if (!widerCached) setCache(widerKey, places);
+    if (!places || places.length === 0) {
+      console.log('[GET /api/places] Nominatim returned no results, using fallback');
+      places = null; // Will trigger fallback below
     }
 
-    setCache(cacheKey, places);
-    return res.json({ success: true, data: places, source: 'overpass' });
+    if (places && places.length > 0) {
+      setCache(cacheKey, places);
+      return res.json({ success: true, data: places, source: 'nominatim' });
+    }
   } catch (err) {
-    console.error('[GET /api/places] Overpass API error:', err.message);
+    console.error('[GET /api/places] Nominatim error:', err.message);
+  }
+
+  // Fallback: Use hardcoded places if Nominatim fails
+  {
 
     // Sort fallback places by DISTANCE ONLY - closest 3 first, regardless of type
     const withDistance = FALLBACK_PLACES
