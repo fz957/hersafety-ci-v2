@@ -12,7 +12,6 @@ const LEVELS = [
   { level: '1', color: '#7B9171', glow: 'rgba(123,145,113,0.35)', label: 'Je suis bien',      sub: 'Tout va · Mode discret',           gesture: 'Tap simple',           icon: ICONS.heart },
   { level: '2', color: '#D4A574', glow: 'rgba(212,165,116,0.4)', label: 'Je suis méfiante',   sub: 'Quelqu\'un me suit · Alerte douce', gesture: 'Tap long · 2s',         icon: ICONS.eye },
   { level: '3', color: '#C97B3B', glow: 'rgba(201,123,59,0.45)', label: 'Situation tendue',   sub: 'Mes proches sont notifiés',         gesture: 'Double tap',            icon: ICONS.alert },
-  { level: '4', color: '#B23A48', glow: 'rgba(178,58,72,0.5)',   label: 'Au secours',         sub: 'Police · Famille · Vidéo live',    gesture: 'Triple tap ou secouer', icon: ICONS.phone },
 ];
 
 export default function Dashboard() {
