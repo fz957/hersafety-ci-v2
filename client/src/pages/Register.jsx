@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { register as apiRegister } from '../services/auth';
+import { register as apiRegister, logout as apiLogout } from '../services/auth';
 import { HS, ICONS } from '../tokens';
 import { Logo, Icon, Button, Card, Input, H1, Petal, BackButton, PageShell, ScrollArea, Toast } from '../components/ui/index.jsx';
 
@@ -26,6 +26,9 @@ export default function Register() {
     setError(null);
     setLoading(true);
     try {
+      // Logout any existing session first to ensure fresh registration
+      try { await apiLogout(); } catch (_) {}
+
       const data = await apiRegister({
         full_name:  form.full_name.trim(),
         email:      form.email.trim(),
