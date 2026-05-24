@@ -24,29 +24,49 @@ const LEVEL_CONTEXT = {
   '4': 'L\'utilisatrice est en danger immédiat. Chaque seconde compte. Sois directe.',
 };
 
-const SYSTEM_PROMPT = `Tu es l'assistante IA de HerSafety, une application de sécurité personnelle pour femmes en Côte d'Ivoire.
-Ton rôle : apporter un soutien immédiat, bienveillant et pratique en situation de stress ou de danger.
-Règles absolues :
-- Réponds TOUJOURS en français
-- Maximum 3 phrases courtes et claires
-- Commence par rassurer, puis donne une action concrète
-- Ne pose jamais de questions
-- N'utilise jamais de termes techniques`;
+const SYSTEM_PROMPT = `Tu es Aïcha, l'assistante psychologue bienveillante de HerSafety.
+Tu soutiens les femmes en situation de stress, de peur ou de danger avec empathie, écoute et guidance pratique.
 
-async function getAssistMessage({ level, context }) {
+Ton attitude :
+- Chaleureuse, non-jugmentale, rassurante
+- Tu reconnais ses émotions et valides ses peurs
+- Tu poses des questions douces pour mieux comprendre sa situation
+- Tu donnes des conseils pratiques ET du soutien émotionnel
+- Ton ton est conversationnel, comme avec une amie bienveillante
+
+Règles :
+- Réponds TOUJOURS en français
+- Limite tes réponses à 2-4 phrases courtes et claires (jamais d'énumérés)
+- Commence souvent par : "Je comprends..." ou "C'est courageux de..."
+- Pose des questions de suivi pour l'aider à clarifier et se sentir entendue
+- Intègre des pauses respiratoires douces si approprié
+- Termine par une action concrète ET du soutien émotionnel
+- Sois toi-même : use d'empathie authentique`;
+
+async function getAssistMessage({ level, context, conversationHistory = [] }) {
   const fallback = FALLBACK[level] || FALLBACK['2'];
   const ai = getClient();
 
   if (!ai) return { message: fallback, source: 'fallback' };
 
   try {
-    const userContent = `Niveau d'urgence ${level}/4. ${LEVEL_CONTEXT[level]}${context ? ` Contexte : ${context}` : ''} Que dois-je faire maintenant ?`;
+    // Construire l'historique de conversation avec le format Anthropic
+    const messages = conversationHistory.length > 0
+      ? conversationHistory
+      : [];
+
+    // Ajouter le message utilisateur initial
+    const initialContext = `Niveau d'urgence ${level}/4. ${LEVEL_CONTEXT[level]}${context ? ` Contexte : ${context}` : ''}`;
+    messages.push({
+      role: 'user',
+      content: initialContext,
+    });
 
     const response = await ai.messages.create({
       model:      'claude-haiku-4-5-20251001',
-      max_tokens: 200,
+      max_tokens: 600,
       system:     SYSTEM_PROMPT,
-      messages:   [{ role: 'user', content: userContent }],
+      messages:   messages,
     });
 
     const message = response.content[0]?.text?.trim() || fallback;

@@ -16,10 +16,12 @@ export default function Emergency() {
 
   const [emergencyNums, setEmergencyNums] = useState([]);
   const [places, setPlaces]               = useState([]);
-  const [aiMessage, setAiMessage]         = useState(null);
-  const [loadingAI, setLoadingAI]         = useState(true);
+  const [messages, setMessages]           = useState([]); // Conversation history
+  const [userInput, setUserInput]         = useState('');
+  const [loadingAI, setLoadingAI]         = useState(false);
   const [elapsed, setElapsed]             = useState(0);
   const timerRef = useRef(null);
+  const messagesEndRef = useRef(null);
 
   // Niveaux 3 et 4 fusionnés : tout va au niveau 3 complet
   const level = '3';
@@ -51,14 +53,53 @@ export default function Emergency() {
   //     });
   // }, [position]);
 
-  // Message IA
+  // Init: Appel initial à Claude pour commencer la conversation
   useEffect(() => {
+    if (messages.length > 0) return; // Déjà initialisé
+
     setLoadingAI(true);
-    api.post('/api/claude/assist', { level })
-      .then((r) => setAiMessage(r.data.data.message))
-      .catch(() => setAiMessage('Reste calme. Éloigne-toi calmement si possible. Le 110 est disponible.'))
+    api.post('/api/claude/assist', { level, conversationHistory: [] })
+      .then((r) => {
+        const initialMessage = { role: 'assistant', content: r.data.data.message };
+        setMessages([initialMessage]);
+      })
+      .catch(() => {
+        const fallback = { role: 'assistant', content: 'Reste calme. Éloigne-toi calmement si possible. Le 110 est disponible.' };
+        setMessages([fallback]);
+      })
       .finally(() => setLoadingAI(false));
-  }, [level]);
+  }, []);
+
+  // Auto-scroll vers le dernier message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Envoyer message utilisateur et obtenir réponse IA
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!userInput.trim() || loadingAI) return;
+
+    const userMessage = { role: 'user', content: userInput };
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    setUserInput('');
+    setLoadingAI(true);
+
+    try {
+      const response = await api.post('/api/claude/assist', {
+        level,
+        conversationHistory: updatedMessages,
+      });
+      const aiMessage = { role: 'assistant', content: response.data.data.message };
+      setMessages([...updatedMessages, aiMessage]);
+    } catch (err) {
+      const fallback = { role: 'assistant', content: 'Je suis toujours là pour toi. Que puis-je faire ?' };
+      setMessages([...updatedMessages, fallback]);
+    } finally {
+      setLoadingAI(false);
+    }
+  };
 
   return (
     <PageShell style={{ background: `radial-gradient(80% 50% at 50% 0%, ${HS.dangerSoft}, ${HS.bg} 60%)` }}>
@@ -76,10 +117,10 @@ export default function Emergency() {
       </div>
 
       <ScrollArea style={{ padding: '20px 16px 24px' }}>
-        {/* Carte IA */}
+        {/* Conversation avec Aïcha */}
         <Card style={{ padding: 18, marginBottom: 16,
-          background: `linear-gradient(135deg, ${HS.mistyRose}, ${HS.surface})` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          background: `linear-gradient(135deg, ${HS.mistyRose}, ${HS.surface})`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <div style={{ width: 32, height: 32, borderRadius: 10,
               background: `linear-gradient(135deg, ${HS.sakura}, ${HS.sakuraDeep})`,
               display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -89,11 +130,58 @@ export default function Emergency() {
               AÏCHA · ASSISTANTE
             </span>
           </div>
-          {loadingAI
-            ? <div style={{ display: 'flex', justifyContent: 'center', padding: 12 }}><Spinner /></div>
-            : <div style={{ fontSize: 14, lineHeight: 1.55, color: HS.chocolate }}>{aiMessage}</div>
-          }
-          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+
+          {/* Messages historique */}
+          <div style={{ maxHeight: 250, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
+            {messages.map((msg, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                  maxWidth: '85%', padding: '10px 12px', borderRadius: 12,
+                  background: msg.role === 'user' ? HS.chocolate : HS.surface,
+                  color: msg.role === 'user' ? HS.bg : HS.chocolate,
+                  fontSize: 13, lineHeight: 1.4, wordWrap: 'break-word',
+                }}>
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {loadingAI && (
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-start' }}>
+                <div style={{ padding: '10px 12px', borderRadius: 12, background: HS.surface }}>
+                  <Spinner />
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input message */}
+          <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="text"
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              placeholder="Comment tu te sens ?"
+              disabled={loadingAI}
+              style={{
+                flex: 1, padding: '10px 12px', borderRadius: 10, border: `1px solid ${HS.border}`,
+                background: HS.bg, color: HS.chocolate, fontFamily: HS.font, fontSize: 13,
+              }}
+            />
+            <button
+              type="submit"
+              disabled={!userInput.trim() || loadingAI}
+              style={{
+                width: 40, height: 40, borderRadius: 10, background: HS.chocolate, border: 'none',
+                color: HS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: !userInput.trim() || loadingAI ? 'not-allowed' : 'pointer', opacity: !userInput.trim() || loadingAI ? 0.5 : 1,
+              }}>
+              <Icon d={ICONS.send} size={16} color={HS.bg} />
+            </button>
+          </form>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
             <a href="tel:110" style={{ flex: 1 }}>
               <button style={{ width: '100%', background: HS.chocolate, border: 'none', color: HS.bg,
                 padding: '12px', borderRadius: 12, fontWeight: 700, fontSize: 13, fontFamily: HS.font }}>
