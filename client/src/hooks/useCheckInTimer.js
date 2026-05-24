@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../services/api';
 
-const CHECK_IN_INTERVAL = 10 * 60 * 1000; // 10 minutes
+const CHECK_IN_INTERVAL = 1 * 60 * 1000; // 1 minute (pour tests - en prod: 10 * 60 * 1000)
 const CHECK_IN_TIMEOUT = 2 * 60 * 1000; // 2 minutes to respond
 
 /**
  * Hook pour gérer les check-ins automatiques pendant le niveau 1 (Vigilance)
- * - Affiche un modal toutes les 10 minutes
+ * - Affiche un modal toutes les 1 minute (tests) / 10 minutes (prod)
+ * - Persiste même quand l'onglet perd le focus (utilise timestamp)
  * - Compte les réponses manquantes
  * - Escalade automatiquement après 2 check-ins sans réponse
  */
@@ -18,7 +19,8 @@ export function useCheckInTimer(activeTrack) {
 
   const intervalRef = useRef(null);
   const countdownRef = useRef(null);
-  const checkInTimeoutRef = useRef(null);
+  const visibilityHandlerRef = useRef(null);
+  const lastCheckInRef = useRef(null);
 
   // Fonction pour répondre "Oui, je vais bien"
   const handleCheckInYes = useCallback(async () => {
@@ -69,8 +71,47 @@ export function useCheckInTimer(activeTrack) {
   const clearAllTimers = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (countdownRef.current) clearInterval(countdownRef.current);
-    if (checkInTimeoutRef.current) clearTimeout(checkInTimeoutRef.current);
+    if (visibilityHandlerRef.current) {
+      document.removeEventListener('visibilitychange', visibilityHandlerRef.current);
+    }
   }, []);
+
+  // Afficher le modal et démarrer le countdown
+  const triggerCheckInModal = useCallback(() => {
+    setShowCheckInModal(true);
+    setTimeRemaining(CHECK_IN_TIMEOUT);
+    lastCheckInRef.current = Date.now();
+
+    // Countdown timer pour la réponse (2 minutes)
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    countdownRef.current = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1000) {
+          // Timeout: marquer comme manqué
+          setMissedCheckIns((missed) => {
+            const newMissed = missed + 1;
+
+            // Vérifier si 2 check-ins manqués → escalade automatique
+            if (newMissed >= 2) {
+              console.log('Auto-escalade: 2 check-ins manqués');
+              handleCheckInNo(); // Auto-escalade
+            }
+
+            return newMissed;
+          });
+
+          // Fermer le modal si timeout et pas escalade
+          if (missedCheckIns + 1 < 2) {
+            setShowCheckInModal(false);
+          }
+
+          clearInterval(countdownRef.current);
+          return 0;
+        }
+        return prev - 1000;
+      });
+    }, 1000);
+  }, [handleCheckInNo, missedCheckIns]);
 
   // Principal: Gérer le cycle des check-ins
   useEffect(() => {
@@ -78,46 +119,40 @@ export function useCheckInTimer(activeTrack) {
       clearAllTimers();
       setShowCheckInModal(false);
       setMissedCheckIns(0);
+      lastCheckInRef.current = null;
       return;
     }
 
-    // Intervalle principal: afficher modal tous les 10 minutes
+    // Initialiser le timestamp du dernier check-in
+    if (!lastCheckInRef.current) {
+      lastCheckInRef.current = Date.now();
+    }
+
+    // Intervalle principal: vérifier toutes les 10 secondes si un check-in est dû
     intervalRef.current = setInterval(() => {
-      setShowCheckInModal(true);
-      setTimeRemaining(CHECK_IN_TIMEOUT);
+      if (lastCheckInRef.current) {
+        const elapsed = Date.now() - lastCheckInRef.current;
+        if (elapsed >= CHECK_IN_INTERVAL) {
+          triggerCheckInModal();
+        }
+      }
+    }, 10000); // Vérifie toutes les 10 secondes
 
-      // Countdown timer pour la réponse (2 minutes)
-      countdownRef.current = setInterval(() => {
-        setTimeRemaining((prev) => {
-          if (prev <= 1000) {
-            // Timeout: marquer comme manqué
-            setMissedCheckIns((missed) => {
-              const newMissed = missed + 1;
+    // Listener pour quand l'onglet reprend le focus
+    visibilityHandlerRef.current = () => {
+      if (document.visibilityState === 'visible' && activeTrack?.id && lastCheckInRef.current) {
+        const elapsed = Date.now() - lastCheckInRef.current;
+        if (elapsed >= CHECK_IN_INTERVAL && !showCheckInModal) {
+          console.log(`Check-in dû: ${Math.floor(elapsed / 1000)}s écoulées`);
+          triggerCheckInModal();
+        }
+      }
+    };
 
-              // Vérifier si 2 check-ins manqués → escalade automatique
-              if (newMissed >= 2) {
-                console.log('Auto-escalade: 2 check-ins manqués');
-                handleCheckInNo(); // Auto-escalade
-              }
-
-              return newMissed;
-            });
-
-            // Fermer le modal si timeout et pas escalade
-            if (missedCheckIns + 1 < 2) {
-              setShowCheckInModal(false);
-            }
-
-            clearInterval(countdownRef.current);
-            return 0;
-          }
-          return prev - 1000;
-        });
-      }, 1000);
-    }, CHECK_IN_INTERVAL);
+    document.addEventListener('visibilitychange', visibilityHandlerRef.current);
 
     return clearAllTimers;
-  }, [activeTrack, handleCheckInNo, missedCheckIns, clearAllTimers]);
+  }, [activeTrack, triggerCheckInModal, showCheckInModal, clearAllTimers]);
 
   return {
     showCheckInModal,

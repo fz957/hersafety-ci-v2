@@ -64,8 +64,8 @@ export default function Dashboard() {
 
       if (lv.level === '1') {
         // Niveau 1 : démarre un trajet de suivi
-        await api.post('/api/tracks', { checkin_interval_min: 10, ...extras });
-        setToast({ message: 'Suivi GPS activé. Check-in toutes les 10 min.', type: 'success' });
+        await api.post('/api/tracks', { checkin_interval_min: 1, ...extras });
+        setToast({ message: 'Suivi GPS activé. Check-in toutes les 1 min (TEST).', type: 'success' });
         return;
       }
       await triggerAlert(lv.level, extras);
