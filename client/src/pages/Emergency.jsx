@@ -5,6 +5,7 @@ import L from 'leaflet';
 import 'leaflet-routing-machine';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import { useGPS } from '../hooks/useGPS';
+import { useOverpassPOIs } from '../hooks/useOverpassPOIs';
 import api from '../services/api';
 import { HS, ICONS } from '../tokens';
 import { Icon, Card, Eyebrow, BackButton, PageShell, ScrollArea, Spinner } from '../components/ui/index.jsx';
@@ -87,8 +88,12 @@ export default function Emergency() {
   const [userInput, setUserInput]         = useState('');
   const [loadingAI, setLoadingAI]         = useState(false);
   const [elapsed, setElapsed]             = useState(0);
+  const [loadingPOIs, setLoadingPOIs]     = useState(false);
   const timerRef = useRef(null);
   const messagesEndRef = useRef(null);
+
+  // Charger POIs depuis Overpass
+  const { pois, loading: poiLoading } = useOverpassPOIs(position?.lat, position?.lng, 10);
 
   // Modals de confirmation
   const [callModal, setCallModal]         = useState({ isOpen: false, number: null, name: null });
@@ -134,20 +139,27 @@ export default function Emergency() {
     api.get('/api/emergency-numbers').then((r) => setEmergencyNums(r.data.data)).catch(() => {});
   }, []);
 
-  // Lieux sûrs — réactivé pour l'écran d'urgence complet
+  // Lieux sûrs — utiliser Overpass POIs
   useEffect(() => {
-    if (!position) return;
-    // Use 2000m radius (2km) - only show truly nearby places
-    api.get(`/api/places?lat=${position.lat}&lng=${position.lng}&radius=2000`)
-      .then((r) => {
-        const data = r.data.data || [];
-        setPlaces(data.slice(0, 5)); // Show top 5 nearest places
-      })
-      .catch((err) => {
-        console.error('Erreur lieux sûrs:', err.message);
-        setPlaces([]);
-      });
-  }, [position]);
+    if (pois && pois.length > 0) {
+      console.log('[Emergency] Overpass POIs chargés:', pois.length);
+      setPlaces(pois.slice(0, 5)); // Show top 5 nearest places
+    } else if (!poiLoading && pois.length === 0) {
+      // Fallback to API if Overpass returns nothing
+      console.log('[Emergency] Pas de POIs depuis Overpass, fallback API');
+      if (!position) return;
+      api.get(`/api/places?lat=${position.lat}&lng=${position.lng}&radius=10000`)
+        .then((r) => {
+          const data = r.data.data || [];
+          console.log('[Emergency] Fallback places:', data.length);
+          setPlaces(data.slice(0, 5));
+        })
+        .catch((err) => {
+          console.error('[Emergency] Erreur fallback:', err.message);
+          setPlaces([]);
+        });
+    }
+  }, [pois, poiLoading, position]);
 
   // Init: Appel initial à Claude pour commencer la conversation
   useEffect(() => {
