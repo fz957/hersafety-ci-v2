@@ -5,12 +5,9 @@ export function useGPS({ watch = false } = {}) {
   const [error, setError]       = useState(null);
   const [loading, setLoading]   = useState(true);
 
-  // Fallback Bietry coordinates - use if GPS returns invalid location
-  const BIETRY_FALLBACK = { lat: 6.8450, lng: -5.3100, accuracy: 50 };
-
-  // Check if coordinates are in Abidjan zone (6.5-7.0°N, -5.5--5.0°W)
-  const isValidAbidjanCoords = (lat, lng) => {
-    return lat >= 6.5 && lat <= 7.0 && lng >= -5.5 && lng <= -5.0;
+  // Check if coordinates are in Côte d'Ivoire zone (roughly 4.0-5.5°N, -8.5--2.5°W)
+  const isValidCoordinates = (lat, lng) => {
+    return lat >= 4.0 && lat <= 5.5 && lng >= -8.5 && lng <= -2.5;
   };
 
   useEffect(() => {
@@ -26,10 +23,10 @@ export function useGPS({ watch = false } = {}) {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
 
-      // Always check if coordinates are in Abidjan zone
-      if (!isValidAbidjanCoords(lat, lng)) {
-        console.warn(`[GPS] Coordonnées invalides (${lat.toFixed(4)}°, ${lng.toFixed(4)}°) - hors Abidjan. Utilisation Bietry.`);
-        setPosition(BIETRY_FALLBACK);
+      // Accept any valid coordinates in Côte d'Ivoire, don't force a specific fallback
+      if (!isValidCoordinates(lat, lng)) {
+        console.warn(`[GPS] Coordonnées hors Côte d'Ivoire (${lat.toFixed(4)}°, ${lng.toFixed(4)}°). GPS non fiable.`);
+        setError('Position en dehors de Côte d\'Ivoire');
       } else {
         setPosition({ lat, lng, accuracy: pos.coords.accuracy });
       }
