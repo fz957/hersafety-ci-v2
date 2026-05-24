@@ -10,36 +10,7 @@ router.use(requireAuth, requireTenant);
 
 const assistSchema = Joi.object({
   level:                 Joi.string().valid('1', '2', '3', '4').required(),
-  context:               Joi.alternatives().try(
-    Joi.string().max(300),
-    Joi.object({
-      position: Joi.object({ lat: Joi.number(), lng: Joi.number() }).optional(),
-      emergencyNumbers: Joi.array().items(
-        Joi.object({
-          id: Joi.any(),
-          number: Joi.string(),
-          name: Joi.string(),
-          type: Joi.string(),
-        })
-      ).optional(),
-      nearbyPlaces: Joi.array().items(
-        Joi.object({
-          id: Joi.any(),
-          name: Joi.string(),
-          type: Joi.string(),
-          lat: Joi.number(),
-          lng: Joi.number(),
-        })
-      ).optional(),
-      vtcOptions: Joi.array().items(
-        Joi.object({
-          n: Joi.string(),
-          est: Joi.string(),
-          url: Joi.string(),
-        })
-      ).optional(),
-    })
-  ).optional(),
+  context:               Joi.any().optional(), // Accept any context type (string or object)
   conversationHistory:   Joi.array().items(
     Joi.object({
       role:    Joi.string().valid('user', 'assistant').required(),

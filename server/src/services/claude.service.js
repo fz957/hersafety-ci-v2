@@ -69,6 +69,9 @@ async function getAssistMessage({ level, context = {}, conversationHistory = [],
   const fallback = FALLBACK[level] || FALLBACK['2'];
 
   try {
+    // Normaliser le contexte: peut être un string, objet, ou undefined
+    const contextObj = (typeof context === 'object' && context !== null) ? context : {};
+
     // Construire l'historique de conversation
     const messages = conversationHistory.length > 0
       ? conversationHistory.map(msg => ({
@@ -85,19 +88,19 @@ async function getAssistMessage({ level, context = {}, conversationHistory = [],
       let initialContext = `Niveau d'urgence ${level}/4. ${LEVEL_CONTEXT[level]}`;
 
       // Ajouter les ressources disponibles
-      if (context.position) {
-        initialContext += `\n📍 Localisation : ${context.position.lat.toFixed(4)}, ${context.position.lng.toFixed(4)}`;
+      if (contextObj.position) {
+        initialContext += `\n📍 Localisation : ${contextObj.position.lat.toFixed(4)}, ${contextObj.position.lng.toFixed(4)}`;
       }
-      if (context.emergencyNumbers && context.emergencyNumbers.length > 0) {
-        const nums = context.emergencyNumbers.slice(0, 3).map(e => `${e.number} (${e.name})`).join(', ');
+      if (contextObj.emergencyNumbers && contextObj.emergencyNumbers.length > 0) {
+        const nums = contextObj.emergencyNumbers.slice(0, 3).map(e => `${e.number} (${e.name})`).join(', ');
         initialContext += `\n📞 Numéros disponibles : ${nums}`;
       }
-      if (context.nearbyPlaces && context.nearbyPlaces.length > 0) {
-        const places = context.nearbyPlaces.slice(0, 3).map(p => `${p.name} (${p.type})`).join(', ');
+      if (contextObj.nearbyPlaces && contextObj.nearbyPlaces.length > 0) {
+        const places = contextObj.nearbyPlaces.slice(0, 3).map(p => `${p.name} (${p.type})`).join(', ');
         initialContext += `\n🏠 Lieux sûrs : ${places}`;
       }
-      if (context.vtcOptions && context.vtcOptions.length > 0) {
-        const vtc = context.vtcOptions.map(v => v.n).join(', ');
+      if (contextObj.vtcOptions && contextObj.vtcOptions.length > 0) {
+        const vtc = contextObj.vtcOptions.map(v => v.n).join(', ');
         initialContext += `\n🚗 VTC disponibles : ${vtc}`;
       }
 
