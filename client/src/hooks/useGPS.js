@@ -5,6 +5,14 @@ export function useGPS({ watch = false } = {}) {
   const [error, setError]       = useState(null);
   const [loading, setLoading]   = useState(true);
 
+  // Fallback Bietry coordinates - use if GPS returns invalid location
+  const BIETRY_FALLBACK = { lat: 6.8450, lng: -5.3100, accuracy: 50 };
+
+  // Check if coordinates are in Abidjan zone (6.5-7.0°N, -5.5--5.0°W)
+  const isValidAbidjanCoords = (lat, lng) => {
+    return lat >= 6.5 && lat <= 7.0 && lng >= -5.5 && lng <= -5.0;
+  };
+
   useEffect(() => {
     if (!navigator.geolocation) {
       setError('GPS non disponible sur cet appareil');
@@ -18,14 +26,10 @@ export function useGPS({ watch = false } = {}) {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
 
-      // Fallback: Si GPS retourne des coordonnées hors d'Abidjan (zone attendue: 6.5-7.0°N, -5.5--5.0°W)
-      // utiliser Bietry pour les tests
-      const isInAbidjanZone = lat >= 6.5 && lat <= 7.0 && lng >= -5.5 && lng <= -5.0;
-
-      if (!isInAbidjanZone) {
-        console.warn(`[GPS] Coordonnées hors zone (${lat.toFixed(2)}°, ${lng.toFixed(2)}°). Utilisation Bietry par défaut.`);
-        // Bietry fallback position
-        setPosition({ lat: 6.8450, lng: -5.3100, accuracy: 50, source: 'fallback-bietry' });
+      // Always check if coordinates are in Abidjan zone
+      if (!isValidAbidjanCoords(lat, lng)) {
+        console.warn(`[GPS] Coordonnées invalides (${lat.toFixed(4)}°, ${lng.toFixed(4)}°) - hors Abidjan. Utilisation Bietry.`);
+        setPosition(BIETRY_FALLBACK);
       } else {
         setPosition({ lat, lng, accuracy: pos.coords.accuracy });
       }

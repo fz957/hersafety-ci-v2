@@ -100,13 +100,10 @@ async function fetchOverpass(lat, lng, radius) {
     phone:   el.tags?.phone || el.tags?.['contact:phone'] || null,
   })).filter((p) => p.lat && p.lng);
 
-  // Sort by priority (police > gendarmerie > pharmacie > pompiers > others), then by distance
+  // Sort by distance only - return closest 3 places
   return places
     .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }))
-    .sort((a, b) => {
-      const priorityDiff = (PRIORITY_ORDER[a.type] || 99) - (PRIORITY_ORDER[b.type] || 99);
-      return priorityDiff !== 0 ? priorityDiff : a.distance - b.distance;
-    })
+    .sort((a, b) => a.distance - b.distance)
     .map(({ distance, ...p }) => p);
 }
 
@@ -141,14 +138,10 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.error('[GET /api/places] Overpass API error:', err.message);
 
-    // Sort fallback places by PRIORITY first (police > gendarmerie > pharmacie > pompiers),
-    // then by distance from user location
+    // Sort fallback places by distance only - return closest 3
     const sortedPlaces = FALLBACK_PLACES
       .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }))
-      .sort((a, b) => {
-        const priorityDiff = (PRIORITY_ORDER[a.type] || 99) - (PRIORITY_ORDER[b.type] || 99);
-        return priorityDiff !== 0 ? priorityDiff : a.distance - b.distance;
-      })
+      .sort((a, b) => a.distance - b.distance)
       .slice(0, 3)
       .map(({ distance, ...p }) => p); // Remove distance field
 
