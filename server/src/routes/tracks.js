@@ -36,9 +36,10 @@ const startSchema = Joi.object({
 });
 
 const checkinSchema = Joi.object({
+  response:     Joi.string().valid('ok', 'no_response').required(),
   location_lat: Joi.number().min(-90).max(90).optional(),
   location_lng: Joi.number().min(-180).max(180).optional(),
-});
+}).unknown(false);  // Disallow unknown fields but response IS defined
 
 // ─── POST /api/tracks ─────────────────────────────────────────────────────────
 
@@ -79,10 +80,19 @@ router.post('/', async (req, res) => {
 // ─── PATCH /api/tracks/:id/checkin ───────────────────────────────────────────
 
 router.patch('/:id/checkin', async (req, res) => {
+  console.log('\n=== PATCH /checkin ===');
+  console.log('[CHECKIN] Request body:', JSON.stringify(req.body));
+  console.log('[CHECKIN] Track ID:', req.params.id);
+  console.log('[CHECKIN] User ID:', req.user?.userId);
+  console.log('[CHECKIN] Org ID:', req.user?.organizationId);
+
   const { error, value } = checkinSchema.validate(req.body);
   if (error) {
+    console.log('[CHECKIN] ❌ Validation FAILED:', error.details[0].message);
     return res.status(400).json({ success: false, error: error.details[0].message });
   }
+
+  console.log('[CHECKIN] ✓ Validation OK:', JSON.stringify(value));
 
   const { userId, organizationId } = req.user;
 
@@ -92,15 +102,17 @@ router.patch('/:id/checkin', async (req, res) => {
       .first();
 
     if (!track) {
+      console.log('[CHECKIN] ❌ Track not found or not active');
       return res.status(404).json({ success: false, error: 'Trajet introuvable ou déjà terminé' });
     }
+    console.log('[CHECKIN] ✓ Track found:', track.id);
 
     const [checkin] = await knex('checkins')
       .insert({
         track_id:        track.id,
         user_id:         userId,
         organization_id: organizationId,
-        response:        'ok',
+        response:        value.response,
         responded_at:    new Date(),
         location_lat:    value.location_lat,
         location_lng:    value.location_lng,
@@ -118,11 +130,15 @@ router.patch('/:id/checkin', async (req, res) => {
         'UPDATE tracks SET waypoints = waypoints || ?::jsonb WHERE id = ?',
         [waypoint, track.id]
       );
+      console.log('[CHECKIN] ✓ Waypoint added');
     }
 
+    console.log('[CHECKIN] ✓ SUCCESS - Check-in recorded:', checkin.id);
     return res.json({ success: true, data: checkin });
   } catch (err) {
-    return res.status(500).json({ success: false, error: 'Erreur check-in' });
+    console.error('[CHECKIN] ❌ ERROR:', err.message);
+    console.error('[CHECKIN] Stack:', err.stack);
+    return res.status(500).json({ success: false, error: 'Erreur check-in: ' + err.message });
   }
 });
 

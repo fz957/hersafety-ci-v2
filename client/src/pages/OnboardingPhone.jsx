@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 import api from '../services/api';
 import { HS, ICONS } from '../tokens';
 import { Icon, Input, Button, Card, Eyebrow, PageShell, Toast } from '../components/ui/index.jsx';
 
 export default function OnboardingPhone() {
   const navigate = useNavigate();
+  const { setUser } = useAuth();
+
   const [step, setStep] = useState('phone'); // 'phone' | 'otp'
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -57,6 +60,9 @@ export default function OnboardingPhone() {
     setLoading(true);
     try {
       await api.post('/api/auth/verify-phone/confirm', { code: otp });
+      // Refresh user data to update phone_verified in context
+      const meRes = await api.get('/api/users/me');
+      setUser(meRes.data.data);
       setToast({ message: 'Téléphone vérifié !', type: 'success' });
       setTimeout(() => navigate('/onboarding'), 500);
     } catch (err) {

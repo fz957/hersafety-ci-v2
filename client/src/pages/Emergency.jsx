@@ -182,7 +182,16 @@ export default function Emergency() {
     if (messages.length > 0) return; // Déjà initialisé
 
     setLoadingAI(true);
-    api.post('/api/claude/assist', { level, conversationHistory: [] })
+    api.post('/api/claude/assist', {
+      level,
+      conversationHistory: [],
+      context: {
+        position,
+        emergencyNumbers: emergencyNums,
+        nearbyPlaces: places,
+        vtcOptions: getVTCLinks(position)
+      }
+    })
       .then((r) => {
         const initialMessage = { role: 'assistant', content: r.data.data.message };
         setMessages([initialMessage]);
@@ -192,7 +201,7 @@ export default function Emergency() {
         setMessages([fallback]);
       })
       .finally(() => setLoadingAI(false));
-  }, []);
+  }, [position, emergencyNums, places]);
 
   // Auto-scroll vers le dernier message
   useEffect(() => {
@@ -214,6 +223,12 @@ export default function Emergency() {
       const response = await api.post('/api/claude/assist', {
         level,
         conversationHistory: updatedMessages,
+        context: {
+          position,
+          emergencyNumbers: emergencyNums,
+          nearbyPlaces: places,
+          vtcOptions: getVTCLinks(position)
+        }
       });
       const aiMessage = { role: 'assistant', content: response.data.data.message };
       setMessages([...updatedMessages, aiMessage]);

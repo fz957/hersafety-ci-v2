@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useEmergency } from '../hooks/useEmergency';
 import { useGPS } from '../hooks/useGPS';
 import { useCheckInTimer } from '../hooks/useCheckInTimer';
+import { CheckInAssistant } from './CheckInAssistant';
 import { HS, ICONS } from '../tokens';
 import { Icon, Avatar, Eyebrow, TestBanner, BottomNav, PageShell, Toast, Card, Button } from '../components/ui/index.jsx';
 import { useState, useEffect } from 'react';
@@ -24,23 +25,49 @@ export default function Dashboard() {
   // Enforce onboarding - MUST complete all steps in order
   useEffect(() => {
     if (user && !user.onboarding_done) {
-      // Always start from emergency numbers - mandatory first step
-      navigate('/onboarding-emergency', { replace: true });
+      // Redirect to add emergency contacts - mandatory first step
+      navigate('/onboarding', { replace: true });
+    }
+  }, [user, navigate]);
+
+  // Enforce minimum 2 emergency contacts
+  useEffect(() => {
+    const loadContactCount = async () => {
+      try {
+        const res = await api.get('/api/contacts');
+        const contacts = res.data.data || [];
+        setContactCount(contacts.length);
+        // If fewer than 2 contacts, redirect to onboarding
+        if (contacts.length < 2 && user && user.onboarding_done) {
+          navigate('/onboarding', { replace: true });
+        }
+      } catch (err) {
+        console.error('Erreur chargement contacts:', err.message);
+      }
+    };
+
+    if (user && user.onboarding_done) {
+      loadContactCount();
     }
   }, [user, navigate]);
   const [toast, setToast] = useState(null);
   const [activeTrack, setActiveTrack] = useState(null);
   const [loadingTrack, setLoadingTrack] = useState(true);
   const [showGpsHelp, setShowGpsHelp] = useState(false);
+  const [contactCount, setContactCount] = useState(0);
 
   // Hook pour les check-ins automatiques
   const {
     showCheckInModal,
     setShowCheckInModal,
+    showAIAssistant,
+    setShowAIAssistant,
     timeRemaining,
     missedCheckIns,
     handleCheckInYes,
     handleCheckInNo,
+    handleStopCheckIn,
+    handleEmergencyFromAI,
     isEscalating,
   } = useCheckInTimer(activeTrack);
 
@@ -73,9 +100,10 @@ export default function Dashboard() {
 
       if (lv.level === '1') {
         // Niveau 1 : démarre un trajet de suivi
-        await api.post('/api/tracks', { checkin_interval_min: 1, ...extras });
+        const trackRes = await api.post('/api/tracks', { checkin_interval_min: 1, ...extras });
+        setActiveTrack(trackRes.data.data); // Recharge immédiatement le track
         setToast({
-          message: '⚠️ Garde l\'onglet ACTIF pour les check-ins. Check-in toutes les 1 min (TEST).',
+          message: '⚠️ Garde l\'onglet ACTIF pour les check-ins toutes les 1 minute.',
           type: 'warn'
         });
         return;
@@ -166,7 +194,8 @@ export default function Dashboard() {
       {/* Boutons de niveau */}
       <div style={{ flex: 1, padding: '4px 16px 90px', display: 'flex',
         flexDirection: 'column', gap: 10 }}>
-        <Eyebrow>Comment tu te sens ?</Eyebrow>
+
+        <Eyebrow style={{ marginTop: 8 }}>Comment tu te sens ?</Eyebrow>
 
         {LEVELS.map((lv) => (
           <button
@@ -205,6 +234,22 @@ export default function Dashboard() {
 
       <BottomNav />
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
+
+      {/* IA Assistant - Évaluation intelligente de la situation */}
+      {showAIAssistant && (
+        <CheckInAssistant
+          activeTrack={activeTrack}
+          onClose={() => setShowAIAssistant(false)}
+          onEmergency={() => {
+            setShowAIAssistant(false);
+            navigate('/emergency', { replace: true });
+          }}
+          onResolve={() => {
+            setShowAIAssistant(false);
+            setShowCheckInModal(false);
+          }}
+        />
+      )}
 
       {/* Modal Check-in Global (Niveau 1) */}
       {showCheckInModal && (
@@ -271,6 +316,21 @@ export default function Dashboard() {
                 }}>
                 <Icon d={ICONS.alert} size={16} color="#fff" />
                 Non, aide-moi
+              </button>
+
+              <button
+                onClick={handleStopCheckIn}
+                disabled={isEscalating}
+                style={{
+                  width: '100%', padding: '14px 20px', borderRadius: 14,
+                  background: HS.textMute, border: 'none', color: '#fff',
+                  fontWeight: 700, fontSize: 14, fontFamily: HS.font,
+                  cursor: isEscalating ? 'not-allowed' : 'pointer',
+                  opacity: isEscalating ? 0.6 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  fontSize: 12,
+                }}>
+                Ne me demande plus
               </button>
             </div>
 

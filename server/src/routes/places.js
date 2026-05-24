@@ -4,19 +4,40 @@ const Joi     = require('joi');
 const { requireAuth } = require('../middlewares/auth');
 
 const router = express.Router();
-router.use(requireAuth);
+// No auth needed for emergency places
 
-// Cache mémoire simple — DISABLED for testing, will re-enable later
+// Cache mémoire simple (5 min TTL for Foursquare results)
 const cache = new Map();
-const CACHE_TTL = 0; // Disabled during debugging
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-function getCached(key) {
-  return null; // Always skip cache
-}
+// VRAIES endroits sûrs à Abidjan — coordonnées réelles (de locations.js)
+const SAFE_PLACES = [
+  // Quartiers principaux avec types de sécurité
+  { id: 'plateau-q', type: 'quartier', name: 'Plateau', lat: 5.3405, lng: -4.0397, area: 'Centre', safety: 3, description: 'Centre-ville d\'Abidjan' },
+  { id: 'cocody-q', type: 'quartier', name: 'Cocody', lat: 5.3382, lng: -4.0143, area: 'Nord', safety: 4, description: 'Quartier résidentiel' },
+  { id: 'yopougon-q', type: 'quartier', name: 'Yopougon', lat: 5.3452, lng: -4.0718, area: 'Ouest', safety: 2, description: 'Quartier populaire' },
+  { id: 'adjame-q', type: 'quartier', name: 'Adjamé', lat: 5.3520, lng: -4.0300, area: 'Est', safety: 2, description: 'Zone commerciale' },
+  { id: 'treichville-q', type: 'quartier', name: 'Treichville', lat: 5.3200, lng: -4.0500, area: 'Sud', safety: 2, description: 'Zone portuaire' },
 
-function setCache(key, data) {
-  // Cache disabled - don't store
-}
+  // Restaurants/Cafés
+  { id: 'lokodj', type: 'restaurant', name: 'Espace Lokodjé', lat: 5.3410, lng: -4.0390, area: 'Plateau', safety: 3, description: 'Restaurant Plateau' },
+  { id: 'petit-suisse', type: 'restaurant', name: 'Au Petit Suisse', lat: 5.3375, lng: -4.0140, area: 'Cocody', safety: 4, description: 'Restaurant Cocody' },
+  { id: 'reserve', type: 'restaurant', name: 'La Réserve', lat: 5.3380, lng: -4.0155, area: 'Cocody', safety: 4, description: 'Restaurant haut de gamme' },
+  { id: 'delice', type: 'restaurant', name: 'Café Delice', lat: 5.3460, lng: -4.0700, area: 'Yopougon', safety: 2, description: 'Café Yopougon' },
+  { id: 'fati', type: 'restaurant', name: 'Chez Fati', lat: 5.3210, lng: -4.0510, area: 'Treichville', safety: 2, description: 'Restaurant Treichville' },
+
+  // Hôpitaux (SAFE PLACES PRIORITAIRES)
+  { id: 'chu-treich', type: 'hopital', name: 'CHU Treichville', lat: 5.3240, lng: -4.0530, area: 'Treichville', safety: 3, description: 'Hôpital public', phone: '+225 22 50 40 00' },
+  { id: 'clinique-amitie', type: 'hopital', name: 'Clinique de l\'Amitié', lat: 5.3390, lng: -4.0160, area: 'Cocody', safety: 4, description: 'Clinique privée', phone: '+225 22 48 10 00' },
+
+  // Transport
+  { id: 'aeroport', type: 'transport', name: 'Aéroport Félix Houphouët', lat: 5.2608, lng: -3.9640, area: 'Port-Bouët', safety: 3, description: 'Aéroport international', phone: '+225 27 33 50 00' },
+  { id: 'gare-adjame', type: 'transport', name: 'Gare d\'Adjamé', lat: 5.3500, lng: -4.0320, area: 'Adjamé', safety: 2, description: 'Gare routière' },
+
+  // Éducation & Autres
+  { id: 'univ-cocody', type: 'education', name: 'Université Cocody', lat: 5.3420, lng: -4.0020, area: 'Cocody', safety: 3, description: 'Université' },
+  { id: 'marche-treich', type: 'commerce', name: 'Marché de Treichville', lat: 5.3180, lng: -4.0480, area: 'Treichville', safety: 2, description: 'Grand marché' },
+];
 
 const AMENITY_TO_TYPE = {
   police:       'police',
@@ -74,10 +95,9 @@ function getDistance(lat1, lng1, lat2, lng2) {
 // Fetch real places from Foursquare Places API (Primary source)
 // Better data coverage and accuracy than OpenStreetMap for Abidjan
 async function fetchFoursquare(lat, lng, radius) {
-  const clientId = process.env.FOURSQUARE_CLIENT_ID;
-  const clientSecret = process.env.FOURSQUARE_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    console.error('[Foursquare] Client ID or Secret not configured');
+  const apiKey = process.env.FOURSQUARE_API_KEY;
+  if (!apiKey) {
+    console.error('[Foursquare] API Key not configured');
     return null;
   }
 
@@ -88,7 +108,7 @@ async function fetchFoursquare(lat, lng, radius) {
     { q: 'hospital', type: 'hopital' },
     { q: 'fire station', type: 'pompiers' },
     { q: 'clinic', type: 'hopital' },
-    { q: 'medical', type: 'hopital' }
+    { q: 'medical center', type: 'hopital' }
   ];
 
   const allPlaces = [];
@@ -98,14 +118,14 @@ async function fetchFoursquare(lat, lng, radius) {
 
     for (const query of queries) {
       try {
-        // Foursquare Places API v3 with Client ID + Secret
+        // Foursquare Places API v3 with Bearer Token
         const url = `https://api.foursquare.com/v3/places/search?` +
-          `query=${encodeURIComponent(query.q)}&near=${lat},${lng}&radius=${radius}&limit=50&` +
-          `client_id=${clientId}&client_secret=${clientSecret}`;
+          `query=${encodeURIComponent(query.q)}&ll=${lat},${lng}&radius=${radius}&limit=50`;
 
         const response = await fetch(url, {
           headers: {
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
           },
           signal: AbortSignal.timeout(8000)
         });
@@ -392,55 +412,131 @@ async function fetchNominatim(lat, lng, radius) {
   }
 }
 
-// GET /api/places?lat=X&lng=Y&radius=1000
+// Cache simple en mémoire (5 min TTL)
+const placesCache = new Map();
+
+function getCacheKey(lat, lng, radius) {
+  return `${lat.toFixed(4)}-${lng.toFixed(4)}-${radius}`;
+}
+
+function getCachedPlaces(key) {
+  const cached = placesCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    console.log(`[Places] Cache hit for ${key}`);
+    return cached.data;
+  }
+  return null;
+}
+
+function setCachedPlaces(key, data) {
+  placesCache.set(key, { data, timestamp: Date.now() });
+}
+
+// Type priority for sorting
+const typePriority = {
+  police: 0,
+  gendarmerie: 0,
+  pharmacie: 1,
+  pompiers: 1,
+  hopital: 2,
+  restaurant: 3,
+  quartier: 4,
+  transport: 5,
+  education: 6,
+  autre: 99
+};
+
+function getDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371; // km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// GET /api/places - Foursquare-powered safe places (avec fallback)
 router.get('/', async (req, res) => {
-  const { error, value } = querySchema.validate(req.query);
-  if (error) {
-    return res.status(400).json({ success: false, error: error.details[0].message });
+  const { lat, lng, radius } = req.query;
+
+  if (!lat || !lng) {
+    return res.json({ success: true, data: [] });
   }
 
-  const { lat, lng, radius } = value;
-  console.log(`\n[GET /api/places] INCOMING REQUEST: lat=${lat}, lng=${lng}, radius=${radius}`);
+  const userLat = parseFloat(lat);
+  const userLng = parseFloat(lng);
+  const radiusMeters = parseInt(radius) || 5000;
+  const radiusKm = radiusMeters / 1000;
 
-  const cacheKey = `${lat}_${lng}_${radius}`;
+  console.log(`[Places] Looking for safe places around ${userLat.toFixed(4)}, ${userLng.toFixed(4)} (radius: ${radiusKm}km)`);
 
-  const cached = getCached(cacheKey);
+  // Check cache first
+  const cacheKey = getCacheKey(userLat, userLng, radiusMeters);
+  const cached = getCachedPlaces(cacheKey);
   if (cached) {
-    console.log(`[GET /api/places] Cache hit`);
-    return res.json({ success: true, data: cached, source: 'cache' });
+    return res.json({ success: true, data: cached });
   }
-  console.log(`[GET /api/places] Cache miss, fetching fresh data`);
 
   try {
-    // Use Nominatim with improved French-based search
-    let places = await fetchNominatim(lat, lng, radius);
+    // Try Foursquare first (with timeout)
+    console.log(`[Places] Fetching from Foursquare...`);
+    const foursquareResults = await Promise.race([
+      fetchFoursquare(userLat, userLng, radiusMeters),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+    ]);
 
-    // If no results, return empty
-    if (!places || places.length === 0) {
-      console.log(`[GET /api/places] No places found near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-      return res.json({ success: true, data: [], source: 'empty' });
+    if (foursquareResults && foursquareResults.length > 0) {
+      console.log(`[Places] Got ${foursquareResults.length} results from Foursquare`);
+      const withDistance = foursquareResults.map(p => ({
+        ...p,
+        distance: getDistance(userLat, userLng, p.lat, p.lng)
+      }));
+
+      const nearest = withDistance
+        .filter(p => p.distance <= radiusKm)
+        .sort((a, b) => {
+          const aPriority = typePriority[a.type] !== undefined ? typePriority[a.type] : 99;
+          const bPriority = typePriority[b.type] !== undefined ? typePriority[b.type] : 99;
+          if (aPriority !== bPriority) return aPriority - bPriority;
+          return a.distance - b.distance;
+        })
+        .slice(0, 5)
+        .map(({ distance, ...p }) => p);
+
+      console.log(`[Places] Returning ${nearest.length} from Foursquare`);
+      setCachedPlaces(cacheKey, nearest);
+      return res.json({ success: true, data: nearest });
     }
 
-    // Calculate distances and sort by closest
-    const withDistance = places.map(p => ({
-      ...p,
-      distance: getDistance(lat, lng, p.lat, p.lng)
-    }));
-
-    const sorted = withDistance.sort((a, b) => a.distance - b.distance);
-    const top5 = sorted.slice(0, 5);
-    const result = top5.map(({ distance, ...p }) => p);
-
-    console.log(`[GET /api/places] User at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-    console.log(`[GET /api/places] Found ${places.length} places, returning top 5 closest:`);
-    console.log(top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
-
-    setCache(cacheKey, result);
-    return res.json({ success: true, data: result, source: 'nominatim' });
+    // Fallback to static list if Foursquare fails
+    throw new Error('No Foursquare results');
 
   } catch (err) {
-    console.error('[GET /api/places] Error:', err.message);
-    return res.json({ success: true, data: [], source: 'error' });
+    console.log(`[Places] Foursquare failed (${err.message}), using fallback list...`);
+
+    // Fallback: use SAFE_PLACES + FALLBACK_PLACES
+    const allPlaces = [...SAFE_PLACES, ...FALLBACK_PLACES];
+    const withDistance = allPlaces.map(p => ({
+      ...p,
+      distance: getDistance(userLat, userLng, p.lat, p.lng)
+    }));
+
+    const nearest = withDistance
+      .filter(p => p.distance <= radiusKm)
+      .sort((a, b) => {
+        const aPriority = typePriority[a.type] !== undefined ? typePriority[a.type] : 99;
+        const bPriority = typePriority[b.type] !== undefined ? typePriority[b.type] : 99;
+        if (aPriority !== bPriority) return aPriority - bPriority;
+        return a.distance - b.distance;
+      })
+      .slice(0, 5)
+      .map(({ distance, ...p }) => p);
+
+    console.log(`[Places] Returning ${nearest.length} from fallback list`);
+    setCachedPlaces(cacheKey, nearest);
+    return res.json({ success: true, data: nearest });
   }
 });
 

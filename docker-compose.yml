@@ -27,7 +27,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/hersafety
       NODE_ENV: production
@@ -49,6 +49,7 @@ services:
       - "80:80"
     environment:
       VITE_API_URL: http://app:5000
+      VITE_DEV_API_URL: http://localhost:5001
 
 volumes:
   postgres_data:

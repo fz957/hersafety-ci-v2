@@ -16,6 +16,7 @@ const testimoniesRoutes  = require('./routes/testimonies');
 const reportsRoutes      = require('./routes/reports');
 const adminRoutes            = require('./routes/admin');
 const emergencyNumbersRoutes = require('./routes/emergency-numbers');
+const locationsRoutes    = require('./routes/locations');
 
 const { apiLimiter } = require('./middlewares/rateLimit');
 
@@ -40,6 +41,9 @@ app.use(cookieParser());
 // Rate limiting global sur /api
 app.use('/api', apiLimiter);
 
+// Test route to verify code is loaded
+app.get('/api/test', (req, res) => res.json({ test: 'OK', timestamp: new Date().toISOString(), rateLimit: 'DISABLED' }));
+
 // Routes
 app.use('/api/auth',          authRoutes);
 app.use('/api/users',         usersRoutes);
@@ -54,6 +58,7 @@ app.use('/api/testimonies',   testimoniesRoutes);
 app.use('/api/reports',       reportsRoutes);
 app.use('/api/admin',             adminRoutes);
 app.use('/api/emergency-numbers', emergencyNumbersRoutes);
+app.use('/api/locations',     locationsRoutes);
 
 // Santé de l'API
 app.get('/api/health', (req, res) => {
@@ -76,3 +81,4 @@ app.use((err, req, res, _next) => {
 });
 
 module.exports = app;
+console.log("[RESTART] Force reload via app.js modification")

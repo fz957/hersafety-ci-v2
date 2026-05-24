@@ -13,6 +13,7 @@ const CHECK_IN_TIMEOUT = 2 * 60 * 1000; // 2 minutes to respond
  */
 export function useCheckInTimer(activeTrack) {
   const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(CHECK_IN_TIMEOUT);
   const [missedCheckIns, setMissedCheckIns] = useState(0);
   const [isEscalating, setIsEscalating] = useState(false);
@@ -54,40 +55,39 @@ export function useCheckInTimer(activeTrack) {
         });
       }
     } catch (err) {
-      console.error('Erreur check-in:', err.message);
+      console.error('❌ Erreur check-in:', err);
+      console.error('  Message:', err.message);
+      console.error('  Status:', err.response?.status);
+      console.error('  Data:', err.response?.data);
+      console.error('  Full error:', JSON.stringify(err, null, 2));
     }
   }, [activeTrack]);
 
-  // Fonction pour escalader "Je ne vais pas bien" → niveau 2
-  const handleCheckInNo = useCallback(async () => {
+  // Fonction pour "Je ne vais pas bien" → Afficher l'IA Assistant
+  const handleCheckInNo = useCallback(() => {
+    // Fermer le modal de check-in et afficher l'IA Assistant pour évaluation
+    setShowCheckInModal(false);
+    setShowAIAssistant(true);
+  }, []);
+
+  // Fonction pour arrêter complètement les check-ins
+  const handleStopCheckIn = useCallback(async () => {
     if (!activeTrack?.id) return;
 
-    setIsEscalating(true);
     try {
-      // 1. Marquer le check-in comme "no_response"
-      await api.patch(`/api/tracks/${activeTrack.id}/checkin`, { response: 'no_response' });
-
-      // 2. Créer alerte niveau 2
-      const alertRes = await api.post('/api/alerts', {
-        level: '2',
-        latitude: activeTrack.latest_lat,
-        longitude: activeTrack.latest_lng,
-        description: 'Escalade automatique: l\'utilisatrice ne va pas bien',
-      });
-
-      // 3. Envoyer SMS d'alerte aux contacts
-      if (alertRes.data.data?.id) {
-        await api.post('/api/sms/alert', { alert_id: alertRes.data.data.id });
-      }
-
+      // Arrêter le track
+      await api.patch(`/api/tracks/${activeTrack.id}/end`, {});
       setShowCheckInModal(false);
-      // Le track s'arrêtera naturellement, pas besoin de le fermer
     } catch (err) {
-      console.error('Erreur escalade:', err.message);
-    } finally {
-      setIsEscalating(false);
+      console.error('❌ Erreur arrêt check-in:', err);
     }
   }, [activeTrack]);
+
+  // Fonction quand Claude escalade vers Emergency
+  const handleEmergencyFromAI = useCallback(() => {
+    setShowAIAssistant(false);
+    // Le composant parent gérera la navigation vers Emergency
+  }, []);
 
   // Cleanup des timers
   const clearAllTimers = useCallback(() => {
@@ -194,15 +194,19 @@ export function useCheckInTimer(activeTrack) {
     document.addEventListener('visibilitychange', visibilityHandlerRef.current);
 
     return clearAllTimers;
-  }, [activeTrack, triggerCheckInModal, showCheckInModal, clearAllTimers]);
+  }, [activeTrack?.id]); // Seulement surveiller si le track a changé
 
   return {
     showCheckInModal,
     setShowCheckInModal,
+    showAIAssistant,
+    setShowAIAssistant,
     timeRemaining,
     missedCheckIns,
     handleCheckInYes,
     handleCheckInNo,
+    handleStopCheckIn,
+    handleEmergencyFromAI,
     isEscalating,
   };
 }

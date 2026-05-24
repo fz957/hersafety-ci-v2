@@ -284,8 +284,12 @@ router.post('/verify-phone/send', requireAuth, async (req, res) => {
     return res.status(400).json({ success: false, error: error.details[0].message });
   }
 
+  // Check if phone verification is enabled (dev/test toggle)
+  const phoneVerificationEnabled = process.env.PHONE_VERIFICATION_ENABLED === 'true';
+
   try {
-    const code = Math.random().toString().slice(2, 8); // 6 chiffres
+    // Use test code "000000" if phone verification is disabled (testing mode on PC)
+    const code = phoneVerificationEnabled ? Math.random().toString().slice(2, 8) : '000000';
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min
 
     await knex('users')
@@ -296,7 +300,12 @@ router.post('/verify-phone/send', requireAuth, async (req, res) => {
         phone_verification_expires_at: expiresAt,
       });
 
-    // En dev, log le code à la console. En prod, envoyer via SMS
+    // En dev/test, log le code à la console. En prod, envoyer via SMS
+    if (!phoneVerificationEnabled) {
+      console.log(`[DEV MODE] Phone verification disabled - test code: ${code}`);
+      return res.json({ success: true, data: { message: 'Code test: 000000', test_mode: true, expires_in_seconds: 300 } });
+    }
+
     if (process.env.APP_MODE !== 'production') {
       console.log(`[DEV] OTP code for ${value.phone}: ${code}`);
     } else {

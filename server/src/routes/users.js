@@ -26,6 +26,7 @@ router.get('/me', async (req, res) => {
         'users.email',
         'users.full_name',
         'users.phone',
+        'users.phone_verified',
         'users.role',
         'users.is_active',
         'users.onboarding_done',
@@ -56,6 +57,21 @@ router.patch('/me', async (req, res) => {
   }
 
   try {
+    // If setting onboarding_done to true, verify minimum 2 contacts
+    if (value.onboarding_done === true) {
+      const contactCount = await knex('contacts')
+        .where({ user_id: req.user.userId, organization_id: req.user.organizationId })
+        .count('id as total')
+        .first();
+
+      if (parseInt(contactCount.total, 10) < 2) {
+        return res.status(422).json({
+          success: false,
+          error: 'Vous devez ajouter au minimum 2 contacts avant de terminer l\'onboarding'
+        });
+      }
+    }
+
     const [user] = await knex('users')
       .where({ id: req.user.userId })
       .update({ ...value, updated_at: new Date() })

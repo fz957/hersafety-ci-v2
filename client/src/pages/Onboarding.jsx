@@ -57,20 +57,20 @@ export default function Onboarding() {
   return (
     <PageShell>
       <div style={{ padding: '60px 24px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <BackButton to="/onboarding-phone" />
+        <span style={{ width: 40 }} />
         <div style={{ display: 'flex', gap: 4 }}>
-          {[1, 2].map((i) => (
+          {[1].map((i) => (
             <span key={i} style={{ width: 24, height: 4, borderRadius: 2,
-              background: i <= 2 ? HS.sakuraDeep : HS.mistyRose }} />
+              background: HS.sakuraDeep }} />
           ))}
         </div>
-        <span style={{ fontSize: 12, color: HS.textMute }}>2/2</span>
+        <span style={{ fontSize: 12, color: HS.textMute }}>1/1</span>
       </div>
 
       <ScrollArea style={{ padding: '22px 24px 24px' }}>
-        <H1>Ton cercle<br />de confiance 💕</H1>
+        <H1>Tes contacts<br />d'urgence 🆘</H1>
         <div style={{ fontSize: 13.5, color: HS.textDim, marginTop: 8, lineHeight: 1.5 }}>
-          Ces personnes seront notifiées en temps réel si tu actives une alerte. Au moins une.
+          Tes amis proches qui seront alertés en cas de danger. Minimum 2 requis pour continuer.
         </div>
 
         {/* Compteur */}
@@ -156,16 +156,16 @@ export default function Onboarding() {
 
         <Button
           onClick={finish}
-          disabled={saving || contacts.length === 0}
+          disabled={saving || contacts.length < 2}
           style={{ marginTop: 22 }}
           icon={<Icon d={ICONS.arrow} size={20} color={HS.bg} />}
         >
-          {saving ? 'Enregistrement…' : 'Terminer la configuration'}
+          {saving ? 'Finalisation…' : 'Accéder à mon profil'}
         </Button>
 
-        {contacts.length === 0 && !loading && (
+        {contacts.length < 2 && !loading && (
           <div style={{ textAlign: 'center', fontSize: 12, color: HS.textMute, marginTop: 8 }}>
-            Ajoute au moins un contact pour continuer.
+            Ajoute au moins 2 contacts pour continuer.
           </div>
         )}
       </ScrollArea>

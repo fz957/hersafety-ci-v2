@@ -28,6 +28,7 @@ import Emergency  from './pages/Emergency.jsx';
 import Tracking   from './pages/Tracking.jsx';
 import Community  from './pages/Community.jsx';
 import Reports    from './pages/Reports.jsx';
+import Chat       from './pages/Chat.jsx';
 
 // Admin
 import AdminDashboard   from './pages/admin/AdminDashboard.jsx';
@@ -155,6 +156,7 @@ function AppRoutes() {
       <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
       <Route path="/emergency"  element={<ProtectedRoute><Emergency /></ProtectedRoute>} />
       <Route path="/tracking"   element={<ProtectedRoute><Tracking /></ProtectedRoute>} />
+      <Route path="/chat"       element={<ProtectedRoute><Chat /></ProtectedRoute>} />
       <Route path="/community"  element={<ProtectedRoute><Community /></ProtectedRoute>} />
       <Route path="/reports"    element={<ProtectedRoute><Reports /></ProtectedRoute>} />
 

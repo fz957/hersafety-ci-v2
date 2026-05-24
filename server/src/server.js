@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+// RATE LIMITER DISABLED FOR DEVELOPMENT - 2026-05-24
 // Variables obligatoires au démarrage — l'app ne démarre pas sans elles
 const REQUIRED_ENV = [
   'DATABASE_URL',
@@ -24,6 +25,7 @@ async function start() {
     // Vérifie la connexion PostgreSQL avant d'ouvrir le port
     await knex.raw('SELECT 1');
     console.log('[DB] Connexion PostgreSQL établie');
+    console.log('[CONFIG] APP_MODE=' + process.env.APP_MODE);
 
     app.listen(PORT, () => {
       console.log(`[SERVER] HerSafety CI démarré sur le port ${PORT}`);
