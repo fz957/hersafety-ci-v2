@@ -73,64 +73,75 @@ function getDistance(lat1, lng1, lat2, lng2) {
 
 // Fetch real places from OpenStreetMap using Nominatim API
 async function fetchNominatim(lat, lng, radius) {
-  const amenities = [
-    { osm: 'police', type: 'police' },
-    { osm: 'pharmacy', type: 'pharmacy' },
-    { osm: 'hospital', type: 'hospital' },
-    { osm: 'fire_station', type: 'fire_station' }
+  const searches = [
+    { query: 'police+station', type: 'police' },
+    { query: 'pharmacy+abidjan', type: 'pharmacy' },
+    { query: 'hospital+abidjan', type: 'hospital' },
+    { query: 'fire+station', type: 'fire_station' }
   ];
   const allPlaces = [];
 
-  // Larger bounding box to find results (0.1 degrees ≈ 11km)
-  const bbox = `${lng - 0.1},${lat - 0.1},${lng + 0.1},${lat + 0.1}`;
+  // Larger bounding box to find results (0.15 degrees ≈ 16km)
+  const bbox = `${lng - 0.15},${lat - 0.15},${lng + 0.15},${lat + 0.15}`;
 
-  // Search for each type of amenity
-  for (const amenity of amenities) {
+  // Search for each type of amenity using natural language
+  for (const search of searches) {
     try {
       const url = `https://nominatim.openstreetmap.org/search?` +
-        `q=amenity:${amenity.osm}&format=json&limit=20&` +
-        `viewbox=${bbox}&bounded=1&countrycodes=ci`;
+        `q=${search.query}&format=json&limit=50&` +
+        `viewbox=${bbox}&bounded=0&countrycodes=ci&accept-language=fr`;
+
+      console.log(`[Nominatim] Searching: ${search.query}`);
 
       const response = await fetch(url, {
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(8000),
         headers: { 'User-Agent': 'HerSafety-CI/1.0' }
       });
 
       if (!response.ok) {
-        console.log(`[Nominatim] ${amenity.osm}: HTTP ${response.status}`);
+        console.log(`[Nominatim] ${search.query}: HTTP ${response.status}`);
         continue;
       }
 
       const results = await response.json();
-      console.log(`[Nominatim] ${amenity.osm}: found ${results.length} results`);
+      console.log(`[Nominatim] ${search.query}: found ${results.length} results`);
 
-      const places = results
-        .filter(p => p.lat && p.lon)
-        .map(p => ({
-          id:      p.osm_id || Math.random(),
-          type:    AMENITY_TO_TYPE[amenity.osm] || 'autre',
-          name:    p.name || p.display_name.split(',')[0],
-          lat:     parseFloat(p.lat),
-          lng:     parseFloat(p.lon),
-          address: p.display_name.split(',').slice(1, 3).join(',').trim() || '',
-          phone:   null,
-          source:  'osm'
-        }));
+      if (results.length > 0) {
+        const places = results
+          .filter(p => p.lat && p.lon && p.class === 'amenity')
+          .slice(0, 10) // Take top 10 for each type
+          .map(p => ({
+            id:      `${p.osm_id}-${p.osm_type}`,
+            type:    AMENITY_TO_TYPE[p.type] || search.type,
+            name:    p.name || p.display_name.split(',')[0],
+            lat:     parseFloat(p.lat),
+            lng:     parseFloat(p.lon),
+            address: p.display_name.split(',').slice(1, 3).join(',').trim() || '',
+            phone:   null,
+            source:  'osm'
+          }));
 
-      allPlaces.push(...places);
+        console.log(`[Nominatim] Added ${places.length} places from ${search.query}`);
+        allPlaces.push(...places);
+      }
     } catch (err) {
-      console.error(`[Nominatim] Error fetching ${amenity.osm}:`, err.message);
+      console.error(`[Nominatim] Error: ${search.query} -`, err.message);
     }
   }
 
   if (allPlaces.length === 0) {
-    console.log(`[Nominatim] No places found, returning null`);
+    console.log(`[Nominatim] No places found after searching, returning null`);
     return null;
   }
 
+  // Remove duplicates by location
+  const unique = allPlaces.reduce((acc, p) => {
+    const exists = acc.find(x => Math.abs(x.lat - p.lat) < 0.001 && Math.abs(x.lng - p.lng) < 0.001);
+    return exists ? acc : [...acc, p];
+  }, []);
+
   // Calculate distances and sort by closest
-  const withDistance = allPlaces
-    .filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i)
+  const withDistance = unique
     .map(p => ({
       ...p,
       distance: getDistance(lat, lng, p.lat, p.lng)
@@ -140,8 +151,8 @@ async function fetchNominatim(lat, lng, radius) {
   const result = sorted.slice(0, 3).map(({ distance, ...p }) => p);
 
   console.log(`[Nominatim] User at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-  console.log(`[Nominatim] Total places found: ${allPlaces.length}`);
-  console.log(`[Nominatim] Top 3:`, result.map((p, i) => `${i+1}. ${p.name} (${p.type})`));
+  console.log(`[Nominatim] Total places: ${allPlaces.length}, unique: ${unique.length}`);
+  console.log(`[Nominatim] Top 3:`, result.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
 
   return result;
 }
