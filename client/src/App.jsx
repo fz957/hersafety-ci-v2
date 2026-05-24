@@ -22,6 +22,7 @@ import Register   from './pages/Register.jsx';
 // Pages protégées
 import Dashboard  from './pages/Dashboard.jsx';
 import OnboardingEmergency from './pages/OnboardingEmergency.jsx';
+import OnboardingPhone from './pages/OnboardingPhone.jsx';
 import Onboarding from './pages/Onboarding.jsx';
 import Emergency  from './pages/Emergency.jsx';
 import Tracking   from './pages/Tracking.jsx';
@@ -150,6 +151,7 @@ function AppRoutes() {
       {/* Protégées — enveloppées dans AppLayout */}
       <Route path="/dashboard"  element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/onboarding-emergency" element={<ProtectedRoute><OnboardingEmergency /></ProtectedRoute>} />
+      <Route path="/onboarding-phone" element={<ProtectedRoute><OnboardingPhone /></ProtectedRoute>} />
       <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
       <Route path="/emergency"  element={<ProtectedRoute><Emergency /></ProtectedRoute>} />
       <Route path="/tracking"   element={<ProtectedRoute><Tracking /></ProtectedRoute>} />

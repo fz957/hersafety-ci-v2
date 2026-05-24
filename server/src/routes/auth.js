@@ -272,4 +272,93 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
+// ─── POST /api/auth/verify-phone/send ─────────────────────────────────────────
+
+const sendOtpSchema = Joi.object({
+  phone: Joi.string().max(20).required(),
+});
+
+router.post('/verify-phone/send', requireAuth, async (req, res) => {
+  const { error, value } = sendOtpSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ success: false, error: error.details[0].message });
+  }
+
+  try {
+    const code = Math.random().toString().slice(2, 8); // 6 chiffres
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+
+    await knex('users')
+      .where({ id: req.user.userId })
+      .update({
+        phone: value.phone,
+        phone_verification_code: code,
+        phone_verification_expires_at: expiresAt,
+      });
+
+    // En dev, log le code à la console. En prod, envoyer via SMS
+    if (process.env.APP_MODE !== 'production') {
+      console.log(`[DEV] OTP code for ${value.phone}: ${code}`);
+    } else {
+      // TODO: Envoyer SMS via Africa's Talking
+      // await smsService.sendOTP(value.phone, code);
+    }
+
+    return res.json({ success: true, data: { message: 'Code envoyé', expires_in_seconds: 300 } });
+  } catch (err) {
+    console.error('OTP send error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur envoi code' });
+  }
+});
+
+// ─── POST /api/auth/verify-phone/confirm ──────────────────────────────────────
+
+const confirmOtpSchema = Joi.object({
+  code: Joi.string().length(6).required(),
+});
+
+router.post('/verify-phone/confirm', requireAuth, async (req, res) => {
+  const { error, value } = confirmOtpSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ success: false, error: error.details[0].message });
+  }
+
+  try {
+    const user = await knex('users').where({ id: req.user.userId }).first();
+
+    if (!user || !user.phone_verification_code) {
+      return res.status(400).json({ success: false, error: 'Aucun code envoyé' });
+    }
+
+    if (new Date() > new Date(user.phone_verification_expires_at)) {
+      return res.status(400).json({ success: false, error: 'Code expiré' });
+    }
+
+    if (user.phone_verification_code !== value.code) {
+      return res.status(400).json({ success: false, error: 'Code incorrect' });
+    }
+
+    // Code valide: mettre à jour l'utilisateur
+    await knex('users')
+      .where({ id: req.user.userId })
+      .update({
+        phone_verified: true,
+        phone_verification_code: null,
+        phone_verification_expires_at: null,
+        onboarding_step: 'contacts',
+      });
+
+    return res.json({
+      success: true,
+      data: {
+        message: 'Téléphone vérifié',
+        onboarding_step: 'contacts',
+      },
+    });
+  } catch (err) {
+    console.error('OTP confirm error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur vérification code' });
+  }
+});
+
 module.exports = router;
