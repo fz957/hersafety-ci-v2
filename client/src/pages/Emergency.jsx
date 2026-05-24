@@ -1,6 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet-routing-machine';
+import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import { useGPS } from '../hooks/useGPS';
 import api from '../services/api';
 import { HS, ICONS } from '../tokens';
@@ -8,6 +11,45 @@ import { Icon, Card, Eyebrow, BackButton, PageShell, ScrollArea, Spinner } from 
 import ConfirmationModal from '../components/ConfirmationModal.jsx';
 
 const NUM_COLORS = { police: '#4A6B8A', pompiers: '#C97B3B', hopital: '#5C7F4F', gendarmerie: '#5C5C8A', autre: HS.sakuraDeep };
+
+// Component to display routing on the map
+function RoutingControl({ start, end }) {
+  const map = useMap();
+  const routingRef = useRef(null);
+
+  useEffect(() => {
+    if (!map || !start || !end) return;
+
+    // Remove old routing if it exists
+    if (routingRef.current) {
+      map.removeControl(routingRef.current);
+    }
+
+    // Create new routing control
+    routingRef.current = L.Routing.control({
+      waypoints: [
+        L.latLng(start.lat, start.lng),
+        L.latLng(end.lat, end.lng)
+      ],
+      routeWhileDragging: false,
+      showAlternatives: false,
+      lineOptions: {
+        styles: [{ color: HS.sakura, weight: 4, opacity: 0.8 }]
+      },
+      altLineOptions: {
+        styles: [{ color: HS.sakura, weight: 3, opacity: 0.3 }]
+      }
+    }).addTo(map);
+
+    return () => {
+      if (routingRef.current) {
+        map.removeControl(routingRef.current);
+      }
+    };
+  }, [map, start, end]);
+
+  return null;
+}
 
 // Véhicules de transport avec lieux de destination sûrs pré-remplis
 const getVTCLinks = (position) => {
@@ -40,6 +82,7 @@ export default function Emergency() {
 
   const [emergencyNums, setEmergencyNums] = useState([]);
   const [places, setPlaces]               = useState([]);
+  const [selectedPlace, setSelectedPlace] = useState(null); // For routing
   const [messages, setMessages]           = useState([]); // Conversation history
   const [userInput, setUserInput]         = useState('');
   const [loadingAI, setLoadingAI]         = useState(false);
@@ -284,6 +327,10 @@ export default function Emergency() {
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
+              {/* Display routing if a place is selected */}
+              {selectedPlace && position && (
+                <RoutingControl start={position} end={selectedPlace} />
+              )}
               {/* Vous êtes ici — marqueur central */}
               {position && (
                 <CircleMarker
@@ -340,14 +387,23 @@ export default function Emergency() {
                     <span style={{ color: HS.safe, fontWeight: 700 }}>● Ouvert</span> · {p.type}
                   </div>
                 </div>
-                {p.phone && (
-                  <a href={`tel:${p.phone}`}>
-                    <button style={{ background: HS.chocolate, border: 'none', color: HS.bg,
-                      padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, fontFamily: HS.font }}>
-                      Appeler
-                    </button>
-                  </a>
-                )}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button
+                    onClick={() => setSelectedPlace(p)}
+                    style={{ background: HS.sakura, border: 'none', color: '#fff',
+                      padding: '8px 12px', borderRadius: 10, fontSize: 11, fontWeight: 700, fontFamily: HS.font,
+                      cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    Itinéraire
+                  </button>
+                  {p.phone && (
+                    <a href={`tel:${p.phone}`}>
+                      <button style={{ background: HS.chocolate, border: 'none', color: HS.bg,
+                        padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, fontFamily: HS.font }}>
+                        Appeler
+                      </button>
+                    </a>
+                  )}
+                </div>
               </Card>
             ))}
         </div>
