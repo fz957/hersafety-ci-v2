@@ -6,19 +6,16 @@ const { requireAuth } = require('../middlewares/auth');
 const router = express.Router();
 router.use(requireAuth);
 
-// Cache mémoire simple — TTL 5 minutes
+// Cache mémoire simple — DISABLED for testing, will re-enable later
 const cache = new Map();
-const CACHE_TTL = 5 * 60 * 1000;
+const CACHE_TTL = 0; // Disabled during debugging
 
 function getCached(key) {
-  const entry = cache.get(key);
-  if (entry && Date.now() - entry.ts < CACHE_TTL) return entry.data;
-  cache.delete(key);
-  return null;
+  return null; // Always skip cache
 }
 
 function setCache(key, data) {
-  cache.set(key, { data, ts: Date.now() });
+  // Cache disabled - don't store
 }
 
 const AMENITY_TO_TYPE = {
@@ -127,12 +124,16 @@ router.get('/', async (req, res) => {
   }
 
   const { lat, lng, radius } = value;
+  console.log(`\n[GET /api/places] INCOMING REQUEST: lat=${lat}, lng=${lng}, radius=${radius}`);
+
   const cacheKey = `${lat}_${lng}_${radius}`;
 
   const cached = getCached(cacheKey);
   if (cached) {
+    console.log(`[GET /api/places] Cache hit`);
     return res.json({ success: true, data: cached, source: 'cache' });
   }
+  console.log(`[GET /api/places] Cache miss, fetching fresh data`);
 
   try {
     let places = await fetchOverpass(lat, lng, radius);
