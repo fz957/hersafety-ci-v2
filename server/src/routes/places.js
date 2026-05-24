@@ -72,29 +72,39 @@ function getDistance(lat1, lng1, lat2, lng2) {
 }
 
 // Fetch real places from OpenStreetMap using Overpass API
-// Overpass is optimized for amenity queries unlike Nominatim
+// Query specific safe place types: police, pharmacies, hospitals, fire stations
 async function fetchOverpass(lat, lng, radius) {
-  // Very tight bounding box: ~1km radius only (0.009 degrees ≈ 1km)
-  // Only search immediately nearby - walkable distance
-  const boxSize = 0.009; // ~1km radius
-  const bbox = `${lat - boxSize},${lng - boxSize},${lat + boxSize},${lng + boxSize}`;
+  // Convert radius (in meters) to degrees
+  const radiusDegrees = radius / 111000; // 1 degree ≈ 111 km
 
-  // Overpass query for ALL amenities in the area
-  // Returns everything: shops, services, public facilities, etc.
-  const query = `[bbox:${lat - boxSize},${lat + boxSize},${lng - boxSize},${lng + boxSize}];
+  // Overpass query - search for specific safe place types
+  // Using union of different amenity types to find what matters
+  const query = `[bbox:${lat - radiusDegrees},${lng - radiusDegrees},${lat + radiusDegrees},${lng + radiusDegrees}];
 (
-  node["amenity"];
-  way["amenity"];
+  node["amenity"="police"];
+  way["amenity"="police"];
+  node["amenity"="police_station"];
+  way["amenity"="police_station"];
+  node["amenity"="pharmacy"];
+  way["amenity"="pharmacy"];
+  node["amenity"="hospital"];
+  way["amenity"="hospital"];
+  node["amenity"="clinic"];
+  way["amenity"="clinic"];
+  node["amenity"="fire_station"];
+  way["amenity"="fire_station"];
+  node["amenity"="gendarmerie"];
+  way["amenity"="gendarmerie"];
 );
 out center;`;
 
   try {
-    console.log(`[Overpass] Fetching amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    console.log(`[Overpass] Querying safe places around ${lat.toFixed(4)}, ${lng.toFixed(4)} (radius: ${radius}m)`);
 
     const response = await fetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
       body: query,
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(15000),
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
 
@@ -107,41 +117,38 @@ out center;`;
     const json = JSON.parse(text);
 
     if (!json.elements || json.elements.length === 0) {
-      console.log('[Overpass] No results');
+      console.log('[Overpass] No safe places found');
       return null;
     }
 
-    console.log(`[Overpass] Found ${json.elements.length} amenities`);
+    console.log(`[Overpass] Found ${json.elements.length} safe places`);
 
-    // Convert Overpass format to our format with distances
-    const placesWithDistance = json.elements
+    // Convert Overpass format to our format
+    const places = json.elements
       .filter(el => el.lat && el.lon && el.tags && el.tags.name)
       .map(el => {
-        const distance = getDistance(lat, lng, parseFloat(el.lat), parseFloat(el.lon));
+        // Map OpenStreetMap amenity types to our types
+        const amenityType = el.tags.amenity;
+        let type = 'autre';
+        if (['police', 'police_station'].includes(amenityType)) type = 'police';
+        else if (amenityType === 'pharmacy') type = 'pharmacie';
+        else if (['hospital', 'clinic'].includes(amenityType)) type = 'hopital';
+        else if (['fire_station', 'pompiers'].includes(amenityType)) type = 'pompiers';
+        else if (amenityType === 'gendarmerie') type = 'gendarmerie';
+
         return {
           id: `${el.id}-${el.type}`,
-          type: el.tags.amenity,
+          type: type,
           name: el.tags.name,
           lat: parseFloat(el.lat),
           lng: parseFloat(el.lon),
-          address: `${el.tags.name}, Côte d'Ivoire`,
+          address: el.tags['addr:street'] || `${el.tags.name}, Côte d'Ivoire`,
           phone: el.tags.phone || null,
-          source: 'osm',
-          distance: distance
+          source: 'osm'
         };
-      })
-      // STRICT filter: only places within 1km (walkable distance)
-      .filter(p => p.distance <= 1)
-      // Sort by distance - CLOSEST first
-      .sort((a, b) => a.distance - b.distance);
+      });
 
-    console.log(`[Overpass] Found ${placesWithDistance.length} places within 1km`);
-    if (placesWithDistance.length > 0) {
-      console.log(`[Overpass] Top 5:`, placesWithDistance.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
-    }
-
-    // Remove distance field before returning
-    const places = placesWithDistance.map(({ distance, ...p }) => p);
+    console.log(`[Overpass] Returning ${places.length} safe places`);
     return places.length > 0 ? places : null;
 
   } catch (err) {
@@ -299,40 +306,42 @@ router.get('/', async (req, res) => {
   console.log(`[GET /api/places] Cache miss, fetching fresh data`);
 
   try {
-    // Use verified local database ONLY - 100% accurate places
-    // Filter by distance and return closest 5 places
-    const withDistance = FALLBACK_PLACES
-      .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }))
-      .filter(p => p.distance <= (radius / 1000)); // Filter by user's requested radius
+    // Primary: Query real OpenStreetMap data with Overpass API
+    // Uses user's ACTUAL GPS position to find real nearby places
+    let places = await fetchOverpass(lat, lng, radius);
 
-    if (withDistance.length === 0) {
-      console.log(`[GET /api/places] No verified places within ${radius}m`);
-      return res.json({ success: true, data: [], source: 'verified-empty' });
+    // Fallback to Nominatim if Overpass fails
+    if (!places || places.length === 0) {
+      console.log('[GET /api/places] Overpass empty, trying Nominatim');
+      places = await fetchNominatim(lat, lng, radius);
     }
 
-    // Sort by distance - CLOSEST first
+    // If OpenStreetMap has no results, return empty (don't fake data)
+    if (!places || places.length === 0) {
+      console.log(`[GET /api/places] No real places found in OpenStreetMap near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      return res.json({ success: true, data: [], source: 'osm-empty' });
+    }
+
+    // Calculate distances and sort by closest
+    const withDistance = places.map(p => ({
+      ...p,
+      distance: getDistance(lat, lng, p.lat, p.lng)
+    }));
+
     const sorted = withDistance.sort((a, b) => a.distance - b.distance);
     const top5 = sorted.slice(0, 5);
     const result = top5.map(({ distance, ...p }) => p);
 
     console.log(`[GET /api/places] User at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-    console.log(`[GET /api/places] Found ${withDistance.length} verified places within radius, returning top 5:`);
+    console.log(`[GET /api/places] Found ${places.length} real places in OpenStreetMap, returning top 5:`);
     console.log(top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
 
     setCache(cacheKey, result);
-    return res.json({ success: true, data: result, source: 'verified' });
+    return res.json({ success: true, data: result, source: 'osm' });
 
   } catch (err) {
     console.error('[GET /api/places] Error:', err.message);
-    // Final fallback: return closest 5 verified places regardless of radius
-    const withDistance = FALLBACK_PLACES
-      .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }));
-    const sorted = withDistance.sort((a, b) => a.distance - b.distance);
-    const result = sorted.slice(0, 5).map(({ distance, ...p }) => p);
-
-    console.log(`[GET /api/places] Fallback: returning closest 5 verified places`);
-    setCache(cacheKey, result);
-    return res.json({ success: true, data: result, source: 'verified-fallback' });
+    return res.json({ success: true, data: [], source: 'error' });
   }
 });
 
