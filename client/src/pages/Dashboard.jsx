@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [activeTrack, setActiveTrack] = useState(null);
   const [loadingTrack, setLoadingTrack] = useState(true);
   const [showGpsHelp, setShowGpsHelp] = useState(false);
+  const [manualPosition, setManualPosition] = useState(null);
 
   // Hook pour les check-ins automatiques
   const {
@@ -66,10 +67,13 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  // Use manual position override if set, otherwise use GPS position
+  const effectivePosition = manualPosition || position;
+
   const handleLevel = async (lv) => {
     try {
-      const extras = position
-        ? { location_lat: position.lat, location_lng: position.lng }
+      const extras = effectivePosition
+        ? { location_lat: effectivePosition.lat, location_lng: effectivePosition.lng }
         : {};
 
       if (lv.level === '1') {
@@ -162,6 +166,37 @@ export default function Dashboard() {
             </button>
           </div>
         )}
+
+        {/* 🧪 Test Locations for Debugging */}
+        <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setManualPosition({ lat: 6.8450, lng: -5.3100, accuracy: 10 })}
+            style={{
+              fontSize: 11, padding: '6px 10px', borderRadius: 8, border: '1px solid ' + HS.sakura,
+              background: manualPosition?.lat === 6.8450 ? HS.sakura : 'transparent', color: '#fff',
+              cursor: 'pointer', fontWeight: 600
+            }}>
+            📍 Bietry
+          </button>
+          <button
+            onClick={() => setManualPosition({ lat: 6.8382, lng: -5.2543, accuracy: 10 })}
+            style={{
+              fontSize: 11, padding: '6px 10px', borderRadius: 8, border: '1px solid ' + HS.sakura,
+              background: manualPosition?.lat === 6.8382 ? HS.sakura : 'transparent', color: '#fff',
+              cursor: 'pointer', fontWeight: 600
+            }}>
+            📍 Cocody
+          </button>
+          <button
+            onClick={() => setManualPosition(null)}
+            style={{
+              fontSize: 11, padding: '6px 10px', borderRadius: 8, border: '1px solid ' + HS.textMute,
+              background: !manualPosition ? HS.textMute : 'transparent', color: '#fff',
+              cursor: 'pointer', fontWeight: 600
+            }}>
+            🔄 GPS Real
+          </button>
+        </div>
       </div>
 
       {/* Boutons de niveau */}
