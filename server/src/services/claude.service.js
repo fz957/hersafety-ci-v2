@@ -83,26 +83,27 @@ async function getAssistMessage({ level, context = {}, conversationHistory = [],
     // Sélectionner le prompt approprié selon le mode
     let systemPrompt = SYSTEM_PROMPT;
 
+    // Créer le contexte à inclure dans chaque message système
+    let contextInfo = '';
+    if (contextObj.position) {
+      contextInfo += `📍 GPS: ${contextObj.position.lat.toFixed(4)}, ${contextObj.position.lng.toFixed(4)}\n`;
+    }
+    if (contextObj.emergencyNumbers && contextObj.emergencyNumbers.length > 0) {
+      const nums = contextObj.emergencyNumbers.slice(0, 3).map(e => `${e.number} (${e.name})`).join(', ');
+      contextInfo += `📞 ${nums}\n`;
+    }
+    if (contextObj.nearbyPlaces && contextObj.nearbyPlaces.length > 0) {
+      const places = contextObj.nearbyPlaces.slice(0, 3).map(p => `${p.name} (${p.type})`).join(', ');
+      contextInfo += `🏠 ${places}\n`;
+    }
+    if (contextObj.vtcOptions && contextObj.vtcOptions.length > 0) {
+      const vtc = contextObj.vtcOptions.map(v => v.n).join(', ');
+      contextInfo += `🚗 ${vtc}\n`;
+    }
+
     // Si c'est la première fois (pas d'historique), ajouter le contexte initial
     if (messages.length === 0) {
-      let initialContext = `Niveau d'urgence ${level}/4. ${LEVEL_CONTEXT[level]}`;
-
-      // Ajouter les ressources disponibles
-      if (contextObj.position) {
-        initialContext += `\n📍 Localisation : ${contextObj.position.lat.toFixed(4)}, ${contextObj.position.lng.toFixed(4)}`;
-      }
-      if (contextObj.emergencyNumbers && contextObj.emergencyNumbers.length > 0) {
-        const nums = contextObj.emergencyNumbers.slice(0, 3).map(e => `${e.number} (${e.name})`).join(', ');
-        initialContext += `\n📞 Numéros disponibles : ${nums}`;
-      }
-      if (contextObj.nearbyPlaces && contextObj.nearbyPlaces.length > 0) {
-        const places = contextObj.nearbyPlaces.slice(0, 3).map(p => `${p.name} (${p.type})`).join(', ');
-        initialContext += `\n🏠 Lieux sûrs : ${places}`;
-      }
-      if (contextObj.vtcOptions && contextObj.vtcOptions.length > 0) {
-        const vtc = contextObj.vtcOptions.map(v => v.n).join(', ');
-        initialContext += `\n🚗 VTC disponibles : ${vtc}`;
-      }
+      let initialContext = `Niveau d'urgence ${level}/4. ${LEVEL_CONTEXT[level]}\n\n${contextInfo}`;
 
       if (mode === 'evaluator') {
         systemPrompt = SYSTEM_PROMPT_EVALUATOR;
@@ -115,8 +116,11 @@ async function getAssistMessage({ level, context = {}, conversationHistory = [],
       });
     } else if (mode === 'evaluator') {
       systemPrompt = SYSTEM_PROMPT_EVALUATOR;
+    } else if (contextInfo) {
+      // Pour les messages suivants, inclure aussi le contexte mis à jour
+      systemPrompt += `\n\nContexte actuel:\n${contextInfo}`;
     }
-    // Si on a déjà un historique, les messages sont déjà là (pas besoin d'ajouter initialContext)
+    // Si on a déjà un historique, les messages sont déjà là
 
     // Appeler l'API Groq
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
