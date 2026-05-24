@@ -71,7 +71,75 @@ function getDistance(lat1, lng1, lat2, lng2) {
   return R * c;
 }
 
-// Fetch real places from OpenStreetMap using Nominatim API
+// Fetch real places from OpenStreetMap using Overpass API
+// Overpass is optimized for amenity queries unlike Nominatim
+async function fetchOverpass(lat, lng, radius) {
+  // Bounding box: ~16km radius (0.15 degrees)
+  const bbox = `${lat - 0.15},${lng - 0.15},${lat + 0.15},${lng + 0.15}`;
+
+  // Overpass query for all safety amenities
+  const query = `[bbox:${lat - 0.15},${lat + 0.15},${lng - 0.15},${lng + 0.15}];
+(
+  node["amenity"="police"];
+  way["amenity"="police"];
+  node["amenity"="pharmacy"];
+  way["amenity"="pharmacy"];
+  node["amenity"="hospital"];
+  way["amenity"="hospital"];
+  node["amenity"="fire_station"];
+  way["amenity"="fire_station"];
+);
+out center;`;
+
+  try {
+    console.log(`[Overpass] Fetching amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+
+    const response = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      body: query,
+      signal: AbortSignal.timeout(10000),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    });
+
+    if (!response.ok) {
+      console.log(`[Overpass] HTTP ${response.status}`);
+      return null;
+    }
+
+    const text = await response.text();
+    const json = JSON.parse(text);
+
+    if (!json.elements || json.elements.length === 0) {
+      console.log('[Overpass] No results');
+      return null;
+    }
+
+    console.log(`[Overpass] Found ${json.elements.length} amenities`);
+
+    // Convert Overpass format to our format
+    const places = json.elements
+      .filter(el => el.lat && el.lon && el.tags && el.tags.name)
+      .map(el => ({
+        id: `${el.id}-${el.type}`,
+        type: el.tags.amenity,
+        name: el.tags.name,
+        lat: parseFloat(el.lat),
+        lng: parseFloat(el.lon),
+        address: `${el.tags.name}, Côte d'Ivoire`,
+        phone: el.tags.phone || null,
+        source: 'osm'
+      }));
+
+    console.log(`[Overpass] Valid places with names: ${places.length}`);
+    return places.length > 0 ? places : null;
+
+  } catch (err) {
+    console.error(`[Overpass] Error:`, err.message);
+    return null;
+  }
+}
+
+// Fetch real places from OpenStreetMap using Nominatim API (fallback)
 async function fetchNominatim(lat, lng, radius) {
   // Try multiple query variations per amenity type - some might match better in OSM data
   const searchGroups = [
@@ -220,14 +288,25 @@ router.get('/', async (req, res) => {
   console.log(`[GET /api/places] Cache miss, fetching fresh data`);
 
   try {
-    // Try Nominatim first (real OpenStreetMap data)
-    let nominatimPlaces = await fetchNominatim(lat, lng, radius);
-    console.log(`[GET /api/places] Nominatim returned ${nominatimPlaces ? nominatimPlaces.length : 0} places`);
+    // Try Overpass API first - it's optimized for amenity queries
+    let overpassPlaces = await fetchOverpass(lat, lng, radius);
 
-    // Combine Nominatim results with local fallback places for more complete coverage
-    // This ensures we show real names (from fallback) even if Nominatim is incomplete
+    // Fallback to Nominatim if Overpass fails
+    let nominatimPlaces = null;
+    if (!overpassPlaces || overpassPlaces.length === 0) {
+      console.log('[GET /api/places] Overpass empty, trying Nominatim');
+      nominatimPlaces = await fetchNominatim(lat, lng, radius);
+    }
+
     let allPlaces = [];
 
+    // Combine Overpass results (if available)
+    if (overpassPlaces && overpassPlaces.length > 0) {
+      allPlaces.push(...overpassPlaces);
+      console.log(`[GET /api/places] Added ${overpassPlaces.length} places from Overpass`);
+    }
+
+    // Also add Nominatim results if available (for comparison/completeness)
     if (nominatimPlaces && nominatimPlaces.length > 0) {
       allPlaces.push(...nominatimPlaces);
       console.log(`[GET /api/places] Added ${nominatimPlaces.length} places from Nominatim`);
