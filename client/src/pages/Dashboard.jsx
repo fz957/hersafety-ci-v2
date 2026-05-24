@@ -22,9 +22,10 @@ export default function Dashboard() {
   const { position, error: gpsError } = useGPS({ watch: true });
   const navigate = useNavigate();
 
-  // Enforce onboarding - redirect if not complete
+  // Enforce onboarding - MUST complete all steps in order
   useEffect(() => {
     if (user && !user.onboarding_done) {
+      // Always start from emergency numbers - mandatory first step
       navigate('/onboarding-emergency', { replace: true });
     }
   }, [user, navigate]);

@@ -57,7 +57,7 @@ export default function Onboarding() {
   return (
     <PageShell>
       <div style={{ padding: '60px 24px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <BackButton to="/dashboard" />
+        <BackButton to="/onboarding-phone" />
         <div style={{ display: 'flex', gap: 4 }}>
           {[1, 2].map((i) => (
             <span key={i} style={{ width: 24, height: 4, borderRadius: 2,
