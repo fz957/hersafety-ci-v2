@@ -2,9 +2,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useEmergency } from '../hooks/useEmergency';
 import { useGPS } from '../hooks/useGPS';
+import { useCheckInTimer } from '../hooks/useCheckInTimer';
 import { HS, ICONS } from '../tokens';
-import { Icon, Avatar, Eyebrow, TestBanner, BottomNav, PageShell, Toast } from '../components/ui/index.jsx';
-import { useState } from 'react';
+import { Icon, Avatar, Eyebrow, TestBanner, BottomNav, PageShell, Toast, Card, Button } from '../components/ui/index.jsx';
+import { useState, useEffect } from 'react';
 import api from '../services/api';
 
 const LEVELS = [
@@ -20,6 +21,40 @@ export default function Dashboard() {
   const { position } = useGPS();
   const navigate = useNavigate();
   const [toast, setToast] = useState(null);
+  const [activeTrack, setActiveTrack] = useState(null);
+  const [loadingTrack, setLoadingTrack] = useState(true);
+
+  // Hook pour les check-ins automatiques
+  const {
+    showCheckInModal,
+    setShowCheckInModal,
+    timeRemaining,
+    missedCheckIns,
+    handleCheckInYes,
+    handleCheckInNo,
+    isEscalating,
+  } = useCheckInTimer(activeTrack);
+
+  // Charger le track actif au montage
+  useEffect(() => {
+    const loadActiveTrack = async () => {
+      try {
+        const res = await api.get('/api/tracks');
+        const tracks = res.data.data || [];
+        const active = tracks.find((t) => t.status === 'active');
+        setActiveTrack(active || null);
+      } catch (err) {
+        console.error('Erreur chargement track:', err.message);
+      } finally {
+        setLoadingTrack(false);
+      }
+    };
+
+    loadActiveTrack();
+    // Rafraîchir toutes les 5 secondes si un track est actif
+    const interval = setInterval(loadActiveTrack, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLevel = async (lv) => {
     try {
@@ -131,6 +166,84 @@ export default function Dashboard() {
 
       <BottomNav />
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
+
+      {/* Modal Check-in Global (Niveau 1) */}
+      {showCheckInModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.7)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+        }}>
+          <Card style={{
+            maxWidth: 340, padding: 28, background: `linear-gradient(135deg, ${HS.safe}, ${HS.mistyRose})`,
+            display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'center', textAlign: 'center',
+          }}>
+            {/* Titre */}
+            <div style={{ fontSize: 24, fontWeight: 800, color: HS.chocolate }}>
+              Tout va bien ?
+            </div>
+
+            {/* Countdown circular */}
+            <div style={{
+              width: 100, height: 100, borderRadius: '50%',
+              background: `linear-gradient(135deg, ${HS.sakura}, ${HS.sakuraDeep})`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: `0 0 0 8px ${HS.mistyRose}`,
+            }}>
+              <div style={{ fontSize: 32, fontWeight: 800, color: '#fff' }}>
+                {Math.ceil(timeRemaining / 1000)}s
+              </div>
+            </div>
+
+            {/* Message */}
+            <div style={{ fontSize: 13, color: HS.textDim, lineHeight: 1.5 }}>
+              {missedCheckIns === 1
+                ? 'Réponds rapidement ou tes contacts seront alertés'
+                : 'Tes contacts ont besoin de savoir que tu vas bien'}
+            </div>
+
+            {/* Boutons */}
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button
+                onClick={handleCheckInYes}
+                disabled={isEscalating}
+                style={{
+                  width: '100%', padding: '14px 20px', borderRadius: 14,
+                  background: HS.safe, border: 'none', color: '#fff',
+                  fontWeight: 700, fontSize: 14, fontFamily: HS.font,
+                  cursor: isEscalating ? 'not-allowed' : 'pointer',
+                  opacity: isEscalating ? 0.6 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}>
+                <Icon d={ICONS.check} size={16} color="#fff" />
+                Oui, je vais bien ✓
+              </button>
+
+              <button
+                onClick={handleCheckInNo}
+                disabled={isEscalating}
+                style={{
+                  width: '100%', padding: '14px 20px', borderRadius: 14,
+                  background: HS.danger, border: 'none', color: '#fff',
+                  fontWeight: 700, fontSize: 14, fontFamily: HS.font,
+                  cursor: isEscalating ? 'not-allowed' : 'pointer',
+                  opacity: isEscalating ? 0.6 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}>
+                <Icon d={ICONS.alert} size={16} color="#fff" />
+                Non, aide-moi
+              </button>
+            </div>
+
+            {/* Status */}
+            {isEscalating && (
+              <div style={{ fontSize: 12, color: HS.danger, fontWeight: 700 }}>
+                ⏳ Alertes en cours d'envoi…
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
     </PageShell>
   );
 }
