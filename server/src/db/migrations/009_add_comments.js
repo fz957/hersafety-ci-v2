@@ -11,7 +11,7 @@ exports.up = async (knex) => {
     table.uuid('user_id').notNullable().references('users.id').onDelete('CASCADE');
     table.uuid('organization_id').notNullable().references('organizations.id').onDelete('CASCADE');
 
-    table.text('content').notNullable().checkRegex(/.{1,500}/, 'Comment must be between 1 and 500 characters');
+    table.text('content').notNullable(); // Validation en app layer
 
     table.boolean('is_anonymous').defaultTo(false);
     table.string('display_name', 255).nullable();

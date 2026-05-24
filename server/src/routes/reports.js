@@ -42,18 +42,19 @@ router.get('/danger-zones', async (req, res) => {
       .whereNotNull('place_lat')
       .whereNotNull('place_lng')
       .select(
-        knex.raw('ROUND(place_lat::numeric, 4) as latitude'),
-        knex.raw('ROUND(place_lng::numeric, 4) as longitude'),
-        'place_address as area_name',
-        'place_name as zone_description',
+        knex.raw('ROUND(CAST(place_lat AS numeric), 4)::float as latitude'),
+        knex.raw('ROUND(CAST(place_lng AS numeric), 4)::float as longitude'),
+        knex.raw('place_address'),
+        knex.raw('place_name'),
         knex.raw('COUNT(*) as report_count')
       )
-      .groupBy(knex.raw('ROUND(place_lat::numeric, 4)'), knex.raw('ROUND(place_lng::numeric, 4)'), 'place_address', 'place_name')
+      .groupBy(knex.raw('place_address'), knex.raw('place_name'), knex.raw('ROUND(CAST(place_lat AS numeric), 4)'), knex.raw('ROUND(CAST(place_lng AS numeric), 4)'))
       .havingRaw('COUNT(*) > 0')
       .orderBy(knex.raw('COUNT(*)'), 'desc');
 
     return res.json({ success: true, data: dangerZones });
   } catch (err) {
+    console.error('Danger zones error:', err);
     return res.status(500).json({ success: false, error: 'Erreur récupération zones dangereuses' });
   }
 });

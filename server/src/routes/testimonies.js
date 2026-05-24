@@ -29,14 +29,23 @@ const moderateSchema = Joi.object({
 router.get('/', async (req, res) => {
   const page  = Math.max(1, parseInt(req.query.page  || '1', 10));
   const limit = Math.min(50, parseInt(req.query.limit || '20', 10));
+  const { userId } = req.user;
 
   try {
+    // Montrer: tous les témoignages approuvés + les témoignages pending de l'utilisateur
     const testimonies = await knex('testimonies')
-      .where({ organization_id: req.user.organizationId, status: 'approved' })
+      .where({ organization_id: req.user.organizationId })
+      .where((builder) => {
+        builder
+          .where('status', 'approved')
+          .orWhere((subBuilder) => {
+            subBuilder.where('status', 'pending').where('user_id', userId);
+          });
+      })
       .select(
         'id', 'organization_id', 'is_anonymous', 'display_name',
         'category', 'title', 'content', 'location_label',
-        'support_count', 'comment_count', 'created_at'
+        'support_count', 'comment_count', 'status', 'created_at'
         // user_id délibérément exclu pour préserver l'anonymat
       )
       .orderBy('created_at', 'desc')
@@ -45,6 +54,7 @@ router.get('/', async (req, res) => {
 
     return res.json({ success: true, data: testimonies });
   } catch (err) {
+    console.error('Testimonies get error:', err);
     return res.status(500).json({ success: false, error: 'Erreur récupération témoignages' });
   }
 });
@@ -130,9 +140,16 @@ router.post('/:testimonyId/like', async (req, res) => {
   const { userId, organizationId } = req.user;
 
   try {
-    // Vérifier que le témoignage existe dans l'org
+    // Vérifier que le témoignage existe dans l'org (approuvé OU pending pour le créateur)
     const testimony = await knex('testimonies')
-      .where({ id: testimonyId, organization_id: organizationId, status: 'approved' })
+      .where({ id: testimonyId, organization_id: organizationId })
+      .where((builder) => {
+        builder
+          .where('status', 'approved')
+          .orWhere((subBuilder) => {
+            subBuilder.where('status', 'pending').where('user_id', userId);
+          });
+      })
       .first();
 
     if (!testimony) {
@@ -213,9 +230,16 @@ router.get('/:testimonyId/comments', async (req, res) => {
   const { userId, organizationId } = req.user;
 
   try {
-    // Vérifier que le témoignage existe
+    // Vérifier que le témoignage existe (approuvé OU pending pour le créateur)
     const testimony = await knex('testimonies')
-      .where({ id: testimonyId, organization_id: organizationId, status: 'approved' })
+      .where({ id: testimonyId, organization_id: organizationId })
+      .where((builder) => {
+        builder
+          .where('status', 'approved')
+          .orWhere((subBuilder) => {
+            subBuilder.where('status', 'pending').where('user_id', userId);
+          });
+      })
       .first();
 
     if (!testimony) {
@@ -258,9 +282,16 @@ router.post('/:testimonyId/comments', async (req, res) => {
   const { userId, organizationId } = req.user;
 
   try {
-    // Vérifier que le témoignage existe
+    // Vérifier que le témoignage existe (approuvé OU pending pour le créateur)
     const testimony = await knex('testimonies')
-      .where({ id: testimonyId, organization_id: organizationId, status: 'approved' })
+      .where({ id: testimonyId, organization_id: organizationId })
+      .where((builder) => {
+        builder
+          .where('status', 'approved')
+          .orWhere((subBuilder) => {
+            subBuilder.where('status', 'pending').where('user_id', userId);
+          });
+      })
       .first();
 
     if (!testimony) {
