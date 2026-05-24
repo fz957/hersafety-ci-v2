@@ -97,7 +97,7 @@ export default function Emergency() {
     api.get(`/api/places?lat=${position.lat}&lng=${position.lng}&radius=1000`)
       .then((r) => {
         const data = r.data.data || [];
-        setPlaces(data.slice(0, 3));
+        setPlaces(data.slice(0, 5)); // Show top 5 nearest places instead of 3
       })
       .catch((err) => {
         console.error('Erreur lieux sûrs:', err.message);

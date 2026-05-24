@@ -182,12 +182,12 @@ async function fetchNominatim(lat, lng, radius) {
     }));
 
   const sorted = withDistance.sort((a, b) => a.distance - b.distance);
-  const top3 = sorted.slice(0, 3);
-  const result = top3.map(({ distance, ...p }) => p);
+  const top5 = sorted.slice(0, 5); // Return top 5 nearest places
+  const result = top5.map(({ distance, ...p }) => p);
 
   console.log(`[Nominatim] User at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
   console.log(`[Nominatim] Total places: ${allPlaces.length}, unique: ${unique.length}`);
-  console.log(`[Nominatim] Top 3:`, top3.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
+  console.log(`[Nominatim] Top 5:`, top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
 
   return result;
 }
