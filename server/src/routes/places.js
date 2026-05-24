@@ -145,8 +145,7 @@ async function fetchNominatim(lat, lng, radius) {
               address: p.display_name.split(',').slice(1, 3).join(',').trim() || '',
               phone:   null,
               source:  'osm'
-            }))
-            .slice(0, 10); // Take top 10 from this variation
+            })); // Keep ALL results from this variation - distance sorting happens later
 
           if (places.length > 0) {
             console.log(`[Nominatim] Added ${places.length} places from ${search.query}`);
