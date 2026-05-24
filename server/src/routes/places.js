@@ -74,9 +74,10 @@ function getDistance(lat1, lng1, lat2, lng2) {
 // Fetch real places from Foursquare Places API (Primary source)
 // Better data coverage and accuracy than OpenStreetMap for Abidjan
 async function fetchFoursquare(lat, lng, radius) {
-  const apiKey = process.env.FOURSQUARE_API_KEY;
-  if (!apiKey) {
-    console.error('[Foursquare] API key not configured');
+  const clientId = process.env.FOURSQUARE_CLIENT_ID;
+  const clientSecret = process.env.FOURSQUARE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    console.error('[Foursquare] Client ID or Secret not configured');
     return null;
   }
 
@@ -97,13 +98,13 @@ async function fetchFoursquare(lat, lng, radius) {
 
     for (const query of queries) {
       try {
-        // Foursquare Places API v3
+        // Foursquare Places API v3 with Client ID + Secret
         const url = `https://api.foursquare.com/v3/places/search?` +
-          `query=${query.q}&near=${lat},${lng}&radius=${radius}&limit=50`;
+          `query=${encodeURIComponent(query.q)}&near=${lat},${lng}&radius=${radius}&limit=50&` +
+          `client_id=${clientId}&client_secret=${clientSecret}`;
 
         const response = await fetch(url, {
           headers: {
-            'Authorization': apiKey,
             'Accept': 'application/json'
           },
           signal: AbortSignal.timeout(8000)
@@ -271,56 +272,35 @@ out center;`;
   }
 }
 
-// Fetch real places from OpenStreetMap using Nominatim API (fallback)
+// Fetch real places from OpenStreetMap using Nominatim API
+// Search in French for best results in Abidjan
 async function fetchNominatim(lat, lng, radius) {
-  // Search ONLY safety-critical places for emergencies
-  // Precision > Quantity - better to show verified places than many fake ones
-  const searchGroups = [
-    [
-      { query: 'police', type: 'police' },
-      { query: 'commissariat police', type: 'police' },
-      { query: 'poste police', type: 'police' }
-    ],
-    [
-      { query: 'pharmacie', type: 'pharmacie' },
-      { query: 'pharmacy', type: 'pharmacie' }
-    ],
-    [
-      { query: 'hopital', type: 'hopital' },
-      { query: 'hôpital', type: 'hopital' },
-      { query: 'hospital', type: 'hopital' },
-      { query: 'centre sante', type: 'hopital' },
-      { query: 'clinic', type: 'hopital' }
-    ],
-    [
-      { query: 'pompiers', type: 'pompiers' },
-      { query: 'caserne pompiers', type: 'pompiers' },
-      { query: 'fire station', type: 'pompiers' }
-    ],
-    [
-      { query: 'gendarmerie', type: 'gendarmerie' }
-    ]
+  // Search queries in FRENCH only - Abidjan uses French names
+  const queries = [
+    'pharmacie',
+    'police',
+    'hopital',
+    'hôpital',
+    'pompiers',
+    'clinique'
   ];
 
   const allPlaces = [];
 
-  // Wide bounding box to find all nearby places (0.25 degrees ≈ 28km)
-  // Better to cast a wider net and filter by distance than miss nearby places
-  const bbox = `${lng - 0.25},${lat - 0.25},${lng + 0.25},${lat + 0.25}`;
+  // Large bounding box: 0.3 degrees ≈ 33km - cast a wide net
+  const bbox = `${lng - 0.3},${lat - 0.3},${lng + 0.3},${lat + 0.3}`;
 
-  // Search for each type of amenity using multiple query variations
-  // Try ALL variations for each amenity type - collect all results and pick the best
-  for (const searchVariations of searchGroups) {
-    const resultsPerVariation = [];
+  try {
+    console.log(`[Nominatim] Searching French amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
 
-    // Search all variations for this amenity type
-    for (const search of searchVariations) {
+    // Search for each French term
+    for (const query of queries) {
       try {
         const url = `https://nominatim.openstreetmap.org/search?` +
-          `q=${search.query}&format=json&limit=100&` +
+          `q=${encodeURIComponent(query)}&format=json&limit=100&` +
           `viewbox=${bbox}&bounded=1&countrycodes=ci&accept-language=fr`;
 
-        console.log(`[Nominatim] Searching: ${search.query}`);
+        console.log(`[Nominatim] Searching: ${query}`);
 
         const response = await fetch(url, {
           signal: AbortSignal.timeout(8000),
@@ -328,87 +308,82 @@ async function fetchNominatim(lat, lng, radius) {
         });
 
         if (!response.ok) {
-          console.log(`[Nominatim] ${search.query}: HTTP ${response.status}`);
+          console.log(`[Nominatim] ${query}: HTTP ${response.status}`);
           continue;
         }
 
         const results = await response.json();
-        console.log(`[Nominatim] ${search.query}: found ${results.length} results`);
+        if (!results || results.length === 0) {
+          console.log(`[Nominatim] ${query}: no results`);
+          continue;
+        }
 
-        if (results.length > 0) {
-          // Prefer results with class='amenity' (real places) over generic locations
-          const amenityResults = results.filter(p => p.class === 'amenity');
-          const bestResults = amenityResults.length > 0 ? amenityResults : results;
+        console.log(`[Nominatim] ${query}: found ${results.length} results`);
 
-          const places = bestResults
-            .filter(p => p.lat && p.lon && p.name && p.name.trim().length > 2) // Only places with real names (3+ chars)
-            .map(p => {
-              // Build the best name from available data
-              let name = p.name || '';
-              if (!name.trim()) {
-                name = p.display_name.split(',')[0];
-              }
+        // Convert all results to our format
+        const places = results
+          .filter(p => p.lat && p.lon && p.name && p.name.trim().length > 2)
+          .map(p => {
+            // Determine type based on query
+            let type = 'autre';
+            if (query === 'police') type = 'police';
+            else if (query === 'pharmacie') type = 'pharmacie';
+            else if (['hopital', 'hôpital', 'clinique'].includes(query)) type = 'hopital';
+            else if (query === 'pompiers') type = 'pompiers';
 
-              return {
-                id:      `${p.osm_id}-${p.osm_type}`,
-                type:    AMENITY_TO_TYPE[p.type] || search.type,
-                name:    name.trim(),
-                lat:     parseFloat(p.lat),
-                lng:     parseFloat(p.lon),
-                address: p.display_name.split(',').slice(1, 3).join(',').trim() || '',
-                phone:   null,
-                source:  'osm'
-              };
-            }); // Keep ALL results from this variation - distance sorting happens later
+            return {
+              id: `${p.osm_id}-${p.osm_type}`,
+              type: type,
+              name: p.name.trim(),
+              lat: parseFloat(p.lat),
+              lng: parseFloat(p.lon),
+              address: p.display_name.split(',').slice(0, 2).join(',').trim() || '',
+              phone: null,
+              source: 'osm'
+            };
+          });
 
-          if (places.length > 0) {
-            console.log(`[Nominatim] Added ${places.length} places from ${search.query}`);
-            resultsPerVariation.push(...places);
-          }
+        if (places.length > 0) {
+          allPlaces.push(...places);
+          console.log(`[Nominatim] Added ${places.length} places from "${query}"`);
         }
       } catch (err) {
-        console.error(`[Nominatim] Error: ${search.query} -`, err.message);
+        console.error(`[Nominatim] Error: ${query} -`, err.message);
       }
     }
 
-    // Add the best results from all variations for this amenity type
-    if (resultsPerVariation.length > 0) {
-      allPlaces.push(...resultsPerVariation);
+    if (allPlaces.length === 0) {
+      console.log('[Nominatim] No places found');
+      return null;
     }
-  }
 
-  if (allPlaces.length === 0) {
-    console.log(`[Nominatim] No places found after searching, returning null`);
+    // Remove duplicates by location (strict)
+    const unique = allPlaces.reduce((acc, p) => {
+      const exists = acc.find(x => Math.abs(x.lat - p.lat) < 0.0001 && Math.abs(x.lng - p.lng) < 0.0001);
+      return exists ? acc : [...acc, p];
+    }, []);
+
+    // Calculate distances but DON'T filter strictly - return what we found
+    const withDistance = unique
+      .map(p => ({
+        ...p,
+        distance: getDistance(lat, lng, p.lat, p.lng)
+      }));
+
+    // Sort by closest distance
+    const sorted = withDistance.sort((a, b) => a.distance - b.distance);
+
+    console.log(`[Nominatim] Total: ${allPlaces.length}, unique: ${unique.length}, returning all`);
+    console.log('[Nominatim] Top 10:', sorted.slice(0, 10).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km, ${p.type})`));
+
+    // Remove distance field before returning
+    const result = sorted.map(({ distance, ...p }) => p);
+    return result.length > 0 ? result : null;
+
+  } catch (err) {
+    console.error('[Nominatim] Error:', err.message);
     return null;
   }
-
-  // Remove duplicates by location
-  const unique = allPlaces.reduce((acc, p) => {
-    const exists = acc.find(x => Math.abs(x.lat - p.lat) < 0.001 && Math.abs(x.lng - p.lng) < 0.001);
-    return exists ? acc : [...acc, p];
-  }, []);
-
-  // Calculate distances and filter STRICTLY by radius
-  const withDistance = unique
-    .map(p => ({
-      ...p,
-      distance: getDistance(lat, lng, p.lat, p.lng)
-    }))
-    // STRICT: only keep places within requested radius
-    .filter(p => p.distance <= (radius / 1000));
-
-  // Sort by closest distance
-  const sorted = withDistance.sort((a, b) => a.distance - b.distance);
-  const top5 = sorted.slice(0, 5); // Return top 5 nearest places
-  const result = top5.map(({ distance, ...p }) => p);
-
-  console.log(`[Nominatim] User at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-  console.log(`[Nominatim] Total places: ${allPlaces.length}, unique: ${unique.length}, within ${radius}m: ${withDistance.length}`);
-  if (top5.length > 0) {
-    console.log(`[Nominatim] Top 5:`, top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
-  }
-
-  return result.length > 0 ? result : null;
 }
 
 // GET /api/places?lat=X&lng=Y&radius=1000
@@ -431,24 +406,12 @@ router.get('/', async (req, res) => {
   console.log(`[GET /api/places] Cache miss, fetching fresh data`);
 
   try {
-    // Primary: Foursquare Places API - best data coverage for Abidjan
-    let places = await fetchFoursquare(lat, lng, radius);
+    // Use Nominatim with improved French-based search
+    let places = await fetchNominatim(lat, lng, radius);
 
-    // Fallback 1: Nominatim if Foursquare fails
+    // If no results, return empty
     if (!places || places.length === 0) {
-      console.log('[GET /api/places] Foursquare empty, trying Nominatim');
-      places = await fetchNominatim(lat, lng, radius);
-    }
-
-    // Fallback 2: Overpass if both fail
-    if (!places || places.length === 0) {
-      console.log('[GET /api/places] Nominatim empty, trying Overpass');
-      places = await fetchOverpass(lat, lng, radius);
-    }
-
-    // If still no results, return empty
-    if (!places || places.length === 0) {
-      console.log(`[GET /api/places] No real places found near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      console.log(`[GET /api/places] No places found near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
       return res.json({ success: true, data: [], source: 'empty' });
     }
 
@@ -467,7 +430,7 @@ router.get('/', async (req, res) => {
     console.log(top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
 
     setCache(cacheKey, result);
-    return res.json({ success: true, data: result, source: 'foursquare' });
+    return res.json({ success: true, data: result, source: 'nominatim' });
 
   } catch (err) {
     console.error('[GET /api/places] Error:', err.message);
