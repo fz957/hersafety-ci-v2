@@ -49,8 +49,6 @@ services:
       - "80:80"
     environment:
       VITE_API_URL: http://app:5000
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
 
 volumes:
   postgres_data:
