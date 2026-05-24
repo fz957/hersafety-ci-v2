@@ -71,6 +71,117 @@ function getDistance(lat1, lng1, lat2, lng2) {
   return R * c;
 }
 
+// Fetch real places from Foursquare Places API (Primary source)
+// Better data coverage and accuracy than OpenStreetMap for Abidjan
+async function fetchFoursquare(lat, lng, radius) {
+  const apiKey = process.env.FOURSQUARE_API_KEY;
+  if (!apiKey) {
+    console.error('[Foursquare] API key not configured');
+    return null;
+  }
+
+  // Search queries for safety-critical places
+  const queries = [
+    { q: 'pharmacy', type: 'pharmacie' },
+    { q: 'police', type: 'police' },
+    { q: 'hospital', type: 'hopital' },
+    { q: 'fire station', type: 'pompiers' },
+    { q: 'clinic', type: 'hopital' },
+    { q: 'medical', type: 'hopital' }
+  ];
+
+  const allPlaces = [];
+
+  try {
+    console.log(`[Foursquare] Searching safe places around ${lat.toFixed(4)}, ${lng.toFixed(4)} (radius: ${radius}m)`);
+
+    for (const query of queries) {
+      try {
+        // Foursquare Places API v3
+        const url = `https://api.foursquare.com/v3/places/search?` +
+          `query=${query.q}&near=${lat},${lng}&radius=${radius}&limit=50`;
+
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': apiKey,
+            'Accept': 'application/json'
+          },
+          signal: AbortSignal.timeout(8000)
+        });
+
+        if (!response.ok) {
+          console.log(`[Foursquare] ${query.q}: HTTP ${response.status}`);
+          continue;
+        }
+
+        const data = await response.json();
+        if (!data.results || data.results.length === 0) {
+          console.log(`[Foursquare] ${query.q}: no results`);
+          continue;
+        }
+
+        console.log(`[Foursquare] ${query.q}: found ${data.results.length} results`);
+
+        // Convert Foursquare format to our format
+        const places = data.results
+          .filter(p => p.location && p.location.latitude && p.location.longitude && p.name)
+          .map(p => ({
+            id: p.fsq_id,
+            type: query.type,
+            name: p.name,
+            lat: p.location.latitude,
+            lng: p.location.longitude,
+            address: p.location.formatted_address || '',
+            phone: p.tel || null,
+            source: 'foursquare'
+          }));
+
+        if (places.length > 0) {
+          allPlaces.push(...places);
+          console.log(`[Foursquare] Added ${places.length} places from ${query.q}`);
+        }
+      } catch (err) {
+        console.error(`[Foursquare] Error: ${query.q} -`, err.message);
+      }
+    }
+
+    if (allPlaces.length === 0) {
+      console.log('[Foursquare] No places found');
+      return null;
+    }
+
+    // Remove duplicates by location
+    const unique = allPlaces.reduce((acc, p) => {
+      const exists = acc.find(x => Math.abs(x.lat - p.lat) < 0.0001 && Math.abs(x.lng - p.lng) < 0.0001);
+      return exists ? acc : [...acc, p];
+    }, []);
+
+    // Calculate distances and filter STRICTLY by radius
+    const withDistance = unique
+      .map(p => ({
+        ...p,
+        distance: getDistance(lat, lng, p.lat, p.lng)
+      }))
+      .filter(p => p.distance <= (radius / 1000));
+
+    // Sort by closest distance
+    const sorted = withDistance.sort((a, b) => a.distance - b.distance);
+
+    console.log(`[Foursquare] Found ${unique.length} places, ${withDistance.length} within radius`);
+    if (sorted.length > 0) {
+      console.log('[Foursquare] Top 5:', sorted.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(3)}km)`));
+    }
+
+    // Remove distance field before returning
+    const result = sorted.map(({ distance, ...p }) => p);
+    return result.length > 0 ? result : null;
+
+  } catch (err) {
+    console.error('[Foursquare] Error:', err.message);
+    return null;
+  }
+}
+
 // Fetch real places from OpenStreetMap using Overpass API
 // Search ALL amenities to find what's actually nearby, then filter by distance
 async function fetchOverpass(lat, lng, radius) {
@@ -320,11 +431,16 @@ router.get('/', async (req, res) => {
   console.log(`[GET /api/places] Cache miss, fetching fresh data`);
 
   try {
-    // Search by FRENCH NAMES since Abidjan data is tagged in French
-    // Nominatim is better for location names (French: pharmacie, hôpital, etc)
-    let places = await fetchNominatim(lat, lng, radius);
+    // Primary: Foursquare Places API - best data coverage for Abidjan
+    let places = await fetchFoursquare(lat, lng, radius);
 
-    // If Nominatim fails, try Overpass as fallback (for tag-based search)
+    // Fallback 1: Nominatim if Foursquare fails
+    if (!places || places.length === 0) {
+      console.log('[GET /api/places] Foursquare empty, trying Nominatim');
+      places = await fetchNominatim(lat, lng, radius);
+    }
+
+    // Fallback 2: Overpass if both fail
     if (!places || places.length === 0) {
       console.log('[GET /api/places] Nominatim empty, trying Overpass');
       places = await fetchOverpass(lat, lng, radius);
@@ -351,7 +467,7 @@ router.get('/', async (req, res) => {
     console.log(top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
 
     setCache(cacheKey, result);
-    return res.json({ success: true, data: result, source: 'nominatim' });
+    return res.json({ success: true, data: result, source: 'foursquare' });
 
   } catch (err) {
     console.error('[GET /api/places] Error:', err.message);
