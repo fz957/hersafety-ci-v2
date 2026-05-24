@@ -17,10 +17,11 @@ router.get('/', async (req, res) => {
   try {
     const tracks = await knex('tracks')
       .where({ user_id: userId, organization_id: organizationId })
-      .orderBy('created_at', 'desc');
+      .orderBy('started_at', 'desc');
 
     return res.json({ success: true, data: tracks });
   } catch (err) {
+    console.error('[GET /api/tracks] Error:', err.message);
     return res.status(500).json({ success: false, error: 'Erreur chargement trajets' });
   }
 });
