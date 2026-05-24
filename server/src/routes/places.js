@@ -363,21 +363,24 @@ async function fetchNominatim(lat, lng, radius) {
       return exists ? acc : [...acc, p];
     }, []);
 
-    // Calculate distances but DON'T filter strictly - return what we found
+    // Calculate distances
     const withDistance = unique
       .map(p => ({
         ...p,
         distance: getDistance(lat, lng, p.lat, p.lng)
       }));
 
+    // FILTER: Only keep places within 5km (walkable/drivable distance)
+    const withinRadius = withDistance.filter(p => p.distance <= 5);
+
     // Sort by closest distance
-    const sorted = withDistance.sort((a, b) => a.distance - b.distance);
+    const sorted = withinRadius.sort((a, b) => a.distance - b.distance);
 
-    console.log(`[Nominatim] Total: ${allPlaces.length}, unique: ${unique.length}`);
+    console.log(`[Nominatim] Total: ${allPlaces.length}, unique: ${unique.length}, within 5km: ${withinRadius.length}`);
 
-    // Return top 5 closest only - no far places
+    // Return top 5 closest within 5km
     const top5 = sorted.slice(0, 5);
-    console.log('[Nominatim] Top 5 closest:', top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km, ${p.type})`));
+    console.log('[Nominatim] Top 5 closest (within 5km):', top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km, ${p.type})`));
 
     // Remove distance field before returning
     const result = top5.map(({ distance, ...p }) => p);
