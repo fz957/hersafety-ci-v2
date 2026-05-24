@@ -268,22 +268,27 @@ async function fetchNominatim(lat, lng, radius) {
     return exists ? acc : [...acc, p];
   }, []);
 
-  // Calculate distances and sort by closest
+  // Calculate distances and filter STRICTLY by radius
   const withDistance = unique
     .map(p => ({
       ...p,
       distance: getDistance(lat, lng, p.lat, p.lng)
-    }));
+    }))
+    // STRICT: only keep places within requested radius
+    .filter(p => p.distance <= (radius / 1000));
 
+  // Sort by closest distance
   const sorted = withDistance.sort((a, b) => a.distance - b.distance);
   const top5 = sorted.slice(0, 5); // Return top 5 nearest places
   const result = top5.map(({ distance, ...p }) => p);
 
   console.log(`[Nominatim] User at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-  console.log(`[Nominatim] Total places: ${allPlaces.length}, unique: ${unique.length}`);
-  console.log(`[Nominatim] Top 5:`, top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
+  console.log(`[Nominatim] Total places: ${allPlaces.length}, unique: ${unique.length}, within ${radius}m: ${withDistance.length}`);
+  if (top5.length > 0) {
+    console.log(`[Nominatim] Top 5:`, top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
+  }
 
-  return result;
+  return result.length > 0 ? result : null;
 }
 
 // GET /api/places?lat=X&lng=Y&radius=1000
@@ -306,20 +311,20 @@ router.get('/', async (req, res) => {
   console.log(`[GET /api/places] Cache miss, fetching fresh data`);
 
   try {
-    // Primary: Query real OpenStreetMap data with Overpass API
-    // Uses user's ACTUAL GPS position to find real nearby places
-    let places = await fetchOverpass(lat, lng, radius);
+    // Search by FRENCH NAMES since Abidjan data is tagged in French
+    // Nominatim is better for location names (French: pharmacie, hôpital, etc)
+    let places = await fetchNominatim(lat, lng, radius);
 
-    // Fallback to Nominatim if Overpass fails
+    // If Nominatim fails, try Overpass as fallback (for tag-based search)
     if (!places || places.length === 0) {
-      console.log('[GET /api/places] Overpass empty, trying Nominatim');
-      places = await fetchNominatim(lat, lng, radius);
+      console.log('[GET /api/places] Nominatim empty, trying Overpass');
+      places = await fetchOverpass(lat, lng, radius);
     }
 
-    // If OpenStreetMap has no results, return empty (don't fake data)
+    // If still no results, return empty
     if (!places || places.length === 0) {
-      console.log(`[GET /api/places] No real places found in OpenStreetMap near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-      return res.json({ success: true, data: [], source: 'osm-empty' });
+      console.log(`[GET /api/places] No real places found near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      return res.json({ success: true, data: [], source: 'empty' });
     }
 
     // Calculate distances and sort by closest
@@ -333,11 +338,11 @@ router.get('/', async (req, res) => {
     const result = top5.map(({ distance, ...p }) => p);
 
     console.log(`[GET /api/places] User at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-    console.log(`[GET /api/places] Found ${places.length} real places in OpenStreetMap, returning top 5:`);
+    console.log(`[GET /api/places] Found ${places.length} places, returning top 5 closest:`);
     console.log(top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
 
     setCache(cacheKey, result);
-    return res.json({ success: true, data: result, source: 'osm' });
+    return res.json({ success: true, data: result, source: 'nominatim' });
 
   } catch (err) {
     console.error('[GET /api/places] Error:', err.message);
