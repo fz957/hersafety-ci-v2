@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
+import L from 'leaflet';
 import api from '../services/api';
 import { HS, ICONS } from '../tokens';
 import { Icon, Button, Card, Input, Eyebrow, H2, BottomNav, PageShell, ScrollArea, Toast } from '../components/ui/index.jsx';
-// import { DangerousPlacesMap } from '../components/maps/PlacesMap'; // Désactivée pour performance
 import { useGPS } from '../hooks/useGPS';
 
 const DANGER_TYPES = [
@@ -91,52 +92,113 @@ export default function Reports() {
         {tab === 'map' ? (
           <>
             {loading && <div style={{ textAlign: 'center', padding: 24, color: HS.textMute, fontSize: 13 }}>Chargement…</div>}
-            {/* Carte zones dangereuses désactivée pour performance */}
+
+            {/* Carte Leaflet des zones dangereuses */}
             {!loading && dangerZones.length > 0 && (
-              <Eyebrow style={{ marginBottom: 10 }}>Zones dangereuses ({dangerZones.length})</Eyebrow>
-            )}
-            {!loading && reports.length === 0 && (
-              <div style={{ textAlign: 'center', padding: 40 }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>🗺️</div>
-                <div style={{ fontSize: 14, color: HS.textMute }}>Aucun signalement vérifié pour l'instant.</div>
+              <div style={{ marginBottom: 20 }}>
+                <Eyebrow style={{ marginBottom: 10 }}>Carte de risques</Eyebrow>
+                <div style={{ height: 300, borderRadius: 14, overflow: 'hidden', border: `1px solid ${HS.border}` }}>
+                  <MapContainer
+                    center={position || { lat: 6.8276, lng: -5.2893 }}
+                    zoom={13}
+                    style={{ width: '100%', height: '100%' }}>
+                    <TileLayer
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    {dangerZones.map((zone, i) => (
+                      <CircleMarker
+                        key={`${zone.lat}-${zone.lng}-${i}`}
+                        center={{ lat: zone.lat, lng: zone.lng }}
+                        radius={Math.max(8, Math.min(25, zone.incident_count * 3))}
+                        fillColor={HS.danger}
+                        fillOpacity={0.7}
+                        stroke
+                        weight={2}
+                        color={HS.danger}
+                        opacity={0.9}>
+                        <Popup>
+                          <div style={{ padding: 8, minWidth: 200 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: HS.chocolate, marginBottom: 6 }}>
+                              🚨 Zone dangereuse
+                            </div>
+                            <div style={{ fontSize: 12, color: HS.textDim, marginBottom: 8 }}>
+                              <strong>{zone.incident_count}</strong> signalement{zone.incident_count > 1 ? 's' : ''} vérifié{zone.incident_count > 1 ? 's' : ''}
+                            </div>
+                            {zone.danger_types && zone.danger_types.length > 0 && (
+                              <div style={{ fontSize: 11, color: HS.textMute }}>
+                                Types: {zone.danger_types.join(', ')}
+                              </div>
+                            )}
+                            <button
+                              onClick={() => setTab('new')}
+                              style={{
+                                marginTop: 10, width: '100%', padding: '6px 8px', borderRadius: 6,
+                                background: HS.chocolate, color: HS.bg, border: 'none',
+                                fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                                fontFamily: HS.font,
+                              }}>
+                              Signaler aussi
+                            </button>
+                          </div>
+                        </Popup>
+                      </CircleMarker>
+                    ))}
+                  </MapContainer>
+                </div>
               </div>
             )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {reports.map((r) => {
-                const st = STATUS_STYLE[r.status] || STATUS_STYLE.pending;
-                return (
-                  <Card key={r.id} style={{ padding: 14 }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                      <div style={{ width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-                        background: r.report_type === 'chauffeur' ? HS.warnSoft : HS.mistyRose,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Icon d={r.report_type === 'chauffeur' ? ICONS.car : ICONS.pin} size={20}
-                          color={r.report_type === 'chauffeur' ? HS.warn : HS.sakuraDeep} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: HS.chocolate }}>
-                            {r.place_name || r.vtc_app || (r.report_type === 'chauffeur' ? 'VTC' : 'Lieu signalé')}
-                          </span>
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
-                            background: st.bg, color: st.color }}>{st.label}</span>
+
+            {/* Message si aucune zone dangereuse */}
+            {!loading && dangerZones.length === 0 && (
+              <div style={{ textAlign: 'center', padding: 40 }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>🌸</div>
+                <div style={{ fontSize: 14, color: HS.textMute }}>Zones sûres ✓ Aucun signalement pour le moment.</div>
+              </div>
+            )}
+
+            {/* Liste des signalements */}
+            {!loading && reports.length > 0 && (
+              <>
+                <Eyebrow style={{ marginBottom: 10 }}>Tous les signalements ({reports.length})</Eyebrow>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {reports.map((r) => {
+                    const st = STATUS_STYLE[r.status] || STATUS_STYLE.pending;
+                    return (
+                      <Card key={r.id} style={{ padding: 14 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                          <div style={{ width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+                            background: r.report_type === 'chauffeur' ? HS.warnSoft : HS.mistyRose,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Icon d={r.report_type === 'chauffeur' ? ICONS.car : ICONS.pin} size={20}
+                              color={r.report_type === 'chauffeur' ? HS.warn : HS.sakuraDeep} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 13, fontWeight: 800, color: HS.chocolate }}>
+                                {r.place_name || r.vtc_app || (r.report_type === 'chauffeur' ? 'VTC' : 'Lieu signalé')}
+                              </span>
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+                                background: st.bg, color: st.color }}>{st.label}</span>
+                            </div>
+                            {r.place_address && (
+                              <div style={{ fontSize: 11, color: HS.textMute, marginTop: 2 }}>📍 {r.place_address}</div>
+                            )}
+                            <div style={{ fontSize: 12, color: HS.textDim, marginTop: 6, lineHeight: 1.5 }}>
+                              {r.description}
+                            </div>
+                            <div style={{ fontSize: 10, color: HS.textFaint, marginTop: 6 }}>
+                              {fmtDate(r.created_at)} ·{' '}
+                              {DANGER_TYPES.find((d) => d.v === r.danger_type)?.l || r.danger_type}
+                            </div>
+                          </div>
                         </div>
-                        {r.place_address && (
-                          <div style={{ fontSize: 11, color: HS.textMute, marginTop: 2 }}>📍 {r.place_address}</div>
-                        )}
-                        <div style={{ fontSize: 12, color: HS.textDim, marginTop: 6, lineHeight: 1.5 }}>
-                          {r.description}
-                        </div>
-                        <div style={{ fontSize: 10, color: HS.textFaint, marginTop: 6 }}>
-                          {fmtDate(r.created_at)} ·{' '}
-                          {DANGER_TYPES.find((d) => d.v === r.danger_type)?.l || r.danger_type}
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </>
         ) : (
           <form onSubmit={submit}>
