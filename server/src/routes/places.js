@@ -103,11 +103,20 @@ async function fetchOverpass(lat, lng, radius) {
   })).filter((p) => p.lat && p.lng);
 
   // Sort by DISTANCE ONLY - return 3 closest places regardless of type
-  return places
-    .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }))
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, 3)
-    .map(({ distance, ...p }) => p);
+  const withDistance = places.map(p => ({
+    ...p,
+    distance: getDistance(lat, lng, p.lat, p.lng)
+  }));
+
+  const sorted = withDistance.sort((a, b) => a.distance - b.distance);
+  const result = sorted.slice(0, 3).map(({ distance, ...p }) => p);
+
+  console.log(`[Overpass] User at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+  console.log(`[Overpass] Found ${places.length} places, distances:`,
+    sorted.slice(0, 5).map(p => `${p.name} (${p.distance.toFixed(2)}km)`));
+  console.log(`[Overpass] Returning:`, result.map(p => `${p.name} (${p.type})`));
+
+  return result;
 }
 
 // GET /api/places?lat=X&lng=Y&radius=1000
@@ -141,15 +150,21 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.error('[GET /api/places] Overpass API error:', err.message);
 
-    // Sort fallback places by priority, then by distance
-    const sortedPlaces = FALLBACK_PLACES
-      .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }))
-      .sort((a, b) => {
-        const priorityDiff = (PRIORITY_ORDER[a.type] || 99) - (PRIORITY_ORDER[b.type] || 99);
-        return priorityDiff !== 0 ? priorityDiff : a.distance - b.distance;
-      })
+    // Sort fallback places by DISTANCE ONLY - closest 3 first, regardless of type
+    const withDistance = FALLBACK_PLACES
+      .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }));
+
+    const sorted = withDistance.sort((a, b) => a.distance - b.distance);
+
+    console.log(`[Fallback] User at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    console.log(`[Fallback] All fallback places with distances:`,
+      sorted.map(p => `${p.name} (${p.type}) = ${p.distance.toFixed(2)}km`));
+
+    const sortedPlaces = sorted
       .slice(0, 3)
       .map(({ distance, ...p }) => p); // Remove distance field
+
+    console.log(`[Fallback] Returning:`, sortedPlaces.map(p => `${p.name} (${p.type})`));
 
     setCache(cacheKey, sortedPlaces);
     return res.json({ success: true, data: sortedPlaces, source: 'fallback' });
