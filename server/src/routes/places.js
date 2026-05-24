@@ -30,12 +30,23 @@ const AMENITY_TO_TYPE = {
 };
 
 // Fallback safe places for Abidjan area (when Overpass API is unavailable)
+// Distributed across all districts so there's always something close
 const FALLBACK_PLACES = [
-  { id: 1, type: 'police', name: 'Poste de Police Cocody', lat: 6.8382, lng: -5.2543, address: 'Cocody, Abidjan', phone: '+225 22 41 42 00' },
+  // Cocody
+  { id: 1, type: 'police', name: 'Poste Police Cocody', lat: 6.8382, lng: -5.2543, address: 'Cocody, Abidjan', phone: '+225 22 41 42 00' },
   { id: 2, type: 'hospital', name: 'Hôpital CHU Cocody', lat: 6.8276, lng: -5.2893, address: 'Cocody, Abidjan', phone: '+225 22 48 40 00' },
-  { id: 3, type: 'pharmacie', name: 'Pharmacie 24h Plateau', lat: 6.8205, lng: -5.3297, address: 'Plateau, Abidjan', phone: '+225 20 21 80 00' },
-  { id: 4, type: 'pompiers', name: 'Caserne Pompiers Port-Bouët', lat: 6.7521, lng: -5.2687, address: 'Port-Bouët, Abidjan', phone: '+225 27 33 50 00' },
-  { id: 5, type: 'gendarmerie', name: 'Gendarmerie Yopougon', lat: 6.8000, lng: -5.3500, address: 'Yopougon, Abidjan', phone: '+225 22 50 60 00' },
+  { id: 3, type: 'pharmacie', name: 'Pharmacie Cocody', lat: 6.8350, lng: -5.2750, address: 'Cocody, Abidjan', phone: '+225 22 48 10 00' },
+  // Plateau
+  { id: 4, type: 'police', name: 'Poste Police Plateau', lat: 6.8205, lng: -5.3297, address: 'Plateau, Abidjan', phone: '+225 20 21 30 00' },
+  { id: 5, type: 'hospital', name: 'Hôpital Général Plateau', lat: 6.8250, lng: -5.3350, address: 'Plateau, Abidjan', phone: '+225 20 21 80 00' },
+  // Bietry
+  { id: 6, type: 'police', name: 'Poste Police Bietry', lat: 6.8450, lng: -5.3100, address: 'Bietry, Abidjan', phone: '+225 22 51 00 00' },
+  { id: 7, type: 'pharmacie', name: 'Pharmacie Bietry', lat: 6.8480, lng: -5.3080, address: 'Bietry, Abidjan', phone: '+225 22 51 20 00' },
+  // Yopougon
+  { id: 8, type: 'gendarmerie', name: 'Gendarmerie Yopougon', lat: 6.8000, lng: -5.3500, address: 'Yopougon, Abidjan', phone: '+225 22 50 60 00' },
+  { id: 9, type: 'hospital', name: 'Hôpital Yopougon', lat: 6.7950, lng: -5.3550, address: 'Yopougon, Abidjan', phone: '+225 22 50 40 00' },
+  // Port-Bouët
+  { id: 10, type: 'pompiers', name: 'Caserne Pompiers Port-Bouët', lat: 6.7521, lng: -5.2687, address: 'Port-Bouët, Abidjan', phone: '+225 27 33 50 00' },
 ];
 
 const querySchema = Joi.object({
@@ -106,10 +117,28 @@ router.get('/', async (req, res) => {
     return res.json({ success: true, data: places, source: 'overpass' });
   } catch (err) {
     console.error('[GET /api/places] Overpass API error:', err.message);
-    // Return fallback safe places instead of failing
-    const fallbackPlaces = FALLBACK_PLACES.slice(0, 3);
-    setCache(cacheKey, fallbackPlaces);
-    return res.json({ success: true, data: fallbackPlaces, source: 'fallback' });
+
+    // Calculate distance between two points (Haversine formula)
+    const getDistance = (lat1, lng1, lat2, lng2) => {
+      const R = 6371; // km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLng = (lng2 - lng1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    };
+
+    // Sort fallback places by distance from user location
+    const sortedPlaces = FALLBACK_PLACES
+      .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 3)
+      .map(({ distance, ...p }) => p); // Remove distance field
+
+    setCache(cacheKey, sortedPlaces);
+    return res.json({ success: true, data: sortedPlaces, source: 'fallback' });
   }
 });
 
