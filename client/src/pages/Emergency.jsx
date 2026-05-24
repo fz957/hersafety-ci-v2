@@ -4,6 +4,7 @@ import { useGPS } from '../hooks/useGPS';
 import api from '../services/api';
 import { HS, ICONS } from '../tokens';
 import { Icon, Card, Eyebrow, BackButton, PageShell, ScrollArea, Spinner } from '../components/ui/index.jsx';
+import ConfirmationModal from '../components/ConfirmationModal.jsx';
 // Cartes enlever pour performance — garder juste les listes
 
 const NUM_COLORS = { police: '#4A6B8A', pompiers: '#C97B3B', hopital: '#5C7F4F', gendarmerie: '#5C5C8A', autre: HS.sakuraDeep };
@@ -46,8 +47,36 @@ export default function Emergency() {
   const timerRef = useRef(null);
   const messagesEndRef = useRef(null);
 
+  // Modals de confirmation
+  const [callModal, setCallModal]         = useState({ isOpen: false, number: null, name: null });
+  const [vtcModal, setVtcModal]           = useState({ isOpen: false, app: null, url: null });
+
   // Niveaux 3 et 4 fusionnés : tout va au niveau 3 complet
   const level = '3';
+
+  // Gestion appels d'urgence
+  const handleCallClick = (number, name) => {
+    setCallModal({ isOpen: true, number, name });
+  };
+
+  const confirmCall = () => {
+    if (callModal.number) {
+      window.location.href = `tel:${callModal.number}`;
+      setCallModal({ isOpen: false, number: null, name: null });
+    }
+  };
+
+  // Gestion VTC
+  const handleVtcClick = (appName, url) => {
+    setVtcModal({ isOpen: true, app: appName, url });
+  };
+
+  const confirmVtc = () => {
+    if (vtcModal.url) {
+      window.location.href = vtcModal.url;
+      setVtcModal({ isOpen: false, app: null, url: null });
+    }
+  };
 
   // Chrono
   useEffect(() => {
@@ -224,7 +253,8 @@ export default function Emergency() {
         <Eyebrow style={{ marginBottom: 10 }}>Numéros d'urgence</Eyebrow>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
           {emergencyNums.slice(0, 4).map((e) => (
-            <a key={e.id} href={`tel:${e.number}`} style={{ textDecoration: 'none' }}>
+            <button key={e.id} onClick={() => handleCallClick(e.number, e.name)}
+              style={{ textDecoration: 'none', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               <Card style={{ padding: 14, display: 'flex', alignItems: 'center', gap: 12, minHeight: 64 }}>
                 <div style={{ width: 42, height: 42, borderRadius: 13,
                   background: NUM_COLORS[e.type] || HS.sakuraDeep,
@@ -236,7 +266,7 @@ export default function Emergency() {
                   <div style={{ fontSize: 11, color: HS.textMute, marginTop: 2 }}>{e.name.split(' ')[0]}</div>
                 </div>
               </Card>
-            </a>
+            </button>
           ))}
         </div>
 
@@ -276,9 +306,10 @@ export default function Emergency() {
         <Eyebrow style={{ marginBottom: 10 }}>Quitter la zone</Eyebrow>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 18 }}>
           {getVTCLinks(position).map((v) => (
-            <a key={v.n} href={v.url} style={{ textDecoration: 'none' }}>
-              <Card style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
-                transition: 'transform .1s, opacity .1s', opacity: 0.9, ':hover': { opacity: 1 } }}>
+            <button key={v.n} onClick={() => handleVtcClick(v.n, v.url)}
+              style={{ textDecoration: 'none', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              <Card style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10,
+                transition: 'transform .1s, opacity .1s', opacity: 0.9 }}>
                 <div style={{ width: 34, height: 34, borderRadius: 10, background: HS.mistyRose,
                   display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon d={ICONS.car} size={16} color={HS.sakuraDeep} />
@@ -288,7 +319,7 @@ export default function Emergency() {
                   <div style={{ fontSize: 10.5, color: HS.textMute }}>{v.est}</div>
                 </div>
               </Card>
-            </a>
+            </button>
           ))}
         </div>
 
@@ -307,6 +338,29 @@ export default function Emergency() {
           ESCALADER — Police + vidéo live
         </button>
       </ScrollArea>
+
+      {/* Modal confirmation appel d'urgence */}
+      <ConfirmationModal
+        isOpen={callModal.isOpen}
+        title={`Voulez-vous appeler\nla ${callModal.name} (${callModal.number}) ?`}
+        description="Un vrai appel sera composé à cette adresse."
+        confirmText={`Oui, appeler le ${callModal.number}`}
+        cancelText="Annuler"
+        isDanger={true}
+        onConfirm={confirmCall}
+        onCancel={() => setCallModal({ isOpen: false, number: null, name: null })}
+      />
+
+      {/* Modal confirmation VTC */}
+      <ConfirmationModal
+        isOpen={vtcModal.isOpen}
+        title={`Ouvrir ${vtcModal.app} ?`}
+        description={`L'application ${vtcModal.app} s'ouvrira avec votre destination pré-remplie.`}
+        confirmText={`Oui, ouvrir ${vtcModal.app}`}
+        cancelText="Annuler"
+        onConfirm={confirmVtc}
+        onCancel={() => setVtcModal({ isOpen: false, app: null, url: null })}
+      />
     </PageShell>
   );
 }
