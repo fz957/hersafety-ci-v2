@@ -94,10 +94,12 @@ export default function Emergency() {
   // Lieux sûrs — réactivé pour l'écran d'urgence complet
   useEffect(() => {
     if (!position) return;
-    api.get(`/api/places?lat=${position.lat}&lng=${position.lng}&radius=1000`)
+    // Use 2000m radius (2km) to find realistic nearby places
+    // Commissariat, pharmacies, hôpitaux à proximité
+    api.get(`/api/places?lat=${position.lat}&lng=${position.lng}&radius=2000`)
       .then((r) => {
         const data = r.data.data || [];
-        setPlaces(data.slice(0, 5)); // Show top 5 nearest places instead of 3
+        setPlaces(data.slice(0, 5)); // Show top 5 nearest places
       })
       .catch((err) => {
         console.error('Erreur lieux sûrs:', err.message);

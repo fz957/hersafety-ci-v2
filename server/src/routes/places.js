@@ -54,7 +54,7 @@ const FALLBACK_PLACES = [
 const querySchema = Joi.object({
   lat:    Joi.number().min(-90).max(90).required(),
   lng:    Joi.number().min(-180).max(180).required(),
-  radius: Joi.number().integer().min(100).max(5000).default(1000),
+  radius: Joi.number().integer().min(100).max(5000).default(2000), // 2km default for realistic nearby places
 });
 
 // Priority order for safe places
