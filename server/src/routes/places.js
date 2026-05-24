@@ -135,17 +135,25 @@ async function fetchNominatim(lat, lng, radius) {
           const bestResults = amenityResults.length > 0 ? amenityResults : results;
 
           const places = bestResults
-            .filter(p => p.lat && p.lon && p.name)
-            .map(p => ({
-              id:      `${p.osm_id}-${p.osm_type}`,
-              type:    AMENITY_TO_TYPE[p.type] || search.type,
-              name:    p.name || p.display_name.split(',')[0],
-              lat:     parseFloat(p.lat),
-              lng:     parseFloat(p.lon),
-              address: p.display_name.split(',').slice(1, 3).join(',').trim() || '',
-              phone:   null,
-              source:  'osm'
-            })); // Keep ALL results from this variation - distance sorting happens later
+            .filter(p => p.lat && p.lon && p.name && p.name.trim().length > 2) // Only places with real names (3+ chars)
+            .map(p => {
+              // Build the best name from available data
+              let name = p.name || '';
+              if (!name.trim()) {
+                name = p.display_name.split(',')[0];
+              }
+
+              return {
+                id:      `${p.osm_id}-${p.osm_type}`,
+                type:    AMENITY_TO_TYPE[p.type] || search.type,
+                name:    name.trim(),
+                lat:     parseFloat(p.lat),
+                lng:     parseFloat(p.lon),
+                address: p.display_name.split(',').slice(1, 3).join(',').trim() || '',
+                phone:   null,
+                source:  'osm'
+              };
+            }); // Keep ALL results from this variation - distance sorting happens later
 
           if (places.length > 0) {
             console.log(`[Nominatim] Added ${places.length} places from ${search.query}`);
