@@ -103,16 +103,16 @@ async function fetchNominatim(lat, lng, radius) {
   const bbox = `${lng - 0.15},${lat - 0.15},${lng + 0.15},${lat + 0.15}`;
 
   // Search for each type of amenity using multiple query variations
-  // Try variations until one succeeds for each amenity type
+  // Try ALL variations for each amenity type - collect all results and pick the best
   for (const searchVariations of searchGroups) {
-    let found = false;
-    for (const search of searchVariations) {
-      if (found) break; // Stop trying variations for this amenity type
+    const resultsPerVariation = [];
 
+    // Search all variations for this amenity type
+    for (const search of searchVariations) {
       try {
         const url = `https://nominatim.openstreetmap.org/search?` +
           `q=${search.query}&format=json&limit=50&` +
-          `viewbox=${bbox}&bounded=0&countrycodes=ci&accept-language=fr`;
+          `viewbox=${bbox}&bounded=1&countrycodes=ci&accept-language=fr`;
 
         console.log(`[Nominatim] Searching: ${search.query}`);
 
@@ -130,13 +130,12 @@ async function fetchNominatim(lat, lng, radius) {
         console.log(`[Nominatim] ${search.query}: found ${results.length} results`);
 
         if (results.length > 0) {
-          // Log what we're getting to understand the data structure
-          console.log(`[Nominatim] Sample result for "${search.query}":`, JSON.stringify(results[0], null, 2));
+          // Prefer results with class='amenity' (real places) over generic locations
+          const amenityResults = results.filter(p => p.class === 'amenity');
+          const bestResults = amenityResults.length > 0 ? amenityResults : results;
 
-          const places = results
-            // Accept any result with valid coordinates and name - don't be too restrictive
+          const places = bestResults
             .filter(p => p.lat && p.lon && p.name)
-            .slice(0, 10) // Take top 10 for each type
             .map(p => ({
               id:      `${p.osm_id}-${p.osm_type}`,
               type:    AMENITY_TO_TYPE[p.type] || search.type,
@@ -146,17 +145,22 @@ async function fetchNominatim(lat, lng, radius) {
               address: p.display_name.split(',').slice(1, 3).join(',').trim() || '',
               phone:   null,
               source:  'osm'
-            }));
+            }))
+            .slice(0, 10); // Take top 10 from this variation
 
           if (places.length > 0) {
             console.log(`[Nominatim] Added ${places.length} places from ${search.query}`);
-            allPlaces.push(...places);
-            found = true; // Successfully found results for this amenity type
+            resultsPerVariation.push(...places);
           }
         }
       } catch (err) {
         console.error(`[Nominatim] Error: ${search.query} -`, err.message);
       }
+    }
+
+    // Add the best results from all variations for this amenity type
+    if (resultsPerVariation.length > 0) {
+      allPlaces.push(...resultsPerVariation);
     }
   }
 
