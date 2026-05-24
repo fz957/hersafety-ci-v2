@@ -124,6 +124,9 @@ out center;`;
         else if (['hospital', 'clinic', 'health_center', 'dispensary'].includes(amenityType)) type = 'hopital';
         else if (['fire_station', 'pompiers'].includes(amenityType)) type = 'pompiers';
         else if (amenityType === 'gendarmerie') type = 'gendarmerie';
+        else if (['supermarket', 'supermarche'].includes(amenityType)) type = 'supermarche';
+        else if (['garage', 'fuel', 'gas_station'].includes(amenityType)) type = 'garage';
+        else if (['taxi', 'bus_station', 'transport', 'parking'].includes(amenityType)) type = 'transport';
 
         return {
           id: `${el.id}-${el.type}`,
@@ -159,8 +162,10 @@ out center;`;
 
 // Fetch real places from OpenStreetMap using Nominatim API (fallback)
 async function fetchNominatim(lat, lng, radius) {
-  // Try multiple query variations per amenity type - some might match better in OSM data
+  // Search for ALL amenities - don't restrict to specific types
+  // If user says there's a pharmacy, garage, supermarket, we show it all
   const searchGroups = [
+    // Priority: Safety-critical places
     [
       { query: 'police', type: 'police' },
       { query: 'commissariat police', type: 'police' },
@@ -174,19 +179,40 @@ async function fetchNominatim(lat, lng, radius) {
       { query: 'hopital', type: 'hopital' },
       { query: 'hôpital', type: 'hopital' },
       { query: 'hospital', type: 'hopital' },
-      { query: 'centre sante', type: 'hopital' }
+      { query: 'centre sante', type: 'hopital' },
+      { query: 'clinic', type: 'hopital' }
     ],
     [
       { query: 'pompiers', type: 'pompiers' },
       { query: 'caserne pompiers', type: 'pompiers' },
       { query: 'fire station', type: 'pompiers' }
+    ],
+    // Secondary: Other public places for safety
+    [
+      { query: 'gendarmerie', type: 'gendarmerie' },
+      { query: 'police station', type: 'police' }
+    ],
+    // Also useful places nearby
+    [
+      { query: 'supermarche', type: 'supermarche' },
+      { query: 'supermarket', type: 'supermarche' },
+      { query: 'marche', type: 'commerce' }
+    ],
+    [
+      { query: 'garage', type: 'garage' },
+      { query: 'station essence', type: 'garage' }
+    ],
+    [
+      { query: 'taxi', type: 'taxi' },
+      { query: 'transport', type: 'transport' }
     ]
   ];
 
   const allPlaces = [];
 
-  // Larger bounding box to find results (0.15 degrees ≈ 16km)
-  const bbox = `${lng - 0.15},${lat - 0.15},${lng + 0.15},${lat + 0.15}`;
+  // Wide bounding box to find all nearby places (0.25 degrees ≈ 28km)
+  // Better to cast a wider net and filter by distance than miss nearby places
+  const bbox = `${lng - 0.25},${lat - 0.25},${lng + 0.25},${lat + 0.25}`;
 
   // Search for each type of amenity using multiple query variations
   // Try ALL variations for each amenity type - collect all results and pick the best
