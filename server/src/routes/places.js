@@ -79,17 +79,12 @@ async function fetchOverpass(lat, lng, radius) {
   const boxSize = 0.009; // ~1km radius
   const bbox = `${lat - boxSize},${lng - boxSize},${lat + boxSize},${lng + boxSize}`;
 
-  // Overpass query for all safety amenities
-  const query = `[bbox:${lat - 0.15},${lat + 0.15},${lng - 0.15},${lng + 0.15}];
+  // Overpass query for ALL amenities in the area
+  // Returns everything: shops, services, public facilities, etc.
+  const query = `[bbox:${lat - boxSize},${lat + boxSize},${lng - boxSize},${lng + boxSize}];
 (
-  node["amenity"="police"];
-  way["amenity"="police"];
-  node["amenity"="pharmacy"];
-  way["amenity"="pharmacy"];
-  node["amenity"="hospital"];
-  way["amenity"="hospital"];
-  node["amenity"="fire_station"];
-  way["amenity"="fire_station"];
+  node["amenity"];
+  way["amenity"];
 );
 out center;`;
 
