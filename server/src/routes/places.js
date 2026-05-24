@@ -299,84 +299,40 @@ router.get('/', async (req, res) => {
   console.log(`[GET /api/places] Cache miss, fetching fresh data`);
 
   try {
-    // Try Overpass API first - it's optimized for amenity queries
-    let overpassPlaces = await fetchOverpass(lat, lng, radius);
-
-    // Fallback to Nominatim if Overpass fails
-    let nominatimPlaces = null;
-    if (!overpassPlaces || overpassPlaces.length === 0) {
-      console.log('[GET /api/places] Overpass empty, trying Nominatim');
-      nominatimPlaces = await fetchNominatim(lat, lng, radius);
-    }
-
-    let allPlaces = [];
-
-    // Combine Overpass results (if available)
-    if (overpassPlaces && overpassPlaces.length > 0) {
-      allPlaces.push(...overpassPlaces);
-      console.log(`[GET /api/places] Added ${overpassPlaces.length} places from Overpass`);
-    }
-
-    // Also add Nominatim results if available (for comparison/completeness)
-    if (nominatimPlaces && nominatimPlaces.length > 0) {
-      allPlaces.push(...nominatimPlaces);
-      console.log(`[GET /api/places] Added ${nominatimPlaces.length} places from Nominatim`);
-    }
-
-    // Add fallback places that are within radius and not duplicated
-    const fallbackWithDistance = FALLBACK_PLACES
+    // Use verified local database ONLY - 100% accurate places
+    // Filter by distance and return closest 5 places
+    const withDistance = FALLBACK_PLACES
       .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }))
-      .filter(p => p.distance <= (radius / 1000)); // Filter by radius
+      .filter(p => p.distance <= (radius / 1000)); // Filter by user's requested radius
 
-    // Deduplicate: don't add fallback place if similar location already in Nominatim
-    const nearbyFallback = fallbackWithDistance.filter(f => {
-      const isDuplicate = allPlaces.some(n =>
-        Math.abs(n.lat - f.lat) < 0.01 && Math.abs(n.lng - f.lng) < 0.01
-      );
-      return !isDuplicate;
-    });
-
-    if (nearbyFallback.length > 0) {
-      allPlaces.push(...nearbyFallback);
-      console.log(`[GET /api/places] Added ${nearbyFallback.length} fallback places`);
+    if (withDistance.length === 0) {
+      console.log(`[GET /api/places] No verified places within ${radius}m`);
+      return res.json({ success: true, data: [], source: 'verified-empty' });
     }
 
-    if (allPlaces.length === 0) {
-      console.log('[GET /api/places] No places found, returning empty');
-      return res.json({ success: true, data: [], source: 'none' });
-    }
-
-    // Remove duplicates by location
-    const unique = allPlaces.reduce((acc, p) => {
-      const exists = acc.find(x => Math.abs(x.lat - p.lat) < 0.001 && Math.abs(x.lng - p.lng) < 0.001);
-      return exists ? acc : [...acc, p];
-    }, []);
-
-    // Sort by distance and return top 5
-    const withDistance = unique.map(p => ({
-      ...p,
-      distance: getDistance(lat, lng, p.lat, p.lng)
-    }));
-
+    // Sort by distance - CLOSEST first
     const sorted = withDistance.sort((a, b) => a.distance - b.distance);
     const top5 = sorted.slice(0, 5);
     const result = top5.map(({ distance, ...p }) => p);
 
-    console.log(`[GET /api/places] Returning top 5:`, top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
+    console.log(`[GET /api/places] User at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    console.log(`[GET /api/places] Found ${withDistance.length} verified places within radius, returning top 5:`);
+    console.log(top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
 
     setCache(cacheKey, result);
-    return res.json({ success: true, data: result, source: 'hybrid' });
+    return res.json({ success: true, data: result, source: 'verified' });
 
   } catch (err) {
     console.error('[GET /api/places] Error:', err.message);
-    // Fallback to local places if everything fails
+    // Final fallback: return closest 5 verified places regardless of radius
     const withDistance = FALLBACK_PLACES
       .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }));
     const sorted = withDistance.sort((a, b) => a.distance - b.distance);
     const result = sorted.slice(0, 5).map(({ distance, ...p }) => p);
 
+    console.log(`[GET /api/places] Fallback: returning closest 5 verified places`);
     setCache(cacheKey, result);
-    return res.json({ success: true, data: result, source: 'fallback' });
+    return res.json({ success: true, data: result, source: 'verified-fallback' });
   }
 });
 
