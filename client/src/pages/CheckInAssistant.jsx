@@ -91,6 +91,18 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
     const initializeConversation = async () => {
       try {
         setIsLoading(true);
+
+        // 🚨 NOTIFIER LES CONTACTS IMMÉDIATEMENT
+        if (activeTrack?.id) {
+          console.log('[CheckIn] 📞 Notifiant les contacts...');
+          await api.post('/api/sms/alert', {
+            alert_id: activeTrack.id,
+            level: 2, // Niveau 2 = malaise, besoin d'aide
+            hasLocation: true,
+          });
+        }
+
+        // Puis commencer l'évaluation avec Lyra
         const response = await api.post('/api/claude/assist', {
           level: '2',
           context: 'utilisatrice a cliqué "je vais pas bien" lors d\'un check-in',
@@ -106,7 +118,7 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
           setRiskLevel(data.riskLevel);
         }
       } catch (err) {
-        console.error('Erreur initialisation IA:', err);
+        console.error('Erreur initialisation:', err);
         setMessages([{ role: 'assistant', content: 'Bonjour, je suis là pour toi. Raconte-moi ce qui se passe.' }]);
       } finally {
         setIsLoading(false);
