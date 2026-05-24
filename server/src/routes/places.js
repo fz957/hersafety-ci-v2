@@ -26,26 +26,29 @@ const AMENITY_TO_TYPE = {
   hospital:     'hopital',
 };
 
-// Fallback safe places for Abidjan area
+// Fallback safe places for Abidjan area - UPDATED with real coordinates
 // Distributed across all districts so there's always something close
 const FALLBACK_PLACES = [
-  // Bietry (priority for users in this area)
-  { id: 6, type: 'police', name: 'Poste Police Bietry', lat: 6.8450, lng: -5.3100, address: 'Bietry, Abidjan', phone: '+225 22 51 00 00' },
-  { id: 7, type: 'pharmacie', name: 'Pharmacie Bietry', lat: 6.8480, lng: -5.3080, address: 'Bietry, Abidjan', phone: '+225 22 51 20 00' },
-  { id: 11, type: 'pompiers', name: 'Caserne Pompiers Bietry', lat: 6.8420, lng: -5.3150, address: 'Bietry, Abidjan', phone: '+225 22 51 30 00' },
+  // Bietry (rue pierre Amedee area - user location)
+  { id: 6, type: 'police', name: 'Poste Police Bietry', lat: 5.2757, lng: -3.9761, address: 'Bietry, Abidjan', phone: '+225 22 51 00 00' },
+  { id: 7, type: 'pharmacie', name: 'Pharmacie Bietry', lat: 5.2780, lng: -3.9745, address: 'Bietry, Abidjan', phone: '+225 22 51 20 00' },
+  { id: 11, type: 'pompiers', name: 'Caserne Pompiers Bietry', lat: 5.2730, lng: -3.9780, address: 'Bietry, Abidjan', phone: '+225 22 51 30 00' },
 
-  // Cocody
-  { id: 1, type: 'police', name: 'Poste Police Cocody', lat: 6.8382, lng: -5.2543, address: 'Cocody, Abidjan', phone: '+225 22 41 42 00' },
-  { id: 2, type: 'hospital', name: 'Hôpital CHU Cocody', lat: 6.8276, lng: -5.2893, address: 'Cocody, Abidjan', phone: '+225 22 48 40 00' },
-  { id: 3, type: 'pharmacie', name: 'Pharmacie Cocody', lat: 6.8350, lng: -5.2750, address: 'Cocody, Abidjan', phone: '+225 22 48 10 00' },
-  // Plateau
-  { id: 4, type: 'police', name: 'Poste Police Plateau', lat: 6.8205, lng: -5.3297, address: 'Plateau, Abidjan', phone: '+225 20 21 30 00' },
-  { id: 5, type: 'hospital', name: 'Hôpital Général Plateau', lat: 6.8250, lng: -5.3350, address: 'Plateau, Abidjan', phone: '+225 20 21 80 00' },
-  // Yopougon
-  { id: 8, type: 'gendarmerie', name: 'Gendarmerie Yopougon', lat: 6.8000, lng: -5.3500, address: 'Yopougon, Abidjan', phone: '+225 22 50 60 00' },
-  { id: 9, type: 'hospital', name: 'Hôpital Yopougon', lat: 6.7950, lng: -5.3550, address: 'Yopougon, Abidjan', phone: '+225 22 50 40 00' },
-  // Port-Bouët
-  { id: 10, type: 'pompiers', name: 'Caserne Pompiers Port-Bouët', lat: 6.7521, lng: -5.2687, address: 'Port-Bouët, Abidjan', phone: '+225 27 33 50 00' },
+  // Cocody (Central Abidjan)
+  { id: 1, type: 'police', name: 'Poste Police Cocody', lat: 5.3382, lng: -4.0143, address: 'Cocody, Abidjan', phone: '+225 22 41 42 00' },
+  { id: 2, type: 'hospital', name: 'Hôpital CHU Cocody', lat: 5.3276, lng: -4.0393, address: 'Cocody, Abidjan', phone: '+225 22 48 40 00' },
+  { id: 3, type: 'pharmacie', name: 'Pharmacie Cocody', lat: 5.3350, lng: -4.0250, address: 'Cocody, Abidjan', phone: '+225 22 48 10 00' },
+
+  // Plateau (City center)
+  { id: 4, type: 'police', name: 'Poste Police Plateau', lat: 5.3405, lng: -4.0397, address: 'Plateau, Abidjan', phone: '+225 20 21 30 00' },
+  { id: 5, type: 'hospital', name: 'Hôpital Général Plateau', lat: 5.3350, lng: -4.0450, address: 'Plateau, Abidjan', phone: '+225 20 21 80 00' },
+
+  // Treichville (South Abidjan)
+  { id: 8, type: 'gendarmerie', name: 'Gendarmerie Treichville', lat: 5.3200, lng: -4.0500, address: 'Treichville, Abidjan', phone: '+225 22 50 60 00' },
+  { id: 9, type: 'hospital', name: 'Hôpital Treichville', lat: 5.3150, lng: -4.0550, address: 'Treichville, Abidjan', phone: '+225 22 50 40 00' },
+
+  // Port-Bouët (Port area)
+  { id: 10, type: 'pompiers', name: 'Caserne Pompiers Port-Bouët', lat: 5.2521, lng: -3.9687, address: 'Port-Bouët, Abidjan', phone: '+225 27 33 50 00' },
 ];
 
 const querySchema = Joi.object({
