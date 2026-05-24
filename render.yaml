@@ -1,0 +1,70 @@
+services:
+  # PostgreSQL Database
+  - type: pserv
+    name: hersafety-postgres
+    ipAllowList: [] # Allow all
+    plan: starter
+    postgresVersion: 15
+    initialOpeningCommand: npm run migrate
+    preDeployCommand: npm run migrate
+
+  # Backend API
+  - type: web
+    name: hersafety-backend
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    workingDirectory: ./server
+    envVars:
+      - key: DATABASE_URL
+        scope: service
+      - key: JWT_SECRET
+        scope: service
+      - key: JWT_REFRESH_SECRET
+        scope: service
+      - key: NODE_ENV
+        value: production
+      - key: APP_MODE
+        value: production
+      - key: APP_URL
+        fromService:
+          name: hersafety-backend
+          property: url
+      - key: FRONTEND_URL
+        fromService:
+          name: hersafety-frontend
+          property: url
+      - key: ANTHROPIC_API_KEY
+        scope: service
+      - key: AFRICASTALKING_API_KEY
+        scope: service
+      - key: AFRICASTALKING_USERNAME
+        scope: service
+      - key: PORT
+        value: 10000
+    healthCheckPath: /api/health
+    depends:
+      - name: hersafety-postgres
+        type: pserv
+
+  # Frontend SPA
+  - type: web
+    name: hersafety-frontend
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm run preview
+    workingDirectory: ./client
+    publishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: hersafety-backend
+          property: url
+          path: /api
+    depends:
+      - name: hersafety-backend
+        type: web
+
+env: production
