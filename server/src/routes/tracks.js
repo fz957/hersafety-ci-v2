@@ -163,7 +163,6 @@ router.patch('/:id', async (req, res) => {
       .where({ id: req.params.id })
       .update({
         waypoints: knex.raw('?::jsonb', [JSON.stringify(waypoints)]),
-        updated_at: new Date(),
       })
       .returning('*');
 

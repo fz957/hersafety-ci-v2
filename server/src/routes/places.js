@@ -96,6 +96,7 @@ router.get('/', async (req, res) => {
     setCache(cacheKey, places);
     return res.json({ success: true, data: places, source: 'overpass' });
   } catch (err) {
+    console.error('[GET /api/places] Error:', err.message);
     return res.status(502).json({ success: false, error: 'Service cartographique indisponible' });
   }
 });
