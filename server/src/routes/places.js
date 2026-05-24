@@ -221,42 +221,72 @@ router.get('/', async (req, res) => {
 
   try {
     // Try Nominatim first (real OpenStreetMap data)
-    let places = await fetchNominatim(lat, lng, radius);
+    let nominatimPlaces = await fetchNominatim(lat, lng, radius);
+    console.log(`[GET /api/places] Nominatim returned ${nominatimPlaces ? nominatimPlaces.length : 0} places`);
 
-    if (!places || places.length === 0) {
-      console.log('[GET /api/places] Nominatim returned no results, using fallback');
-      places = null; // Will trigger fallback below
+    // Combine Nominatim results with local fallback places for more complete coverage
+    // This ensures we show real names (from fallback) even if Nominatim is incomplete
+    let allPlaces = [];
+
+    if (nominatimPlaces && nominatimPlaces.length > 0) {
+      allPlaces.push(...nominatimPlaces);
+      console.log(`[GET /api/places] Added ${nominatimPlaces.length} places from Nominatim`);
     }
 
-    if (places && places.length > 0) {
-      setCache(cacheKey, places);
-      return res.json({ success: true, data: places, source: 'nominatim' });
+    // Add fallback places that are within radius and not duplicated
+    const fallbackWithDistance = FALLBACK_PLACES
+      .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }))
+      .filter(p => p.distance <= (radius / 1000)); // Filter by radius
+
+    // Deduplicate: don't add fallback place if similar location already in Nominatim
+    const nearbyFallback = fallbackWithDistance.filter(f => {
+      const isDuplicate = allPlaces.some(n =>
+        Math.abs(n.lat - f.lat) < 0.01 && Math.abs(n.lng - f.lng) < 0.01
+      );
+      return !isDuplicate;
+    });
+
+    if (nearbyFallback.length > 0) {
+      allPlaces.push(...nearbyFallback);
+      console.log(`[GET /api/places] Added ${nearbyFallback.length} fallback places`);
     }
-  } catch (err) {
-    console.error('[GET /api/places] Nominatim error:', err.message);
-  }
 
-  // Fallback: Use hardcoded places if Nominatim fails
-  {
+    if (allPlaces.length === 0) {
+      console.log('[GET /api/places] No places found, returning empty');
+      return res.json({ success: true, data: [], source: 'none' });
+    }
 
-    // Sort fallback places by DISTANCE ONLY - closest 3 first, regardless of type
-    const withDistance = FALLBACK_PLACES
-      .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }));
+    // Remove duplicates by location
+    const unique = allPlaces.reduce((acc, p) => {
+      const exists = acc.find(x => Math.abs(x.lat - p.lat) < 0.001 && Math.abs(x.lng - p.lng) < 0.001);
+      return exists ? acc : [...acc, p];
+    }, []);
+
+    // Sort by distance and return top 5
+    const withDistance = unique.map(p => ({
+      ...p,
+      distance: getDistance(lat, lng, p.lat, p.lng)
+    }));
 
     const sorted = withDistance.sort((a, b) => a.distance - b.distance);
+    const top5 = sorted.slice(0, 5);
+    const result = top5.map(({ distance, ...p }) => p);
 
-    console.log(`[Fallback] User at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-    console.log(`[Fallback] All fallback places with distances:`,
-      sorted.map(p => `${p.name} (${p.type}) = ${p.distance.toFixed(2)}km`));
+    console.log(`[GET /api/places] Returning top 5:`, top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
 
-    const sortedPlaces = sorted
-      .slice(0, 3)
-      .map(({ distance, ...p }) => p); // Remove distance field
+    setCache(cacheKey, result);
+    return res.json({ success: true, data: result, source: 'hybrid' });
 
-    console.log(`[Fallback] Returning:`, sortedPlaces.map(p => `${p.name} (${p.type})`));
+  } catch (err) {
+    console.error('[GET /api/places] Error:', err.message);
+    // Fallback to local places if everything fails
+    const withDistance = FALLBACK_PLACES
+      .map(p => ({ ...p, distance: getDistance(lat, lng, p.lat, p.lng) }));
+    const sorted = withDistance.sort((a, b) => a.distance - b.distance);
+    const result = sorted.slice(0, 5).map(({ distance, ...p }) => p);
 
-    setCache(cacheKey, sortedPlaces);
-    return res.json({ success: true, data: sortedPlaces, source: 'fallback' });
+    setCache(cacheKey, result);
+    return res.json({ success: true, data: result, source: 'fallback' });
   }
 });
 
