@@ -72,34 +72,22 @@ function getDistance(lat1, lng1, lat2, lng2) {
 }
 
 // Fetch real places from OpenStreetMap using Overpass API
-// Query specific safe place types: police, pharmacies, hospitals, fire stations
+// Search ALL amenities to find what's actually nearby, then filter by distance
 async function fetchOverpass(lat, lng, radius) {
-  // Convert radius (in meters) to degrees
-  const radiusDegrees = radius / 111000; // 1 degree ≈ 111 km
+  // Convert radius (in meters) to degrees (larger bbox to find what exists)
+  // Search in a wider area since Abidjan data may be sparse
+  const radiusDegrees = (radius * 2) / 111000; // 2x the radius to find results
 
-  // Overpass query - search for specific safe place types
-  // Using union of different amenity types to find what matters
+  // Overpass query - get ALL amenities in the area, we'll filter by distance
   const query = `[bbox:${lat - radiusDegrees},${lng - radiusDegrees},${lat + radiusDegrees},${lng + radiusDegrees}];
 (
-  node["amenity"="police"];
-  way["amenity"="police"];
-  node["amenity"="police_station"];
-  way["amenity"="police_station"];
-  node["amenity"="pharmacy"];
-  way["amenity"="pharmacy"];
-  node["amenity"="hospital"];
-  way["amenity"="hospital"];
-  node["amenity"="clinic"];
-  way["amenity"="clinic"];
-  node["amenity"="fire_station"];
-  way["amenity"="fire_station"];
-  node["amenity"="gendarmerie"];
-  way["amenity"="gendarmerie"];
+  node["amenity"];
+  way["amenity"];
 );
 out center;`;
 
   try {
-    console.log(`[Overpass] Querying safe places around ${lat.toFixed(4)}, ${lng.toFixed(4)} (radius: ${radius}m)`);
+    console.log(`[Overpass] Searching all amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)} (radius: ${radius}m)`);
 
     const response = await fetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
@@ -117,22 +105,23 @@ out center;`;
     const json = JSON.parse(text);
 
     if (!json.elements || json.elements.length === 0) {
-      console.log('[Overpass] No safe places found');
+      console.log('[Overpass] No amenities found');
       return null;
     }
 
-    console.log(`[Overpass] Found ${json.elements.length} safe places`);
+    console.log(`[Overpass] Found ${json.elements.length} total amenities, filtering by distance...`);
 
-    // Convert Overpass format to our format
-    const places = json.elements
+    // Convert Overpass format and calculate distances
+    const placesWithDistance = json.elements
       .filter(el => el.lat && el.lon && el.tags && el.tags.name)
       .map(el => {
+        const distance = getDistance(lat, lng, parseFloat(el.lat), parseFloat(el.lon));
         // Map OpenStreetMap amenity types to our types
         const amenityType = el.tags.amenity;
         let type = 'autre';
         if (['police', 'police_station'].includes(amenityType)) type = 'police';
         else if (amenityType === 'pharmacy') type = 'pharmacie';
-        else if (['hospital', 'clinic'].includes(amenityType)) type = 'hopital';
+        else if (['hospital', 'clinic', 'health_center', 'dispensary'].includes(amenityType)) type = 'hopital';
         else if (['fire_station', 'pompiers'].includes(amenityType)) type = 'pompiers';
         else if (amenityType === 'gendarmerie') type = 'gendarmerie';
 
@@ -144,11 +133,22 @@ out center;`;
           lng: parseFloat(el.lon),
           address: el.tags['addr:street'] || `${el.tags.name}, Côte d'Ivoire`,
           phone: el.tags.phone || null,
-          source: 'osm'
+          source: 'osm',
+          distance: distance
         };
-      });
+      })
+      // STRICT: only keep places within requested radius
+      .filter(p => p.distance <= (radius / 1000))
+      // Sort by distance - CLOSEST first
+      .sort((a, b) => a.distance - b.distance);
 
-    console.log(`[Overpass] Returning ${places.length} safe places`);
+    console.log(`[Overpass] After distance filter: ${placesWithDistance.length} places within ${radius}m`);
+    if (placesWithDistance.length > 0) {
+      console.log('[Overpass] Top results:', placesWithDistance.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(3)}km, ${p.type})`));
+    }
+
+    // Remove distance field before returning
+    const places = placesWithDistance.map(({ distance, ...p }) => p);
     return places.length > 0 ? places : null;
 
   } catch (err) {
