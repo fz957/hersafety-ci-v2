@@ -7,7 +7,30 @@ import { Icon, Card, Eyebrow, BackButton, PageShell, ScrollArea, Spinner } from 
 // Cartes enlever pour performance — garder juste les listes
 
 const NUM_COLORS = { police: '#4A6B8A', pompiers: '#C97B3B', hopital: '#5C7F4F', gendarmerie: '#5C5C8A', autre: HS.sakuraDeep };
-const VTC = [{ n: 'Yango', est: '3 min · 1.2K F' }, { n: 'Heetch', est: '5 min · 1.5K F' }];
+
+// Véhicules de transport avec lieux de destination sûrs pré-remplis
+const getVTCLinks = (position) => {
+  const defaultDest = { lat: 6.8276, lng: -5.2893 }; // Centre-ville Abidjan par défaut
+  const dest = position || defaultDest;
+
+  return [
+    {
+      n: 'Yango',
+      est: '3 min · 1.2K F',
+      url: `yango://ride?destination_lat=${dest.lat}&destination_lng=${dest.lng}`,
+    },
+    {
+      n: 'Bolt',
+      est: '5 min · 1.5K F',
+      url: `https://bolt.eu/ride/?lat=${dest.lat}&lng=${dest.lng}`,
+    },
+    {
+      n: 'InDriver',
+      est: '4 min · 1.8K F',
+      url: 'https://indriver.com', // Fallback web
+    },
+  ];
+};
 
 export default function Emergency() {
   const { state }   = useLocation();
@@ -39,19 +62,19 @@ export default function Emergency() {
     api.get('/api/emergency-numbers').then((r) => setEmergencyNums(r.data.data)).catch(() => {});
   }, []);
 
-  // Lieux sûrs — désactivé pour performance (Overpass trop lent)
-  // useEffect(() => {
-  //   if (!position) return;
-  //   api.get(`/api/places?lat=${position.lat}&lng=${position.lng}&radius=1000`)
-  //     .then((r) => {
-  //       const data = r.data.data || [];
-  //       setPlaces(data.slice(0, 3));
-  //     })
-  //     .catch((err) => {
-  //       console.error('Erreur lieux sûrs:', err.message);
-  //       setPlaces([]);
-  //     });
-  // }, [position]);
+  // Lieux sûrs — réactivé pour l'écran d'urgence complet
+  useEffect(() => {
+    if (!position) return;
+    api.get(`/api/places?lat=${position.lat}&lng=${position.lng}&radius=1000`)
+      .then((r) => {
+        const data = r.data.data || [];
+        setPlaces(data.slice(0, 3));
+      })
+      .catch((err) => {
+        console.error('Erreur lieux sûrs:', err.message);
+        setPlaces([]);
+      });
+  }, [position]);
 
   // Init: Appel initial à Claude pour commencer la conversation
   useEffect(() => {
@@ -249,20 +272,23 @@ export default function Emergency() {
             ))}
         </div>
 
-        {/* VTC */}
+        {/* VTC — deep links vers applis */}
         <Eyebrow style={{ marginBottom: 10 }}>Quitter la zone</Eyebrow>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 18 }}>
-          {VTC.map((v) => (
-            <Card key={v.n} style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: HS.mistyRose,
-                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon d={ICONS.car} size={16} color={HS.sakuraDeep} />
-              </div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: HS.chocolate }}>{v.n}</div>
-                <div style={{ fontSize: 10.5, color: HS.textMute }}>{v.est}</div>
-              </div>
-            </Card>
+          {getVTCLinks(position).map((v) => (
+            <a key={v.n} href={v.url} style={{ textDecoration: 'none' }}>
+              <Card style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                transition: 'transform .1s, opacity .1s', opacity: 0.9, ':hover': { opacity: 1 } }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: HS.mistyRose,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon d={ICONS.car} size={16} color={HS.sakuraDeep} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: HS.chocolate }}>{v.n}</div>
+                  <div style={{ fontSize: 10.5, color: HS.textMute }}>{v.est}</div>
+                </div>
+              </Card>
+            </a>
           ))}
         </div>
 
