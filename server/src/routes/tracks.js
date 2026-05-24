@@ -8,6 +8,25 @@ const { requireTenant } = require('../middlewares/tenant');
 const router = express.Router();
 router.use(requireAuth, requireTenant);
 
+// ─── GET /api/tracks ─────────────────────────────────────────────────────────
+// List all tracks for the current user
+
+router.get('/', async (req, res) => {
+  const { userId, organizationId } = req.user;
+
+  try {
+    const tracks = await knex('tracks')
+      .where({ user_id: userId, organization_id: organizationId })
+      .orderBy('created_at', 'desc');
+
+    return res.json({ success: true, data: tracks });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Erreur chargement trajets' });
+  }
+});
+
+// ─── POST /api/tracks ─────────────────────────────────────────────────────────
+
 const startSchema = Joi.object({
   destination_label:    Joi.string().max(500).optional(),
   checkin_interval_min: Joi.number().integer().min(1).max(60).default(10),
