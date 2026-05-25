@@ -385,11 +385,11 @@ router.delete('/:testimonyId/comments/:commentId', async (req, res) => {
   }
 });
 
-// ─── DELETE /api/testimonies/:id — admin seulement ──────────────────────────
+// ─── DELETE /api/testimonies/:id — Propriétaire ou admin ──────────────────────────
 
-router.delete('/:id', requireAdmin, async (req, res) => {
+router.delete('/:id', async (req, res) => {
   const { id } = req.params;
-  const { organizationId } = req.user;
+  const { userId, organizationId } = req.user;
 
   try {
     const testimony = await knex('testimonies')
@@ -398,6 +398,14 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 
     if (!testimony) {
       return res.status(404).json({ success: false, error: 'Témoignage introuvable' });
+    }
+
+    // Vérifier: propriétaire OU admin
+    const isOwner = testimony.user_id === userId;
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, error: 'Non autorisé' });
     }
 
     // Supprimer les commentaires associés
