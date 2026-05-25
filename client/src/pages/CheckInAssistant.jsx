@@ -190,7 +190,7 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
 
       await api.post('/api/sms/alert', {
         alert_id: activeTrack.id,
-        level: 3,
+        level: '3',
       }).catch(err => {
         console.warn('[CheckIn] SMS escalade error:', err.response?.data?.error || err.message);
       });
