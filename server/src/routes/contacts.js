@@ -12,8 +12,8 @@ router.use(requireAuth, requireTenant);
 
 const contactSchema = Joi.object({
   full_name:  Joi.string().trim().max(255).required(),
-  phone:      Joi.string().trim().max(20).optional(),
-  email:      Joi.string().email().trim().max(255).optional(),
+  phone:      Joi.string().trim().max(20).allow('').optional(),
+  email:      Joi.string().allow('').trim().max(255).email().optional(),
   relation:   Joi.string().valid('famille', 'ami', 'collegue', 'autre').default('autre'),
   is_primary: Joi.boolean().default(false),
 });
@@ -41,6 +41,10 @@ router.post('/', async (req, res) => {
   if (error) {
     return res.status(400).json({ success: false, error: error.details[0].message });
   }
+
+  // Convertir strings vides en null
+  if (value.email === '') value.email = null;
+  if (value.phone === '') value.phone = null;
 
   // Au moins un de phone ou email doit être fourni
   if (!value.phone && !value.email) {

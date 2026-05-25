@@ -12,6 +12,9 @@ export function useOverpassPOIs(lat, lng, radiusKm = 10) {
   useEffect(() => {
     if (!lat || !lng) return;
 
+    const controller = new AbortController();
+    let isMounted = true;
+
     setLoading(true);
     setError(null);
 
@@ -38,16 +41,20 @@ out center;`;
 
     console.log('[Overpass] Cherchant POIs autour de', lat.toFixed(4), lng.toFixed(4));
 
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     fetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
       body: overpassQuery,
-      signal: AbortSignal.timeout(10000) // 10 sec timeout
+      signal: controller.signal
     })
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.text();
       })
       .then(xml => {
+        if (!isMounted) return;
+
         // Parse OSM XML response
         const parser = new DOMParser();
         const doc = parser.parseFromString(xml, 'text/xml');
@@ -100,15 +107,23 @@ out center;`;
         });
 
         console.log(`[Overpass] Trouvé ${elements.length} POIs`);
-        setPois(elements);
+        if (isMounted) setPois(elements);
       })
       .catch(err => {
-        console.error('[Overpass] Erreur:', err.message);
-        setError(err.message);
+        if (isMounted && err.name !== 'AbortError') {
+          console.error('[Overpass] Erreur:', err.message);
+          setError(err.message);
+        }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
 
-    return () => {}; // Cleanup
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [lat, lng, radiusKm]);
 
   return { pois, loading, error };

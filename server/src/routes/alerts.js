@@ -57,9 +57,9 @@ router.post('/', async (req, res) => {
         const sender = await knex('users').where({ id: userId }).first();
         let emailsSent = 0;
 
-        // Envoyer emails aux contacts avec email vérifié
+        // Envoyer emails aux contacts
         for (const contact of contacts) {
-          if (contact.email && contact.email_verified) {
+          if (contact.email) {
             const emailResult = await sendAlertEmail(contact.email, {
               senderName: sender.full_name,
               alertLevel: value.level,
@@ -84,14 +84,7 @@ router.post('/', async (req, res) => {
         alert.contacts_count = contacts.length;
       }
 
-      // Firebase Cloud Messaging - notifier les contacts
-      if (contacts.length > 0) {
-        fcmResult = await notifyContacts(userId, organizationId, contacts, {
-          title: `🚨 ${levelLabels[value.level]}`,
-          body: alertText,
-          link: '/alerts',
-        });
-      }
+      // Contacts reçoivent des emails (pas de notifications push FCM)
 
       // FCM - notifier l'utilisateur aussi (pour son propre appareil)
       await sendNotificationToUser(userId, {

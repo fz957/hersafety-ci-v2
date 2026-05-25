@@ -12,7 +12,7 @@ export default function Onboarding() {
   const navigate = useNavigate();
 
   const [contacts, setContacts]   = useState([]);
-  const [newContact, setNewContact] = useState({ full_name: '', phone: '', relation: 'famille' });
+  const [newContact, setNewContact] = useState({ full_name: '', email: '', phone: '', relation: 'famille' });
   const [loading, setLoading]     = useState(false);
   const [saving, setSaving]       = useState(false);
   const [toast, setToast]         = useState(null);
@@ -23,14 +23,18 @@ export default function Onboarding() {
   }, []);
 
   const addContact = async () => {
-    if (!newContact.full_name || !newContact.phone) {
-      setToast({ message: 'Nom et téléphone requis', type: 'warn' });
+    if (!newContact.full_name) {
+      setToast({ message: 'Nom requis', type: 'warn' });
+      return;
+    }
+    if (!newContact.email && !newContact.phone) {
+      setToast({ message: 'Email ou téléphone requis', type: 'warn' });
       return;
     }
     try {
       const res = await api.post('/api/contacts', newContact);
       setContacts((c) => [...c, res.data.data]);
-      setNewContact({ full_name: '', phone: '', relation: 'famille' });
+      setNewContact({ full_name: '', email: '', phone: '', relation: 'famille' });
     } catch (err) {
       setToast({ message: err.response?.data?.error || 'Erreur ajout contact', type: 'error' });
     }
@@ -93,7 +97,8 @@ export default function Onboarding() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: HS.chocolate }}>{c.full_name}</div>
                 <div style={{ fontSize: 11, color: HS.textMute, marginTop: 2 }}>
-                  <span style={{ color: HS.sakuraDeep, fontWeight: 600 }}>{c.relation}</span> · {c.phone}
+                  <span style={{ color: HS.sakuraDeep, fontWeight: 600 }}>{c.relation}</span> · {c.email || c.phone}
+                  {c.email && c.phone && <> ({c.phone})</>}
                 </div>
               </div>
               <button onClick={() => removeContact(c.id)}
@@ -121,10 +126,17 @@ export default function Onboarding() {
                   onChange={(e) => setNewContact((n) => ({ ...n, full_name: e.target.value }))}
                   icon={<Icon d={ICONS.user} size={18} />}
                 />
+                <Input
+                  label="Email (optionnel)"
+                  placeholder="exemple@mail.com"
+                  type="email"
+                  value={newContact.email}
+                  onChange={(e) => setNewContact((n) => ({ ...n, email: e.target.value }))}
+                />
                 <div style={{ display: 'flex', gap: 8 }}>
                   <div style={{ flex: 1 }}>
                     <Input
-                      label="Téléphone"
+                      label="Téléphone (optionnel)"
                       placeholder="+225 07 …"
                       value={newContact.phone}
                       onChange={(e) => setNewContact((n) => ({ ...n, phone: e.target.value }))}

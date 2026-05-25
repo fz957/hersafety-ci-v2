@@ -1,39 +1,35 @@
 /**
- * Firebase Service Worker
- * Handles background push notifications
+ * Service Worker
+ * Handles background push notifications (Web Push API native)
  */
 
-importScripts('https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js');
-importScripts('https://www.gstatic.com/firebasejs/12.13.0/firebase-messaging.js');
+// Handle background push messages
+self.addEventListener('push', (event) => {
+  console.log('[Service Worker] Push notification received:', event);
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDC3YKr5AKsDWNByyFzuiAWIgt-CD41Qn4",
-  authDomain: "safety-510e8.firebaseapp.com",
-  projectId: "safety-510e8",
-  storageBucket: "safety-510e8.firebasestorage.app",
-  messagingSenderId: "872821982195",
-  appId: "1:872821982195:web:23b320a62b99e2eba2c886",
-};
-
-firebase.initializeApp(firebaseConfig);
-const messaging = firebase.messaging();
-
-// Handle background messages
-messaging.onBackgroundMessage((payload) => {
-  console.log('[Service Worker] Background notification received:', payload);
-
-  const notificationTitle = payload.notification?.title || 'HerSafety';
-  const notificationOptions = {
-    body: payload.notification?.body || 'Nouvelle notification',
+  let notificationData = {
+    title: 'HerSafety',
+    body: 'Nouvelle notification',
     icon: '/logo.svg',
     badge: '/badge.svg',
     tag: 'hersafety-notification',
-    requireInteraction: payload.data?.requireInteraction === 'true',
-    data: payload.data,
+    data: {},
   };
 
+  // Parse push event data if available
+  if (event.data) {
+    try {
+      const data = event.data.json();
+      notificationData = { ...notificationData, ...data };
+    } catch (e) {
+      notificationData.body = event.data.text();
+    }
+  }
+
   // Show notification
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  event.waitUntil(
+    self.registration.showNotification(notificationData.title, notificationData)
+  );
 });
 
 // Handle notification clicks
