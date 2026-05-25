@@ -6,6 +6,7 @@ import 'leaflet-routing-machine';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import { useGPS } from '../hooks/useGPS';
 import { useOverpassPOIs } from '../hooks/useOverpassPOIs';
+import useSpeechRecognition from '../hooks/useSpeechRecognition';
 import api from '../services/api';
 import { HS, ICONS } from '../tokens';
 import { Icon, Card, Eyebrow, BackButton, PageShell, ScrollArea, Spinner } from '../components/ui/index.jsx';
@@ -80,6 +81,7 @@ export default function Emergency() {
   const { state }   = useLocation();
   const navigate    = useNavigate();
   const { position } = useGPS({ watch: true });
+  const { isListening, transcript, toggleListening, clearTranscript, isSupported } = useSpeechRecognition();
 
   const [emergencyNums, setEmergencyNums] = useState([]);
   const [places, setPlaces]               = useState([]);
@@ -138,6 +140,15 @@ export default function Emergency() {
   useEffect(() => {
     api.get('/api/emergency-numbers').then((r) => setEmergencyNums(r.data.data)).catch(() => {});
   }, []);
+
+  // Traiter la transcription vocale
+  useEffect(() => {
+    if (!isListening && transcript && transcript.trim() !== '🎤') {
+      const cleaned = transcript.replace('🎤', '').trim();
+      setUserInput(cleaned);
+      clearTranscript();
+    }
+  }, [isListening, transcript]);
 
   // Lieux sûrs — /api/places primary (has distributed locations), Overpass supplemental
   useEffect(() => {
@@ -292,18 +303,35 @@ export default function Emergency() {
           </div>
 
           {/* Input message */}
-          <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: 8 }}>
+          <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input
               type="text"
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
-              placeholder="Comment tu te sens ?"
+              placeholder={isListening ? '🎤 Écoute...' : 'Comment tu te sens ?'}
               disabled={loadingAI}
               style={{
-                flex: 1, padding: '10px 12px', borderRadius: 10, border: `1px solid ${HS.border}`,
-                background: HS.bg, color: HS.chocolate, fontFamily: HS.font, fontSize: 13,
+                flex: 1, padding: '10px 12px', borderRadius: 10, border: `1px solid ${isListening ? HS.chocolate : HS.border}`,
+                background: isListening ? HS.bg + 'cc' : HS.bg, color: HS.chocolate, fontFamily: HS.font, fontSize: 13,
+                transition: 'all 0.2s'
               }}
             />
+            {isSupported && (
+              <button
+                type="button"
+                onClick={toggleListening}
+                disabled={loadingAI}
+                style={{
+                  width: 40, height: 40, borderRadius: 10, background: isListening ? HS.chocolate : '#E0E0E0', border: 'none',
+                  color: isListening ? HS.bg : '#666', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: loadingAI ? 'not-allowed' : 'pointer', opacity: loadingAI ? 0.5 : 1,
+                  fontSize: 18, transition: 'all 0.2s'
+                }}
+                title={isListening ? 'Arrêter l\'enregistrement' : 'Parler'}
+              >
+                🎤
+              </button>
+            )}
             <button
               type="submit"
               disabled={!userInput.trim() || loadingAI}
