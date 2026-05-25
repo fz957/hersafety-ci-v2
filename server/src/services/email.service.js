@@ -18,8 +18,8 @@ const initializeTransporter = () => {
       transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASSWORD,
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_PASSWORD,
         },
       });
     } else if (process.env.EMAIL_PROVIDER === 'sendgrid') {
