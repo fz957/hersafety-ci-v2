@@ -7,6 +7,7 @@ const { requireTenant } = require('../middlewares/tenant');
 const { requireAdmin }  = require('../middlewares/admin');
 const { sendAlertSMS }  = require('../services/sms.service');
 const { sendNotificationToUser, notifyContacts } = require('../services/firebase.service');
+const { sendAlertEmail } = require('../services/email.service');
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);
@@ -52,26 +53,34 @@ router.post('/', async (req, res) => {
     if (['2', '3', '4'].includes(value.level)) {
       const contacts = await knex('contacts').where({ user_id: userId, organization_id: organizationId });
 
-      // SMS (Africa's Talking)
       if (contacts.length > 0) {
-        smsLogs = await sendAlertSMS({
-          alertId:        alert.id,
-          userId,
-          organizationId,
-          level:          value.level,
-          contacts,
-          locationLabel:  value.location_label,
-          isSimulated,
-        });
+        const sender = await knex('users').where({ id: userId }).first();
+        let emailsSent = 0;
 
-        const smsSent = smsLogs.some((l) => ['sent', 'simulated'].includes(l.status));
+        // Envoyer emails aux contacts avec email vérifié
+        for (const contact of contacts) {
+          if (contact.email && contact.email_verified) {
+            const emailResult = await sendAlertEmail(contact.email, {
+              senderName: sender.full_name,
+              alertLevel: value.level,
+              locationLabel: value.location_label,
+              createdAt: alert.created_at,
+            });
+
+            if (emailResult.success) {
+              emailsSent++;
+            }
+          }
+        }
+
+        // Mettre à jour l'alerte
         await knex('alerts').where({ id: alert.id }).update({
-          sms_sent:       smsSent,
-          sms_sent_at:    smsSent ? new Date() : null,
+          sms_sent:       emailsSent > 0, // Utiliser sms_sent pour tracker les notifications
+          sms_sent_at:    emailsSent > 0 ? new Date() : null,
           contacts_count: contacts.length,
         });
 
-        alert.sms_sent       = smsSent;
+        alert.sms_sent       = emailsSent > 0;
         alert.contacts_count = contacts.length;
       }
 
