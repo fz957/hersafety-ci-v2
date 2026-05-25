@@ -14,16 +14,17 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('🔴 UNHANDLED REJECTION:', event.reason);
 });
 
-// Service Worker - DISABLED
-// Check-in system works fine with frontend timer (useCheckInTimer)
-// Service Workers cause caching issues and sync registration errors
-// if ('serviceWorker' in navigator) {
-//   navigator.serviceWorker.getRegistrations()
-//     .then((registrations) => {
-//       registrations.forEach((reg) => reg.unregister());
-//     });
-// }
-console.log('[App] Service Worker disabled - using frontend timer only');
+// Service Worker — ENABLED for Firebase Cloud Messaging only
+// Allows push notifications to work even when the app is closed
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/firebase-messaging-sw.js')
+    .then((registration) => {
+      console.log('✓ FCM Service Worker registered');
+    })
+    .catch((err) => {
+      console.warn('⚠ FCM Service Worker registration failed:', err.message);
+    });
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

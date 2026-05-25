@@ -6,6 +6,7 @@ const { requireAuth }   = require('../middlewares/auth');
 const { requireTenant } = require('../middlewares/tenant');
 const { requireAdmin }  = require('../middlewares/admin');
 const { sendAlertSMS }  = require('../services/sms.service');
+const { sendNotificationToUser, notifyContacts } = require('../services/firebase.service');
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);
@@ -40,10 +41,18 @@ router.post('/', async (req, res) => {
       .returning('*');
 
     let smsLogs = [];
+    let fcmResult = { success: false };
+
+    // Texte d'alerte pour notifications
+    const levelLabels = { '1': 'Vigilance', '2': 'Malaise', '3': 'DANGER', '4': 'SOS' };
+    const alertText = value.location_label
+      ? `Alerte ${levelLabels[value.level]}: ${value.location_label}`
+      : `Alerte ${levelLabels[value.level]}`;
 
     if (['2', '3', '4'].includes(value.level)) {
       const contacts = await knex('contacts').where({ user_id: userId, organization_id: organizationId });
 
+      // SMS (Africa's Talking)
       if (contacts.length > 0) {
         smsLogs = await sendAlertSMS({
           alertId:        alert.id,
@@ -65,10 +74,45 @@ router.post('/', async (req, res) => {
         alert.sms_sent       = smsSent;
         alert.contacts_count = contacts.length;
       }
+
+      // Firebase Cloud Messaging - notifier les contacts
+      if (contacts.length > 0) {
+        fcmResult = await notifyContacts(userId, organizationId, contacts, {
+          title: `🚨 ${levelLabels[value.level]}`,
+          body: alertText,
+          link: '/alerts',
+        });
+      }
+
+      // FCM - notifier l'utilisateur aussi (pour son propre appareil)
+      await sendNotificationToUser(userId, {
+        title: `✓ Alerte ${levelLabels[value.level]} envoyée`,
+        body: `${contacts.length} contact(s) notifié(s)`,
+        link: '/alerts',
+      }, {
+        alertId: alert.id,
+        alertLevel: value.level,
+      });
     }
 
-    return res.status(201).json({ success: true, data: { alert, sms_logs: smsLogs } });
+    // FCM - pour le niveau 1 (vigilance seulement), notifier l'utilisateur
+    if (value.level === '1') {
+      await sendNotificationToUser(userId, {
+        title: '👀 Mode Vigilance',
+        body: 'Check-ins programmés toutes les 10 min',
+        link: '/dashboard',
+      }, {
+        alertId: alert.id,
+        alertLevel: '1',
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      data: { alert, sms_logs: smsLogs, fcm: fcmResult }
+    });
   } catch (err) {
+    console.error('Alert creation error:', err);
     return res.status(500).json({ success: false, error: 'Erreur création alerte' });
   }
 });

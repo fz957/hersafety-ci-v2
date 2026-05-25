@@ -17,6 +17,7 @@ const reportsRoutes      = require('./routes/reports');
 const adminRoutes            = require('./routes/admin');
 const emergencyNumbersRoutes = require('./routes/emergency-numbers');
 const locationsRoutes    = require('./routes/locations');
+const fcmRoutes          = require('./routes/fcm');
 
 const { apiLimiter } = require('./middlewares/rateLimit');
 
@@ -59,6 +60,7 @@ app.use('/api/reports',       reportsRoutes);
 app.use('/api/admin',             adminRoutes);
 app.use('/api/emergency-numbers', emergencyNumbersRoutes);
 app.use('/api/locations',     locationsRoutes);
+app.use('/api/fcm',           fcmRoutes);
 
 // Santé de l'API
 app.get('/api/health', (req, res) => {

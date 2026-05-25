@@ -2,6 +2,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { SideNav, BottomNav, Spinner, HS } from './components/ui/index.jsx';
+import api from './services/api';
+import { setupFCM } from './services/firebase.js';
 
 // Hook : détecte si on est sur desktop (>= 768px) — recalculé au resize
 function useIsDesktop() {
@@ -140,10 +142,33 @@ function GuestRoute({ children }) {
   return <Navigate to={isAdmin ? '/admin' : '/dashboard'} replace />;
 }
 
+// ─── Firebase Initializer ─────────────────────────────────────────────────────
+function FirebaseInitializer() {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      setupFCM(api)
+        .then(result => {
+          if (result.success) {
+            console.log('✓ FCM setup complete');
+          } else {
+            console.warn('⚠ FCM setup incomplete:', result.error);
+          }
+        })
+        .catch(err => console.error('FCM setup error:', err));
+    }
+  }, [user]);
+
+  return null;
+}
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 function AppRoutes() {
   return (
-    <Routes>
+    <>
+      <FirebaseInitializer />
+      <Routes>
       {/* Publiques */}
       <Route path="/"         element={<Landing />} />
       <Route path="/login"    element={<GuestRoute><Login /></GuestRoute>} />
@@ -169,6 +194,7 @@ function AppRoutes() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }
 
