@@ -328,7 +328,9 @@ export default function Community() {
   const handleDelete = async (itemId, type) => {
     if (type === 'testimony') {
       await api.delete(`/api/testimonies/${itemId}`);
-      setTestimonies(testimonies.filter(t => t.id !== itemId));
+      // Recharger pour s'assurer que c'est vraiment supprimé
+      const res = await api.get('/api/testimonies');
+      setTestimonies(res.data.data);
     } else if (type === 'article') {
       const updated = articles.filter(a => a.id !== itemId);
       setArticles(updated);
