@@ -296,6 +296,9 @@ export default function Community() {
         }
         console.log('Sending testimony:', payload);
         await api.post('/api/testimonies', payload);
+        // Recharger les témoignages pour avoir le user_id
+        const res = await api.get('/api/testimonies');
+        setTestimonies(res.data.data);
         setToast({ message: 'Témoignage publié ✓', type: 'success' });
       } else {
         const item = { id: Date.now(), title: form.title, content: form.content, description: form.content, trigger_warning_level: form.trigger_warning_level, user_id: user?.id };
