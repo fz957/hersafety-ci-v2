@@ -214,36 +214,38 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
   };
 
   return (
-    <div className="fixed bottom-6 right-6 w-96 h-[32rem] rounded-2xl flex flex-col z-50 shadow-2xl" style={{ background: `linear-gradient(135deg, ${HS.bg}, #1a0d0d)`, border: `2px solid ${HS.sakura}` }}>
-      {/* Header */}
-      <div className="p-4 flex items-center justify-between rounded-t-2xl" style={{ background: `linear-gradient(135deg, ${HS.sakura}, ${HS.sakuraDeep})` }}>
-        <div>
-          <h2 className="text-white font-bold text-sm">LYRA</h2>
+    <div className="fixed bottom-6 right-6 w-[420px] rounded-3xl flex flex-col z-50 shadow-xl overflow-hidden" style={{ background: '#FBF1EA', height: '600px' }}>
+
+      {/* Header avec avatar Lyra */}
+      <div className="pt-6 pb-4 px-6 text-center" style={{ background: `linear-gradient(135deg, ${HS.sakura}, ${HS.sakuraDeep})` }}>
+        <div className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
+          <span className="text-3xl">✨</span>
         </div>
+        <h2 className="text-white font-bold text-2xl">LYRA</h2>
+        <p className="text-white/80 text-xs mt-1">Je suis là pour toi</p>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-white text-sm"
+          className="absolute top-4 right-4 text-white/60 hover:text-white"
         >
           ✕
         </button>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2 flex flex-col text-xs">
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 flex flex-col">
         {messages.map((msg, idx) => (
           <div
             key={idx}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-xs px-3 py-2 rounded-lg text-xs leading-relaxed ${
+              className={`px-4 py-3 rounded-2xl max-w-xs text-sm leading-relaxed ${
                 msg.role === 'user'
-                  ? 'text-white'
-                  : 'text-white'
+                  ? 'text-white font-medium'
+                  : 'text-[#333] font-normal'
               }`}
               style={{
-                background: msg.role === 'user' ? HS.sakura : 'rgba(194, 24, 91, 0.2)',
-                color: msg.role === 'user' ? '#fff' : HS.chocolate
+                background: msg.role === 'user' ? HS.sakura : '#F0E6E6'
               }}
             >
               {msg.content}
@@ -252,72 +254,74 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
         ))}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="px-3 py-2 rounded-lg text-sm" style={{ background: 'rgba(194, 24, 91, 0.2)', color: HS.chocolate }}>
-              <span className="animate-pulse">Lyra réfléchit...</span>
+            <div className="px-4 py-3 rounded-2xl text-sm" style={{ background: '#F0E6E6', color: HS.chocolate }}>
+              <span className="animate-pulse">✨ Lyra réfléchit...</span>
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Risk Indicator + Timer */}
-      <div className="px-3 py-1 text-center text-xs" style={{ background: 'rgba(0,0,0,0.3)', borderTop: `1px solid ${HS.sakura}40` }}>
-        {riskLevel && (
-          <>
-            {riskLevel === 'low' && <span className="text-green-400 block">✓ Situation maîtrisée</span>}
-            {riskLevel === 'medium' && <span className="text-yellow-400 block">⚠ Situation à surveiller</span>}
-            {riskLevel === 'high' && <span className="text-red-500 block">🚨 Escalade vers Emergency</span>}
-          </>
-        )}
-        {!hasTimeout && (
-          <div className="text-gray-400">
-            ⏱ {Math.floor(timeRemaining / 1000)}s avant notification
-          </div>
-        )}
-      </div>
+      {/* Status indicator */}
+      {riskLevel && (
+        <div className="px-6 py-2 text-center text-xs font-semibold">
+          {riskLevel === 'low' && <span style={{ color: '#1B5E20' }}>✓ Situation maîtrisée</span>}
+          {riskLevel === 'medium' && <span style={{ color: '#FF6F00' }}>⚠ Situation à surveiller</span>}
+          {riskLevel === 'high' && <span style={{ color: HS.danger }}>🚨 Escalade vers Emergency</span>}
+        </div>
+      )}
 
-      {/* Input */}
-      <form onSubmit={handleSendMessage} className="p-3 rounded-b-2xl" style={{ background: 'rgba(0,0,0,0.2)', borderTop: `1px solid ${HS.sakura}40` }}>
+      {/* Timer */}
+      {!hasTimeout && (
+        <div className="text-center text-xs px-6" style={{ color: '#999' }}>
+          {Math.floor(timeRemaining / 1000)}s avant notification aux proches
+        </div>
+      )}
+
+      {/* Input + Actions */}
+      <form onSubmit={handleSendMessage} className="px-6 pb-6 pt-2 space-y-3">
+        {/* Message input */}
         <div className="flex gap-2">
           <input
             type="text"
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
             placeholder="Dis-moi..."
-            className="flex-1 text-sm placeholder-gray-400 focus:outline-none"
-            style={{ background: 'rgba(255,255,255,0.1)', color: HS.chocolate, padding: '8px 12px', borderRadius: '8px', border: `1px solid ${HS.sakura}60` }}
+            className="flex-1 text-sm px-4 py-3 rounded-full focus:outline-none"
+            style={{ background: '#F0E6E6', color: '#333', border: `2px solid ${HS.sakura}40` }}
             disabled={isLoading || hasTimeout}
           />
           <button
             type="submit"
             disabled={isLoading || !userInput.trim() || hasTimeout}
-            className="bg-[#C2185B] text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-50 hover:bg-[#880E4F] transition"
+            className="w-10 h-10 rounded-full text-white font-bold flex items-center justify-center transition hover:opacity-90 disabled:opacity-40"
+            style={{ background: HS.sakura }}
           >
-            Envoyer
+            →
           </button>
         </div>
 
-        {/* Boutons d'action */}
+        {/* Action buttons */}
         {riskLevel !== 'high' && (
-          <div className="flex gap-2 text-xs">
+          <div className="flex gap-2 pt-2">
             {riskLevel === 'low' ? (
               <button
                 type="button"
                 onClick={handleResolve}
-                className="flex-1 bg-green-600 text-white py-2 rounded font-semibold hover:bg-green-700 transition"
+                className="flex-1 py-3 rounded-full font-bold text-white transition"
+                style={{ background: '#1B5E20' }}
               >
                 ✓ Tout va bien
               </button>
             ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={handleActivateEmergency}
-                  className="flex-1 bg-[#C2185B] text-white py-2 rounded font-semibold hover:bg-[#880E4F] transition"
-                >
-                  J'ai besoin d'aide
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={handleActivateEmergency}
+                className="flex-1 py-3 rounded-full font-bold text-white transition"
+                style={{ background: HS.danger }}
+              >
+                🚨 J'ai besoin d'aide
+              </button>
             )}
           </div>
         )}
