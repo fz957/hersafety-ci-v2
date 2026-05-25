@@ -4,6 +4,196 @@ import { useAuth } from '../hooks/useAuth';
 import { HS, ICONS } from '../tokens';
 import { Icon, Button, BottomNav, PageShell, ScrollArea, Toast } from '../components/ui/index.jsx';
 
+const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) => {
+  const [open, setOpen] = useState(item.trigger_warning_level === 'none' || item.trigger_warning_level === 'low');
+  const [reported, setReported] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [supportCount, setSupportCount] = useState(item.support_count || 0);
+  const [commentCount, setCommentCount] = useState(item.comment_count || 0);
+  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [comment, setComment] = useState('');
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('harassment');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const isOwner = item.user_id === user?.id;
+  const isSensitive = item.trigger_warning_level === 'moderate' || item.trigger_warning_level === 'severe';
+
+  const handleDeleteConfirm = async () => {
+    try {
+      await onDelete(item.id, type);
+      setShowDeleteModal(false);
+      setToast({ message: 'Supprimé ✓', type: 'success' });
+    } catch (err) {
+      setToast({ message: 'Erreur suppression', type: 'error' });
+    }
+  };
+
+  const handleReportConfirm = async () => {
+    try {
+      await onReport(item.id, type, reportReason);
+      setReported(true);
+      setShowReportModal(false);
+      setToast({ message: 'Signalé ✓ Merci!', type: 'success' });
+    } catch (err) {
+      console.error('Report error:', err);
+      setReported(true);
+      setShowReportModal(false);
+      setToast({ message: 'Signalé ✓ Merci!', type: 'success' });
+    }
+  };
+
+  const handleLike = async () => {
+    if (type === 'testimony') {
+      try {
+        await api.post(`/api/testimonies/${item.id}/like`);
+        setLiked(!liked);
+        setSupportCount(liked ? supportCount - 1 : supportCount + 1);
+      } catch (err) {
+        console.error('Like error:', err);
+      }
+    } else {
+      if (liked) {
+        setLiked(false);
+        setSupportCount(supportCount - 1);
+      } else {
+        setLiked(true);
+        setSupportCount(supportCount + 1);
+      }
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!comment.trim()) return;
+
+    if (type === 'testimony') {
+      try {
+        await api.post(`/api/testimonies/${item.id}/comments`, {
+          content: comment,
+          is_anonymous: true,
+        });
+        setCommentCount(commentCount + 1);
+      } catch (err) {
+        console.error('Comment error:', err);
+      }
+    }
+    setComment('');
+    setShowCommentInput(false);
+  };
+
+  return (
+    <div style={{ paddingBottom: 24, borderBottom: `1px solid ${HS.border}`, marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: HS.chocolate, marginBottom: 4 }}>
+            {item.title}
+          </div>
+          <div style={{ fontSize: 12, color: HS.textMute }}>
+            Par {item.display_name || 'Anonyme'} • {new Date(item.created_at).toLocaleDateString('fr-FR')}
+            {item.location_label && ` • 📍 ${item.location_label}`}
+            {item.category && ` • ${CATEGORIES.find(c => c.v === item.category)?.l || ''}`}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginLeft: 12, flexShrink: 0 }}>
+          {reported ? (
+            <span style={{ color: HS.textMute, fontSize: 11, fontWeight: 700, padding: '8px 12px' }}>✓ Signalé</span>
+          ) : (
+            <button onClick={() => setShowReportModal(true)} style={{ background: 'transparent', border: `1px solid ${HS.warn}`, color: HS.warn, padding: '8px 12px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: HS.font, whiteSpace: 'nowrap' }}>
+              🚩 Signaler
+            </button>
+          )}
+          {isOwner && (
+            <button onClick={() => setShowDeleteModal(true)} style={{ background: HS.danger, color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: HS.font, whiteSpace: 'nowrap' }}>
+              ✕ Supprimer
+            </button>
+          )}
+        </div>
+      </div>
+
+      {isSensitive && !open ? (
+        <div style={{ background: `${item.trigger_warning_level === 'severe' ? HS.danger : HS.warn}20`, border: `2px solid ${item.trigger_warning_level === 'severe' ? HS.danger : HS.warn}`, borderRadius: 12, padding: 16, textAlign: 'center', marginBottom: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: item.trigger_warning_level === 'severe' ? HS.danger : HS.warn, marginBottom: 8 }}>
+            ⚠️ Contenu {item.trigger_warning_level === 'severe' ? 'grave' : 'sensible'}
+          </div>
+          <button onClick={() => setOpen(true)} style={{ background: item.trigger_warning_level === 'severe' ? HS.danger : HS.warn, color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: HS.font }}>
+            Lire le contenu
+          </button>
+        </div>
+      ) : (
+        <div style={{ fontSize: 14, color: HS.textDim, lineHeight: 1.7, marginBottom: 12, whiteSpace: 'pre-wrap' }}>
+          {item.content || item.description}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 16, fontSize: 12, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${HS.border}` }}>
+        <button onClick={handleLike} style={{ background: 'none', border: 'none', color: liked ? HS.danger : HS.textMute, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0 }}>
+          {liked ? '❤️' : '🤍'} {supportCount}
+        </button>
+        <button onClick={() => setShowCommentInput(!showCommentInput)} style={{ background: 'none', border: 'none', color: showCommentInput ? HS.chocolate : HS.textMute, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0 }}>
+          💬 {commentCount}
+        </button>
+      </div>
+
+      {showCommentInput && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${HS.border}`, display: 'flex', gap: 6 }}>
+          <input type="text" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Ajoute un commentaire..." style={{ flex: 1, padding: '8px 10px', borderRadius: 6, border: `1px solid ${HS.border}`, fontFamily: HS.font, fontSize: 12, boxSizing: 'border-box' }} onKeyPress={(e) => e.key === 'Enter' && handleAddComment()} />
+          <button onClick={handleAddComment} style={{ background: HS.chocolate, color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: HS.font }}>
+            ✓
+          </button>
+        </div>
+      )}
+
+      {showReportModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowReportModal(false)}>
+          <div style={{ background: HS.bg, borderRadius: 12, padding: 24, maxWidth: 400, width: '90%', maxHeight: '80vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: HS.chocolate, marginBottom: 16 }}>Pourquoi signaler?</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+              {['harassment', 'violence', 'misinformation', 'spam', 'other'].map(reason => (
+                <label key={reason} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 10, borderRadius: 8, background: reportReason === reason ? HS.surface : 'transparent', cursor: 'pointer' }}>
+                  <input type="radio" checked={reportReason === reason} onChange={() => setReportReason(reason)} style={{ cursor: 'pointer' }} />
+                  <span style={{ fontSize: 13, color: HS.textDim }}>
+                    {reason === 'harassment' && '😤 Harcèlement'}
+                    {reason === 'violence' && '⚔️ Violence'}
+                    {reason === 'misinformation' && '❌ Désinformation'}
+                    {reason === 'spam' && '🚫 Spam'}
+                    {reason === 'other' && '🤔 Autre'}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button onClick={() => setShowReportModal(false)} style={{ flex: 1, padding: 12, borderRadius: 8, background: HS.surface, border: 'none', color: HS.chocolate, fontWeight: 700, cursor: 'pointer', fontFamily: HS.font }}>
+                Annuler
+              </button>
+              <button onClick={handleReportConfirm} style={{ flex: 1, padding: 12, borderRadius: 8, background: HS.warn, border: 'none', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: HS.font }}>
+                Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowDeleteModal(false)}>
+          <div style={{ background: HS.bg, borderRadius: 12, padding: 24, maxWidth: 400, width: '90%' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: HS.danger, marginBottom: 12 }}>Supprimer?</div>
+            <div style={{ fontSize: 13, color: HS.textDim, marginBottom: 20 }}>
+              Cette action est définitive. Tu es sûre?
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button onClick={() => setShowDeleteModal(false)} style={{ flex: 1, padding: 12, borderRadius: 8, background: HS.surface, border: 'none', color: HS.chocolate, fontWeight: 700, cursor: 'pointer', fontFamily: HS.font }}>
+                Annuler
+              </button>
+              <button onClick={handleDeleteConfirm} style={{ flex: 1, padding: 12, borderRadius: 8, background: HS.danger, border: 'none', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: HS.font }}>
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function Community() {
   const { user } = useAuth();
   const [contentType, setContentType] = useState('testimonies');
@@ -124,244 +314,6 @@ export default function Community() {
     }
   };
 
-  const Post = ({ item, type, onDelete, onReport }) => {
-    const [open, setOpen] = useState(item.trigger_warning_level === 'none' || item.trigger_warning_level === 'low');
-    const [reported, setReported] = useState(false);
-    const [liked, setLiked] = useState(false);
-    const [supportCount, setSupportCount] = useState(item.support_count || 0);
-    const [commentCount, setCommentCount] = useState(item.comment_count || 0);
-    const [showCommentInput, setShowCommentInput] = useState(false);
-    const [comment, setComment] = useState('');
-    const [showReportModal, setShowReportModal] = useState(false);
-    const [reportReason, setReportReason] = useState('harassment');
-    const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const isOwner = item.user_id === user?.id;
-    const isSensitive = item.trigger_warning_level === 'moderate' || item.trigger_warning_level === 'severe';
-
-    const handleDeleteConfirm = async () => {
-      try {
-        await onDelete(item.id, type);
-        setShowDeleteModal(false);
-        setToast({ message: 'Supprimé ✓', type: 'success' });
-      } catch (err) {
-        setToast({ message: 'Erreur suppression', type: 'error' });
-      }
-    };
-
-    const handleReportConfirm = async () => {
-      try {
-        await onReport(item.id, type, reportReason);
-        setReported(true);
-        setShowReportModal(false);
-        setToast({ message: 'Signalé ✓ Merci!', type: 'success' });
-      } catch (err) {
-        console.error('Report error:', err);
-        setReported(true);
-        setShowReportModal(false);
-        setToast({ message: 'Signalé ✓ Merci!', type: 'success' });
-      }
-    };
-
-    const handleLike = async () => {
-      if (type === 'testimony') {
-        // Pour testimonies: utiliser API
-        try {
-          await api.post(`/api/testimonies/${item.id}/like`);
-          setLiked(!liked);
-          setSupportCount(liked ? supportCount - 1 : supportCount + 1);
-        } catch (err) {
-          console.error('Like error:', err);
-        }
-      } else {
-        // Pour autres: localStorage
-        if (liked) {
-          setLiked(false);
-          setSupportCount(supportCount - 1);
-        } else {
-          setLiked(true);
-          setSupportCount(supportCount + 1);
-        }
-        const arr = type === 'article' ? articles : type === 'photo' ? photos : videos;
-        const newCount = liked ? supportCount - 1 : supportCount + 1;
-        const updated = arr.map(a => a.id === item.id ? { ...a, support_count: newCount } : a);
-        if (type === 'article') {
-          setArticles(updated);
-          localStorage.setItem('lesgirls_articles', JSON.stringify(updated));
-        } else if (type === 'photo') {
-          setPhotos(updated);
-          localStorage.setItem('lesgirls_photos', JSON.stringify(updated));
-        } else if (type === 'video') {
-          setVideos(updated);
-          localStorage.setItem('lesgirls_videos', JSON.stringify(updated));
-        }
-      }
-    };
-
-    const handleAddComment = async () => {
-      if (!comment.trim()) return;
-
-      if (type === 'testimony') {
-        try {
-          await api.post(`/api/testimonies/${item.id}/comments`, {
-            content: comment,
-            is_anonymous: true,
-          });
-          setCommentCount(commentCount + 1);
-        } catch (err) {
-          console.error('Comment error:', err);
-        }
-      } else {
-        // localStorage pour autres types
-        const arr = type === 'article' ? articles : type === 'photo' ? photos : videos;
-        const updated = arr.map(a => a.id === item.id ? { ...a, comment_count: commentCount + 1 } : a);
-        setCommentCount(commentCount + 1);
-        if (type === 'article') {
-          setArticles(updated);
-          localStorage.setItem('lesgirls_articles', JSON.stringify(updated));
-        } else if (type === 'photo') {
-          setPhotos(updated);
-          localStorage.setItem('lesgirls_photos', JSON.stringify(updated));
-        } else if (type === 'video') {
-          setVideos(updated);
-          localStorage.setItem('lesgirls_videos', JSON.stringify(updated));
-        }
-      }
-      setComment('');
-      setShowCommentInput(false);
-    };
-
-    const handleReport = async () => {
-      try {
-        if (type === 'testimony') {
-          await api.post('/api/reports', { report_type: 'testimony', testimony_id: item.id, reason: 'harassment' });
-        }
-        setReported(true);
-        setToast({ message: 'Signalé ✓', type: 'success' });
-      } catch (err) {
-        console.error('Report error:', err);
-        // Même si erreur, marquer comme reporté
-        setReported(true);
-        setToast({ message: 'Signalé ✓', type: 'success' });
-      }
-    };
-
-    return (
-      <div style={{ paddingBottom: 24, borderBottom: `1px solid ${HS.border}`, marginBottom: 20 }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: HS.chocolate, marginBottom: 4 }}>
-              {item.title}
-            </div>
-            <div style={{ fontSize: 12, color: HS.textMute }}>
-              Par {item.display_name || 'Anonyme'} • {new Date(item.created_at).toLocaleDateString('fr-FR')}
-              {item.location_label && ` • 📍 ${item.location_label}`}
-              {item.category && ` • ${CATEGORIES.find(c => c.v === item.category)?.l || ''}`}
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginLeft: 12, flexShrink: 0 }}>
-            {reported ? (
-              <span style={{ color: HS.textMute, fontSize: 11, fontWeight: 700, padding: '8px 12px' }}>✓ Signalé</span>
-            ) : (
-              <button onClick={() => setShowReportModal(true)} style={{ background: 'transparent', border: `1px solid ${HS.warn}`, color: HS.warn, padding: '8px 12px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: HS.font, whiteSpace: 'nowrap' }}>
-                🚩 Signaler
-              </button>
-            )}
-            <button onClick={() => setShowDeleteModal(true)} style={{ background: HS.danger, color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: HS.font, whiteSpace: 'nowrap' }}>
-              ✕ Supprimer
-            </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        {isSensitive && !open ? (
-          <div style={{ background: `${item.trigger_warning_level === 'severe' ? HS.danger : HS.warn}20`, border: `2px solid ${item.trigger_warning_level === 'severe' ? HS.danger : HS.warn}`, borderRadius: 12, padding: 16, textAlign: 'center', marginBottom: 12 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: item.trigger_warning_level === 'severe' ? HS.danger : HS.warn, marginBottom: 8 }}>
-              ⚠️ Contenu {item.trigger_warning_level === 'severe' ? 'grave' : 'sensible'}
-            </div>
-            <button onClick={() => setOpen(true)} style={{ background: item.trigger_warning_level === 'severe' ? HS.danger : HS.warn, color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: HS.font }}>
-              Lire le contenu
-            </button>
-          </div>
-        ) : (
-          <div style={{ fontSize: 14, color: HS.textDim, lineHeight: 1.7, marginBottom: 12, whiteSpace: 'pre-wrap' }}>
-            {item.content || item.description}
-          </div>
-        )}
-
-        {/* Stats - Pour tous les types */}
-        <div style={{ display: 'flex', gap: 16, fontSize: 12, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${HS.border}` }}>
-          <button onClick={handleLike} style={{ background: 'none', border: 'none', color: liked ? HS.danger : HS.textMute, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0 }}>
-            {liked ? '❤️' : '🤍'} {supportCount}
-          </button>
-          <button onClick={() => setShowCommentInput(!showCommentInput)} style={{ background: 'none', border: 'none', color: showCommentInput ? HS.chocolate : HS.textMute, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0 }}>
-            💬 {commentCount}
-          </button>
-        </div>
-
-        {/* Comment input */}
-        {showCommentInput && (
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${HS.border}`, display: 'flex', gap: 6 }}>
-            <input type="text" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Ajoute un commentaire..." style={{ flex: 1, padding: '8px 10px', borderRadius: 6, border: `1px solid ${HS.border}`, fontFamily: HS.font, fontSize: 12, boxSizing: 'border-box' }} onKeyPress={(e) => e.key === 'Enter' && handleAddComment()} />
-            <button onClick={handleAddComment} style={{ background: HS.chocolate, color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: HS.font }}>
-              ✓
-            </button>
-          </div>
-        )}
-
-        {/* Modal Signaler */}
-        {showReportModal && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowReportModal(false)}>
-            <div style={{ background: HS.bg, borderRadius: 12, padding: 24, maxWidth: 400, width: '90%', maxHeight: '80vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: HS.chocolate, marginBottom: 16 }}>Pourquoi signaler?</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-                {['harassment', 'violence', 'misinformation', 'spam', 'other'].map(reason => (
-                  <label key={reason} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 10, borderRadius: 8, background: reportReason === reason ? HS.surface : 'transparent', cursor: 'pointer' }}>
-                    <input type="radio" checked={reportReason === reason} onChange={() => setReportReason(reason)} style={{ cursor: 'pointer' }} />
-                    <span style={{ fontSize: 13, color: HS.textDim }}>
-                      {reason === 'harassment' && '😤 Harcèlement'}
-                      {reason === 'violence' && '⚔️ Violence'}
-                      {reason === 'misinformation' && '❌ Désinformation'}
-                      {reason === 'spam' && '🚫 Spam'}
-                      {reason === 'other' && '🤔 Autre'}
-                    </span>
-                  </label>
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button onClick={() => setShowReportModal(false)} style={{ flex: 1, padding: 12, borderRadius: 8, background: HS.surface, border: 'none', color: HS.chocolate, fontWeight: 700, cursor: 'pointer', fontFamily: HS.font }}>
-                  Annuler
-                </button>
-                <button onClick={handleReportConfirm} style={{ flex: 1, padding: 12, borderRadius: 8, background: HS.warn, border: 'none', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: HS.font }}>
-                  Confirmer
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal Supprimer */}
-        {showDeleteModal && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowDeleteModal(false)}>
-            <div style={{ background: HS.bg, borderRadius: 12, padding: 24, maxWidth: 400, width: '90%' }} onClick={(e) => e.stopPropagation()}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: HS.danger, marginBottom: 12 }}>Supprimer?</div>
-              <div style={{ fontSize: 13, color: HS.textDim, marginBottom: 20 }}>
-                Cette action est définitive. Tu es sûre?
-              </div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button onClick={() => setShowDeleteModal(false)} style={{ flex: 1, padding: 12, borderRadius: 8, background: HS.surface, border: 'none', color: HS.chocolate, fontWeight: 700, cursor: 'pointer', fontFamily: HS.font }}>
-                  Annuler
-                </button>
-                <button onClick={handleDeleteConfirm} style={{ flex: 1, padding: 12, borderRadius: 8, background: HS.danger, border: 'none', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: HS.font }}>
-                  Supprimer
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const handleDelete = async (itemId, type) => {
     if (type === 'testimony') {
@@ -427,7 +379,7 @@ export default function Community() {
                 <div>Sois la première à partager</div>
               </div>
             ) : (
-              items.map((item, idx) => <Post key={idx} item={item} type={contentType.slice(0, -3)} onDelete={handleDelete} onReport={handleReport} />)
+              items.map((item) => <Post key={item.id} item={item} type={contentType.slice(0, -3)} onDelete={handleDelete} onReport={handleReport} user={user} setToast={setToast} CATEGORIES={CATEGORIES} />)
             )
           ) : (
             <form onSubmit={submit} style={{ maxWidth: 700 }}>

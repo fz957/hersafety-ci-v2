@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { HS } from '../tokens';
+import useSpeechRecognition from '../hooks/useSpeechRecognition';
 
 // Animations CSS
 const styles = `
@@ -28,6 +29,7 @@ export function ChatAssistant({ activeTrack, onClose }) {
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const { isListening, transcript, toggleListening, clearTranscript, isSupported } = useSpeechRecognition();
 
   // Injecter styles
   useEffect(() => {
@@ -67,6 +69,15 @@ export function ChatAssistant({ activeTrack, onClose }) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Traiter la transcription vocale
+  useEffect(() => {
+    if (!isListening && transcript && transcript.trim() !== '🎤') {
+      const cleaned = transcript.replace('🎤', '').trim();
+      setUserInput(cleaned);
+      clearTranscript();
+    }
+  }, [isListening, transcript, clearTranscript]);
 
   // Envoyer un message
   const handleSendMessage = async (e) => {
@@ -281,19 +292,20 @@ export function ChatAssistant({ activeTrack, onClose }) {
           backdropFilter: 'blur(10px)',
           display: 'flex',
           gap: 12,
+          alignItems: 'center',
         }}
       >
         <input
           type="text"
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
-          placeholder="Dis-moi ce qui te préoccupe..."
+          placeholder={isListening ? '🎤 Écoute...' : 'Dis-moi ce qui te préoccupe...'}
           style={{
             flex: 1,
             padding: '14px 18px',
             borderRadius: 28,
-            border: '1.5px solid rgba(255,150,200,0.3)',
-            background: 'rgba(255,255,255,0.9)',
+            border: `1.5px solid ${isListening ? '#FFB6D9' : 'rgba(255,150,200,0.3)'}`,
+            background: isListening ? 'rgba(255,182,217,0.1)' : 'rgba(255,255,255,0.9)',
             color: '#2d2d2d',
             fontSize: 14,
             fontFamily: 'inherit',
@@ -312,6 +324,32 @@ export function ChatAssistant({ activeTrack, onClose }) {
           disabled={isLoading}
           autoFocus
         />
+        {isSupported && (
+          <button
+            type="button"
+            onClick={toggleListening}
+            disabled={isLoading}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              background: isListening ? '#FFB6D9' : '#FFE0ED',
+              color: isListening ? 'white' : '#FF7AB2',
+              border: 'none',
+              fontSize: 20,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: isLoading ? 0.5 : 1,
+              transition: 'all 0.3s',
+              boxShadow: isListening ? '0 4px 16px rgba(255,150,200,0.4)' : '0 2px 8px rgba(255,150,200,0.2)',
+            }}
+            title={isListening ? 'Arrêter l\'enregistrement' : 'Parler'}
+          >
+            🎤
+          </button>
+        )}
         <button
           type="submit"
           disabled={isLoading || !userInput.trim()}

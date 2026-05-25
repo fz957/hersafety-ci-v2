@@ -12,11 +12,12 @@ router.use(requireAuth, requireTenant);
 const DANGER_TYPES = ['harcelement_verbal', 'agression_physique', 'agression_sexuelle', 'vol', 'suivi', 'detour_force', 'autre'];
 
 const createSchema = Joi.object({
-  is_anonymous:   Joi.boolean().default(true),
-  category:       Joi.string().valid(...DANGER_TYPES).required(),
-  title:          Joi.string().trim().max(255).required(),
-  content:        Joi.string().trim().max(5000).required(),
-  location_label: Joi.string().max(500).optional(),
+  is_anonymous:         Joi.boolean().default(true),
+  category:             Joi.string().valid(...DANGER_TYPES).required(),
+  title:                Joi.string().trim().max(255).required(),
+  content:              Joi.string().trim().max(5000).required(),
+  location_label:       Joi.string().max(500).optional(),
+  trigger_warning_level: Joi.string().valid('none', 'low', 'moderate', 'severe').default('none'),
 });
 
 const moderateSchema = Joi.object({
@@ -45,7 +46,7 @@ router.get('/', async (req, res) => {
       .select(
         'id', 'organization_id', 'is_anonymous', 'display_name',
         'category', 'title', 'content', 'location_label',
-        'support_count', 'comment_count', 'status', 'created_at'
+        'trigger_warning_level', 'support_count', 'comment_count', 'status', 'created_at'
         // user_id délibérément exclu pour préserver l'anonymat
       )
       .orderBy('created_at', 'desc')
@@ -78,19 +79,20 @@ router.post('/', async (req, res) => {
 
     const [testimony] = await knex('testimonies')
       .insert({
-        user_id:         userId,
-        organization_id: organizationId,
-        is_anonymous:    value.is_anonymous,
+        user_id:              userId,
+        organization_id:      organizationId,
+        is_anonymous:         value.is_anonymous,
         display_name,
-        category:        value.category,
-        title:           value.title,
-        content:         value.content,
-        location_label:  value.location_label,
-        status:          'pending',
+        category:             value.category,
+        title:                value.title,
+        content:              value.content,
+        location_label:       value.location_label,
+        trigger_warning_level: value.trigger_warning_level,
+        status:               'approved',
       })
       .returning([
         'id', 'organization_id', 'is_anonymous', 'display_name',
-        'category', 'title', 'content', 'location_label', 'status', 'created_at',
+        'category', 'title', 'content', 'location_label', 'trigger_warning_level', 'status', 'created_at',
       ]);
 
     return res.status(201).json({ success: true, data: testimony });
@@ -379,6 +381,37 @@ router.delete('/:testimonyId/comments/:commentId', async (req, res) => {
     return res.json({ success: true, data: { deleted: true } });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Erreur suppression commentaire' });
+  }
+});
+
+// ─── DELETE /api/testimonies/:id — admin seulement ──────────────────────────
+
+router.delete('/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { organizationId } = req.user;
+
+  try {
+    const testimony = await knex('testimonies')
+      .where({ id, organization_id: organizationId })
+      .first();
+
+    if (!testimony) {
+      return res.status(404).json({ success: false, error: 'Témoignage introuvable' });
+    }
+
+    // Supprimer les commentaires associés
+    await knex('testimony_comments').where({ testimony_id: id }).del();
+
+    // Supprimer les réactions
+    await knex('testimony_reactions').where({ testimony_id: id }).del();
+
+    // Supprimer le témoignage
+    await knex('testimonies').where({ id }).del();
+
+    return res.json({ success: true, data: { deleted: true } });
+  } catch (err) {
+    console.error('Delete testimony error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur suppression témoignage' });
   }
 });
 

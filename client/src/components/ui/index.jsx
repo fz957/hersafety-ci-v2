@@ -274,7 +274,7 @@ export function SideNav({ user, onLogout }) {
     : [
         { id: 'home',    label: 'Accueil',   path: '/dashboard',  icon: 'M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V11z' },
         { id: 'chat',    label: 'Lyra',      path: '/chat',       icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z' },
-        { id: 'comm',    label: 'Sœurs',     path: '/community',  icon: ICONS.heart },
+        { id: 'comm',    label: 'LesGirls',  path: '/community',  icon: ICONS.heart },
         { id: 'map',     label: 'Trajet',    path: '/tracking',   icon: ICONS.map },
         { id: 'reports', label: 'Signaler',  path: '/reports',    icon: ICONS.flag },
       ];
@@ -390,7 +390,7 @@ export function BottomNav({ user } = {}) {
     : [
         { id: 'home',    label: 'Accueil', path: '/dashboard',  icon: 'M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V11z' },
         { id: 'sos',     label: 'SOS',     path: '/emergency',  big: true },
-        { id: 'comm',    label: 'Sœurs',   path: '/community',  icon: 'M16 11c1.66 0 3-1.34 3-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z' },
+        { id: 'comm',    label: 'LesGirls',path: '/community',  icon: 'M16 11c1.66 0 3-1.34 3-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z' },
         { id: 'map',     label: 'Trajet',  path: '/tracking',   icon: ICONS.map },
         { id: 'reports', label: 'Signaler',path: '/reports',    icon: ICONS.flag },
       ];

@@ -8,8 +8,10 @@ const useSpeechRecognition = () => {
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    console.log('[useSpeechRecognition] API available:', !!SpeechRecognition, 'window.SpeechRecognition:', !!window.SpeechRecognition, 'window.webkitSpeechRecognition:', !!window.webkitSpeechRecognition);
 
     if (!SpeechRecognition) {
+      console.warn('[useSpeechRecognition] Speech Recognition not supported in this browser');
       setError('Speech Recognition not supported');
       return;
     }
@@ -26,20 +28,16 @@ const useSpeechRecognition = () => {
     };
 
     recognition.onresult = (event) => {
-      let interim = '';
+      let finalTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          setTranscript((prev) => prev + transcript);
-        } else {
-          interim += transcript;
+          finalTranscript += transcript;
         }
       }
-      if (interim) {
-        setTranscript((prev) => {
-          const base = prev.split('🎤')[0] || prev;
-          return base + (base ? ' ' : '') + interim + ' 🎤';
-        });
+      // Afficher seulement les résultats finaux, pas les intermédiaires
+      if (finalTranscript) {
+        setTranscript(finalTranscript);
       }
     };
 

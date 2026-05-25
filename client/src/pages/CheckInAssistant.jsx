@@ -19,6 +19,17 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
   const countdownRef = useRef(null);
   const { isListening, transcript, toggleListening, clearTranscript, isSupported } = useSpeechRecognition();
 
+  // DEBUG: Log isSupported value
+  console.log('[CheckInAssistant] isSupported:', isSupported, 'API check:', {
+    hasSR: typeof window.SpeechRecognition !== 'undefined',
+    hasWebkit: typeof window.webkitSpeechRecognition !== 'undefined'
+  });
+
+  // DEBUG: Alert to confirm component is mounted
+  useEffect(() => {
+    alert('🎤 CheckInAssistant mounted! isSupported: ' + isSupported);
+  }, []);
+
   // Gérer le timeout d'inactivité
   const handleInactivityTimeout = async () => {
     if (!activeTrack?.id || hasTimeout) return;
@@ -251,6 +262,7 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
         <div style={{ fontSize: '24px', marginBottom: '8px' }}>✨</div>
         <h2 style={{ color: 'white', fontWeight: 'bold', fontSize: '20px', margin: 0 }}>LYRA</h2>
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px', margin: '4px 0 0 0' }}>Je suis là pour toi</p>
+        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '10px', margin: '2px 0 0 0' }}>🎤 {isSupported ? 'Voice OK' : 'Voice NOT supported'}</p>
         <button
           onClick={onClose}
           style={{
@@ -277,6 +289,20 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
         flexDirection: 'column',
         gap: '12px'
       }}>
+        {/* DEBUG: Show mic status */}
+        <div style={{
+          padding: '8px 12px',
+          background: isSupported ? '#D4EDDA' : '#F8D7DA',
+          color: isSupported ? '#155724' : '#721C24',
+          borderRadius: '8px',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          textAlign: 'center',
+          marginBottom: '8px'
+        }}>
+          🎤 {isSupported ? '✅ MICRO OK' : '❌ MICRO NON DISPONIBLE'}
+        </div>
+
         {messages.map((msg, idx) => (
           <div
             key={idx}
