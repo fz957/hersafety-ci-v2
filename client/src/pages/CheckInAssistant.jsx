@@ -93,13 +93,10 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
         setIsLoading(true);
 
         // 🚨 NOTIFIER LES CONTACTS IMMÉDIATEMENT
-        if (activeTrack?.id) {
-          console.log('[CheckIn] 📞 Notifiant les contacts...');
-          await api.post('/api/sms/alert', {
-            alert_id: activeTrack.id,
-            level: '2',
-          }).catch(err => console.warn('[CheckIn] SMS notification:', err.message));
-        }
+        console.log('[CheckIn] 📞 Notifiant les contacts...');
+        await api.post('/api/sms/alert', {
+          level: '2',
+        }).catch(err => console.warn('[CheckIn] SMS notification:', err.message));
 
         // Puis commencer l'évaluation avec Lyra
         const response = await api.post('/api/claude/assist', {
