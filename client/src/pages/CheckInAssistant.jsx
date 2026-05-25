@@ -14,7 +14,6 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
   const [riskLevel, setRiskLevel] = useState(null);
   const [timeRemaining, setTimeRemaining] = useState(INACTIVITY_TIMEOUT);
   const [hasTimeout, setHasTimeout] = useState(false);
-  const messagesEndRef = useRef(null);
   const timeoutRef = useRef(null);
   const countdownRef = useRef(null);
 
@@ -134,10 +133,6 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
     };
   }, []);
 
-  // Scroller vers le bas
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
 
   // Envoyer un message
   const handleSendMessage = async (e) => {
@@ -319,8 +314,6 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
             {riskLevel === 'high' && 'Escalade...'}
           </div>
         )}
-
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Input + Buttons (Fixed) */}
