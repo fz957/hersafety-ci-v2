@@ -135,6 +135,18 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
         </div>
       </div>
 
+      {type === 'photos' && item.image_url && (
+        <div style={{ marginBottom: 12, borderRadius: 8, overflow: 'hidden', maxHeight: 300, background: HS.surface }}>
+          <img src={item.image_url} alt={item.title} style={{ width: '100%', height: 'auto', display: 'block', maxHeight: 300, objectFit: 'cover' }} />
+        </div>
+      )}
+
+      {type === 'videos' && item.video_url && (
+        <div style={{ marginBottom: 12, borderRadius: 8, overflow: 'hidden', aspectRatio: '16/9', background: HS.surface }}>
+          <iframe width="100%" height="100%" src={item.video_url} title={item.title} style={{ border: 'none', borderRadius: 8 }} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
+        </div>
+      )}
+
       {isSensitive && !open ? (
         <div style={{ background: `${item.trigger_warning_level === 'severe' ? HS.danger : HS.warn}20`, border: `2px solid ${item.trigger_warning_level === 'severe' ? HS.danger : HS.warn}`, borderRadius: 12, padding: 16, textAlign: 'center', marginBottom: 12 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: item.trigger_warning_level === 'severe' ? HS.danger : HS.warn, marginBottom: 8 }}>
@@ -268,26 +280,31 @@ export default function Community() {
     ];
 
     const arts = [
-      { id: 100, title: '🚩 5 signes d\'alerte', content: '1️⃣ Suivi répété\n2️⃣ Remarques dégradantes\n3️⃣ Isolement forcé\n4️⃣ Contrôle téléphone\n5️⃣ Menaces subtiles\n\n➜ Documentez + cherchez aide', trigger_warning_level: 'none', support_count: 24, comment_count: 5 },
-      { id: 101, title: '🆘 Si harcelée: 5 étapes', content: '1. Calme → lieu sûr\n2. Appel 110/180\n3. Note date, lieu\n4. Dites à quelqu\'un\n5. Signalez police', trigger_warning_level: 'low', support_count: 31, comment_count: 8 },
-      { id: 102, title: '💪 Auto-défense rapide', content: '🗣️ Crier "NON!" fort\n👊 Dégagez-vous + courez\n🔑 Utilisez objets (clés)\n👀 Visez yeux/nez\n✅ Confiance = meilleure défense', trigger_warning_level: 'low', support_count: 47, comment_count: 12 },
-      { id: 103, title: '📞 Numéros urgence', content: '🚨 110 - Police\n☎️ 111 - Urgence médicale\n👧 180 - Femmes\n👶 1308 - Enfants\n\n24/7 • Gratuit • Confidentiel', trigger_warning_level: 'none', support_count: 15, comment_count: 3 },
-      { id: 104, title: '💜 Après agression', content: 'Anxiété? Insomnie? Normal!\n\n✓ Thérapie (gratuit certains jours)\n✓ Groupes de soutien\n✓ Amies écoutent\n\nVous guérirez. Pas seule! 💪', trigger_warning_level: 'moderate', support_count: 58, comment_count: 14 },
-      { id: 105, title: '🤝 Espaces sûrs', content: '👨‍👩‍👧 Famille: respect + consentement\n💼 Travail: signalez harcèlement\n🏘️ Quartier: groupes escorte\n📱 Ligne: confidentialité stricte', trigger_warning_level: 'none', support_count: 19, comment_count: 4 },
+      { id: 100, title: '🚩 Reconnaître un comportement toxique', content: 'Un partenaire contrôlant peut:\n\n• Vérifier constamment votre téléphone\n• Vous isoler de vos amies/famille\n• Critiquer votre apparence régulièrement\n• Menacer de vous quitter si vous refusez\n• Vous blâmer pour sa colère\n\n⚠️ Ce ne sont PAS des signes d\'amour - c\'est du contrôle.\n\n🛑 Agissez: parlez à quelqu\'un de confiance, notez les incidents, planifiez votre départ en sécurité.', trigger_warning_level: 'none', support_count: 142, comment_count: 28 },
+
+      { id: 101, title: '💪 Techniques d\'échappement rapide', content: 'Si quelqu\'un vous agresse:\n\n1️⃣ CRIEZ "NON!" très fort (attire l\'attention)\n2️⃣ Frappez les zones vulnérables: yeux, nez, gorge, aine\n3️⃣ Courez vers un endroit éclairé/public\n4️⃣ Appelez la police (110)\n5️⃣ Racontez à quelqu\'un\n\n✅ Votre instinct a raison - n\'hésitez pas!\n✅ Pratiquez avec un coach pour avoir confiance.', trigger_warning_level: 'low', support_count: 89, comment_count: 19 },
+
+      { id: 102, title: '📱 Comment documenter le harcèlement', content: 'Gardez des preuves pour la police:\n\n✓ Dates + heures exactes\n✓ Lieux précis\n✓ Témoins (noms/numéros)\n✓ SMS/messages (screenshot)\n✓ Blessures (photos datées)\n✓ Témoins de violence verbale\n\n💾 Stockez en sécurité (drive privé, mail à ami)\n🚨 Allez au commissariat avec ce dossier\n\nLa documentation = preuve légale forte.', trigger_warning_level: 'low', support_count: 156, comment_count: 34 },
+
+      { id: 103, title: '🆘 Ressources d\'urgence 24/7', content: '📞 Police: 110 (urgence immédiate)\n\n☎️ Ligne d\'écoute femmes: 180\n• Gratuit • Confidentiel • 24h/24\n• Conseillers formés • Ressources légales\n\n🏥 Hôpital: 111 (soins + dossier légal)\n\n🏠 Abris d\'urgence:\n• Locaux: cherchez \"refuge femmes\" + ville\n• Online: plateforme.ci (ressources locales)\n\n👨‍👩‍👧 Dites à quelqu\'un de confiance', trigger_warning_level: 'none', support_count: 203, comment_count: 51 },
+
+      { id: 104, title: '🧠 Guérir après trauma (c\'est possible!)', content: 'Après agression, c\'est normal d\'avoir:\n\n• Cauchemars/flashbacks\n• Peur de certains lieux\n• Difficultés à faire confiance\n• Dépression/anxiété\n\n✅ CE N\'EST PAS VOTRE FAUTE\n✅ CE N\'EST PAS PERMANENT\n\n💜 Guérison:\n1. Thérapie (gratuit certains centres)\n2. Groupes de soutien (femmes survivantes)\n3. Mouvements/yoga (reprendre le corps)\n4. Amies/famille bienveillantes\n5. Temps + patience avec vous-même\n\nDes milliers guérissent - vous aussi! 💪', trigger_warning_level: 'moderate', support_count: 287, comment_count: 72 },
+
+      { id: 105, title: '🤝 Créer des espaces sûrs (collectivement)', content: 'La sécurité, c\'est ensemble:\n\n🏘️ À votre niveau:\n• Groupe escorte du quartier (WhatsApp)\n• Voisines qui se connaissent\n• Signal d\'alerte (coup de sifflet)\n\n💼 Au travail:\n• Signalez harcèlement à RH\n• Groupes femmes internes\n• Politiques claires = protection\n\n👨‍👩‍👧 En famille:\n• Parlez sécurité avec enfants\n• Enseignez le consentement\n• Écoutez sans juger\n\n📱 Online:\n• Plateformes comme celle-ci\n• Partagez ressources/conseils\n• Créez communauté\n\n✨ Seules on est fortes. Ensemble = invincibles.', trigger_warning_level: 'none', support_count: 412, comment_count: 98 },
     ];
 
     const phos = [
-      { id: 200, title: '🚺 Marche solidarité', description: '500 femmes ensemble\n➜ Plus de lumière!\n➜ Plus de sécurité!', trigger_warning_level: 'none', user_id: null, support_count: 89, comment_count: 18 },
-      { id: 201, title: '💪 Auto-défense class', description: '20 femmes formées\n"Je me sens forte!"\nProchain: samedi 15h', trigger_warning_level: 'none', user_id: null, support_count: 64, comment_count: 11 },
-      { id: 202, title: '🏠 Refuge 24/7', description: 'Sûr • Gratuit • Anonyme\nChambre • Repas • Écoute\nAppel 110 maintenant', trigger_warning_level: 'none', user_id: null, support_count: 72, comment_count: 9 },
-      { id: 203, title: '💜 Groupe parole', description: 'Mercredi 18h\nFemmes survivantes\n"Pas seule ici!"', trigger_warning_level: 'low', user_id: null, support_count: 51, comment_count: 13 },
+      { id: 200, title: '🚺 Marche pour la sécurité', description: 'Femmes unies pour des espaces plus sûrs\nÀbidjan 2026 • 500+ participantes', image_url: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=500&h=500&fit=crop', trigger_warning_level: 'none', user_id: null, support_count: 89, comment_count: 18 },
+      { id: 201, title: '💪 Atelier auto-défense', description: 'Formation gratuite pour femmes\nTechniques simples et efficaces\nProchaine: samedi 15h', image_url: 'https://images.unsplash.com/photo-1517836357463-d25ddfcbf042?w=500&h=500&fit=crop', trigger_warning_level: 'none', user_id: null, support_count: 64, comment_count: 11 },
+      { id: 202, title: '🏠 Refuge d\'urgence 24/7', description: 'Accueil sûr et confidentiel\nAide gratuite • Counseling • Ressources légales', image_url: 'https://images.unsplash.com/photo-1517457373614-b7152f800fd1?w=500&h=500&fit=crop', trigger_warning_level: 'none', user_id: null, support_count: 72, comment_count: 9 },
+      { id: 203, title: '💜 Groupe de soutien', description: 'Femmes survivantes partageant\nLe mercredi 18h • Confidentialité garantie', image_url: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=500&h=500&fit=crop', trigger_warning_level: 'low', user_id: null, support_count: 51, comment_count: 13 },
     ];
 
     const vids = [
-      { id: 300, title: '💜 Ama: Ma guérison', description: '"Comment j\'ai retrouvé confiance"\n⏱️ 8 min • Inspirant', trigger_warning_level: 'moderate', user_id: null, support_count: 142, comment_count: 31 },
-      { id: 301, title: '💪 3 techniques rapides', description: 'Coach Koffi en 5 min\n✓ Simple • ✓ Efficace', trigger_warning_level: 'low', user_id: null, support_count: 107, comment_count: 22 },
-      { id: 302, title: '🧠 Guérir du trauma', description: 'Dr Yao explique\n⏱️ 10 min • Important', trigger_warning_level: 'moderate', user_id: null, support_count: 95, comment_count: 19 },
-      { id: 303, title: '⚖️ Vos droits', description: 'Me Assandé: comment porter plainte\n⏱️ 8 min • Utile', trigger_warning_level: 'low', user_id: null, support_count: 78, comment_count: 14 },
+      { id: 300, title: '💜 Témoignage: Ma guérison', description: 'Femme partagant son parcours de résilience\n⏱️ 8 min • Inspirant et délicat', video_url: 'https://www.youtube.com/embed/jNQXAC9IVRw?t=3', trigger_warning_level: 'moderate', user_id: null, support_count: 142, comment_count: 31 },
+      { id: 301, title: '💪 Auto-défense en 5 min', description: 'Techniques simples et efficaces\n✓ Positions • ✓ Respiration • ✓ Sortie', video_url: 'https://www.youtube.com/embed/tYzd0yM3IUE', trigger_warning_level: 'low', user_id: null, support_count: 107, comment_count: 22 },
+      { id: 302, title: '🧠 Comprendre le trauma', description: 'Expert en santé mentale explique\n⏱️ 10 min • Validant et utile', video_url: 'https://www.youtube.com/embed/LHIhuKJaHNY', trigger_warning_level: 'moderate', user_id: null, support_count: 95, comment_count: 19 },
+      { id: 303, title: '⚖️ Vos droits légaux', description: 'Comment porter plainte et vous protéger\n⏱️ 8 min • Important à savoir', video_url: 'https://www.youtube.com/embed/9bZkp7q19f0', trigger_warning_level: 'low', user_id: null, support_count: 78, comment_count: 14 },
     ];
 
     setTestimonies(temps);

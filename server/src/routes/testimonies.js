@@ -391,12 +391,17 @@ router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   const { userId, organizationId } = req.user;
 
+  console.log('DELETE /api/testimonies/:id', { id, userId, organizationId });
+
   try {
     const testimony = await knex('testimonies')
       .where({ id, organization_id: organizationId })
       .first();
 
+    console.log('Found testimony:', testimony?.id, 'user_id:', testimony?.user_id, 'userId:', userId);
+
     if (!testimony) {
+      console.log('Testimony not found');
       return res.status(404).json({ success: false, error: 'Témoignage introuvable' });
     }
 
@@ -404,7 +409,10 @@ router.delete('/:id', async (req, res) => {
     const isOwner = testimony.user_id === userId;
     const isAdmin = req.user.role === 'admin';
 
+    console.log('isOwner:', isOwner, 'isAdmin:', isAdmin);
+
     if (!isOwner && !isAdmin) {
+      console.log('Not authorized to delete');
       return res.status(403).json({ success: false, error: 'Non autorisé' });
     }
 
