@@ -213,11 +213,11 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/90 flex flex-col z-50">
+    <div className="fixed bottom-4 right-4 w-80 h-96 bg-[#0D0D0D] border border-[#C2185B]/50 rounded-lg flex flex-col z-50 shadow-2xl">
       {/* Header */}
-      <div className="p-4 border-b border-[#C2185B]/30 bg-[#0D0D0D] flex items-center justify-between">
+      <div className="p-3 border-b border-[#C2185B]/30 bg-[#0D0D0D] flex items-center justify-between rounded-t-lg">
         <div>
-          <h2 className="text-white font-semibold text-sm">Claude - Assistante</h2>
+          <h2 className="text-white font-semibold text-xs">LYRA</h2>
         </div>
         <button
           onClick={onClose}
@@ -228,14 +228,14 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 flex flex-col">
+      <div className="flex-1 overflow-y-auto p-2 space-y-2 flex flex-col text-xs">
         {messages.map((msg, idx) => (
           <div
             key={idx}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-xs px-4 py-2 rounded-lg text-sm leading-relaxed ${
+              className={`max-w-xs px-2 py-1 rounded text-xs leading-tight ${
                 msg.role === 'user'
                   ? 'bg-[#C2185B] text-white'
                   : 'bg-[#880E4F] text-gray-100'
@@ -248,7 +248,7 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
         {isLoading && (
           <div className="flex justify-start">
             <div className="bg-[#880E4F] text-gray-100 px-4 py-2 rounded-lg text-sm">
-              <span className="animate-pulse">Claude réfléchit...</span>
+              <span className="animate-pulse">Lyra réfléchit...</span>
             </div>
           </div>
         )}
@@ -256,7 +256,7 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
       </div>
 
       {/* Risk Indicator + Timer */}
-      <div className="px-4 py-2 text-center text-xs font-semibold bg-[#0D0D0D] border-t border-[#C2185B]/30 space-y-1">
+      <div className="px-2 py-1 text-center text-xs bg-[#0D0D0D] border-t border-[#C2185B]/30">
         {riskLevel && (
           <>
             {riskLevel === 'low' && <span className="text-green-400 block">✓ Situation maîtrisée</span>}
@@ -272,14 +272,14 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSendMessage} className="p-4 bg-[#0D0D0D] border-t border-[#C2185B]/30 space-y-2">
-        <div className="flex gap-2">
+      <form onSubmit={handleSendMessage} className="p-2 bg-[#0D0D0D] border-t border-[#C2185B]/30 rounded-b-lg">
+        <div className="flex gap-1">
           <input
             type="text"
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
-            placeholder={hasTimeout ? "Tes contacts ont été alertés..." : "Votre message..."}
-            className="flex-1 bg-[#1a1a1a] text-white border border-[#C2185B]/30 rounded px-3 py-2 text-sm placeholder-gray-500 focus:outline-none focus:border-[#C2185B]"
+            placeholder="Message..."
+            className="flex-1 bg-[#1a1a1a] text-white border border-[#C2185B]/30 rounded px-2 py-1 text-xs placeholder-gray-500 focus:outline-none focus:border-[#C2185B]"
             disabled={isLoading || hasTimeout}
           />
           <button
