@@ -4,19 +4,68 @@ import { useAuth } from '../hooks/useAuth';
 import { HS, ICONS } from '../tokens';
 import { Icon, Button, BottomNav, PageShell, ScrollArea, Toast } from '../components/ui/index.jsx';
 
+const generateAnonName = () => {
+  const adjectives = ['Brave', 'Forte', 'Sage', 'Noble', 'Libre', 'Courageuse', 'Lumière', 'Étoile', 'Aile', 'Flamme', 'Voix', 'Cœur', 'Âme', 'Pluie', 'Vent'];
+  const nouns = ['Guerrière', 'Reine', 'Lotus', 'Phénix', 'Aurore', 'Harmonie', 'Victoire', 'Sagesse', 'Liberté', 'Éspoir', 'Fleur', 'Aube', 'Écho', 'Vague', 'Couleur'];
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const num = Math.floor(Math.random() * 999);
+  return `${adj}${noun}${num}`;
+};
+
 const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) => {
   const [open, setOpen] = useState(item.trigger_warning_level === 'none' || item.trigger_warning_level === 'low');
   const [reported, setReported] = useState(false);
   const [liked, setLiked] = useState(false);
   const [supportCount, setSupportCount] = useState(item.support_count || 0);
   const [commentCount, setCommentCount] = useState(item.comment_count || 0);
-  const [showCommentInput, setShowCommentInput] = useState(false);
   const [comment, setComment] = useState('');
+  const [comments, setComments] = useState([]);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [commentLikes, setCommentLikes] = useState({});
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState('harassment');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [replyText, setReplyText] = useState('');
   const isOwner = item.user_id === user?.id;
   const isSensitive = item.trigger_warning_level === 'moderate' || item.trigger_warning_level === 'severe';
+
+  // Charger les commentaires existants
+  useEffect(() => {
+    if (showCommentsModal) {
+      if (type === 'testimony') {
+        // Charger depuis localStorage EN PRIORITÉ pour testimonies locaux
+        const allComments = JSON.parse(localStorage.getItem('lesgirls_comments') || '{}');
+        const localComms = allComments[item.id] || [];
+
+        if (localComms.length > 0) {
+          // S'il y a des commentaires locaux, les afficher
+          setComments(localComms);
+          const likedComments = JSON.parse(localStorage.getItem('lesgirls_comment_likes') || '{}');
+          const likes = {};
+          localComms.forEach(c => {
+            likes[c.id] = likedComments[c.id] || false;
+          });
+          setCommentLikes(likes);
+        } else {
+          // Sinon essayer l'API
+          api.get(`/api/testimonies/${item.id}/comments`).then(r => {
+            const comms = r.data.data || [];
+            setComments(comms);
+            const likedComments = JSON.parse(localStorage.getItem('lesgirls_comment_likes') || '{}');
+            const likes = {};
+            comms.forEach(c => {
+              likes[c.id] = likedComments[c.id] || false;
+            });
+            setCommentLikes(likes);
+          }).catch(() => {
+            setComments([]);
+          });
+        }
+      }
+    }
+  }, [item.id, type, showCommentsModal]);
 
   // Charger l'état "signalé" depuis localStorage
   useEffect(() => {
@@ -91,19 +140,77 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
   const handleAddComment = async () => {
     if (!comment.trim()) return;
 
+    const localComment = {
+      id: `local_${Date.now()}`,
+      content: comment.trim(),
+      display_name: generateAnonName(),
+      is_owner: true,
+      created_at: new Date().toISOString(),
+      likes_count: 0,
+    };
+
+    const allComments = JSON.parse(localStorage.getItem('lesgirls_comments') || '{}');
+    const key = String(item.id);
+    if (!allComments[key]) allComments[key] = [];
+    allComments[key].push(localComment);
+    localStorage.setItem('lesgirls_comments', JSON.stringify(allComments));
+
+    setComments([...comments, localComment]);
+    setCommentCount(comments.length + 1);
+    setComment('');
+
     if (type === 'testimony') {
       try {
         await api.post(`/api/testimonies/${item.id}/comments`, {
-          content: comment,
+          content: comment.trim(),
           is_anonymous: true,
         });
-        setCommentCount(commentCount + 1);
       } catch (err) {
-        console.error('Comment error:', err);
+        console.error('API failed:', err);
       }
     }
-    setComment('');
-    setShowCommentInput(false);
+  };
+
+  const handleCommentLike = (commentId) => {
+    const liked = commentLikes[commentId];
+    setCommentLikes({ ...commentLikes, [commentId]: !liked });
+
+    // Sauvegarder dans localStorage
+    const likedComments = JSON.parse(localStorage.getItem('lesgirls_comment_likes') || '{}');
+    if (liked) {
+      delete likedComments[commentId];
+    } else {
+      likedComments[commentId] = true;
+    }
+    localStorage.setItem('lesgirls_comment_likes', JSON.stringify(likedComments));
+  };
+
+  const handleAddReply = () => {
+    if (!replyText.trim() || !replyingTo) return;
+
+    const allReplies = JSON.parse(localStorage.getItem('lesgirls_comment_replies') || '{}');
+    const reply = {
+      id: `reply_${Date.now()}`,
+      content: replyText.trim(),
+      display_name: 'Anonyme',
+      is_owner: true,
+      created_at: new Date().toISOString(),
+      likes_count: 0,
+    };
+    if (!allReplies[replyingTo]) allReplies[replyingTo] = [];
+    allReplies[replyingTo].push(reply);
+    localStorage.setItem('lesgirls_comment_replies', JSON.stringify(allReplies));
+
+    // Mettre à jour les commentaires pour afficher les réponses
+    const updatedComments = comments.map(c => {
+      if (c.id === replyingTo) {
+        return { ...c, replies: (allReplies[replyingTo] || []) };
+      }
+      return c;
+    });
+    setComments(updatedComments);
+    setReplyingTo(null);
+    setReplyText('');
   };
 
   return (
@@ -166,17 +273,97 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
         <button disabled={reported} onClick={handleLike} style={{ background: 'none', border: 'none', color: reported ? HS.textMute : (liked ? HS.danger : HS.textMute), cursor: reported ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0 }}>
           {liked ? '❤️' : '🤍'} {supportCount}
         </button>
-        <button disabled={reported} onClick={() => !reported && setShowCommentInput(!showCommentInput)} style={{ background: 'none', border: 'none', color: reported ? HS.textMute : (showCommentInput ? HS.chocolate : HS.textMute), cursor: reported ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0 }}>
+        <button disabled={reported} onClick={() => !reported && setShowCommentsModal(true)} style={{ background: 'none', border: 'none', color: reported ? HS.textMute : HS.textMute, cursor: reported ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0 }}>
           💬 {commentCount}
         </button>
       </div>
 
-      {showCommentInput && (
-        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${HS.border}`, display: 'flex', gap: 6 }}>
-          <input type="text" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Ajoute un commentaire..." style={{ flex: 1, padding: '8px 10px', borderRadius: 6, border: `1px solid ${HS.border}`, fontFamily: HS.font, fontSize: 12, boxSizing: 'border-box' }} onKeyPress={(e) => e.key === 'Enter' && handleAddComment()} />
-          <button onClick={handleAddComment} style={{ background: HS.chocolate, color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: HS.font }}>
-            ✓
-          </button>
+      {showCommentsModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowCommentsModal(false)}>
+          <div style={{ background: HS.bg, borderRadius: 16, maxWidth: 500, width: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{ padding: 16, borderBottom: `1px solid ${HS.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: HS.chocolate }}>Commentaires</div>
+              <button onClick={() => setShowCommentsModal(false)} style={{ background: 'none', border: 'none', color: HS.textMute, fontSize: 20, cursor: 'pointer', padding: 0 }}>×</button>
+            </div>
+
+            {/* Comments Feed */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {comments.length === 0 ? (
+                <div style={{ textAlign: 'center', color: HS.textMute, fontSize: 13, padding: 32 }}>
+                  Pas encore de commentaires. Sois la première! 💬
+                </div>
+              ) : (
+                comments.map(c => {
+                  const replies = JSON.parse(localStorage.getItem('lesgirls_comment_replies') || '{}')[c.id] || [];
+                  return (
+                    <div key={c.id} style={{ paddingBottom: 12, borderBottom: `1px solid ${HS.border}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <div>
+                          <div style={{ fontWeight: 600, color: HS.chocolate, fontSize: 13 }}>{c.display_name || 'Anonyme'}</div>
+                          <div style={{ fontSize: 11, color: HS.textMute }}>
+                            {new Date(c.created_at).toLocaleDateString('fr-FR')}
+                          </div>
+                        </div>
+                        {c.is_owner && (
+                          <button onClick={async () => {
+                            try {
+                              await api.delete(`/api/testimonies/${item.id}/comments/${c.id}`);
+                              setComments(comments.filter(x => x.id !== c.id));
+                              setCommentCount(Math.max(0, commentCount - 1));
+                            } catch (err) { console.error(err); }
+                          }} style={{ background: 'none', border: 'none', color: HS.danger, fontSize: 12, cursor: 'pointer', padding: 0 }}>✕</button>
+                        )}
+                      </div>
+                      <div style={{ color: HS.textDim, fontSize: 13, lineHeight: 1.5, marginBottom: 8 }}>{c.content}</div>
+                      <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
+                        <button onClick={() => handleCommentLike(c.id)} style={{ background: 'none', border: 'none', color: commentLikes[c.id] ? HS.danger : HS.textMute, fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0, cursor: 'pointer' }}>
+                          {commentLikes[c.id] ? '❤️' : '🤍'} {c.likes_count || 0}
+                        </button>
+                        <button onClick={() => setReplyingTo(c.id)} style={{ background: 'none', border: 'none', color: HS.textMute, fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0, cursor: 'pointer' }}>
+                          💬 Répondre
+                        </button>
+                      </div>
+
+                      {replies.length > 0 && (
+                        <div style={{ marginTop: 12, paddingLeft: 16, borderLeft: `2px solid ${HS.border}` }}>
+                          {replies.map(r => (
+                            <div key={r.id} style={{ paddingBottom: 8, marginBottom: 8 }}>
+                              <div style={{ fontWeight: 600, color: HS.chocolate, fontSize: 12 }}>{r.display_name || 'Anonyme'}</div>
+                              <div style={{ fontSize: 11, color: HS.textMute, marginBottom: 4 }}>
+                                {new Date(r.created_at).toLocaleDateString('fr-FR')}
+                              </div>
+                              <div style={{ color: HS.textDim, fontSize: 12, lineHeight: 1.5, marginBottom: 6 }}>{r.content}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {replyingTo === c.id && (
+                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${HS.border}`, display: 'flex', gap: 8 }}>
+                          <input type="text" value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Répondre..." style={{ flex: 1, padding: '8px 10px', borderRadius: 6, border: `1px solid ${HS.border}`, fontFamily: HS.font, fontSize: 12, boxSizing: 'border-box', background: HS.surface, color: HS.textDim }} onKeyPress={(e) => e.key === 'Enter' && handleAddReply()} />
+                          <button onClick={handleAddReply} disabled={!replyText.trim()} style={{ background: replyText.trim() ? HS.chocolate : HS.border, color: replyText.trim() ? '#fff' : HS.textMute, border: 'none', padding: '8px 12px', borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: replyText.trim() ? 'pointer' : 'not-allowed', fontFamily: HS.font }}>
+                            Envoyer
+                          </button>
+                          <button onClick={() => { setReplyingTo(null); setReplyText(''); }} style={{ background: 'none', border: 'none', color: HS.textMute, fontSize: 12, cursor: 'pointer', padding: 0 }}>✕</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Comment Input */}
+            {!reported && (
+              <div style={{ padding: 16, borderTop: `1px solid ${HS.border}`, display: 'flex', gap: 8 }}>
+                <input type="text" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Ajoute un commentaire..." style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: `1px solid ${HS.border}`, fontFamily: HS.font, fontSize: 13, boxSizing: 'border-box', background: HS.surface, color: HS.textDim }} onKeyPress={(e) => e.key === 'Enter' && handleAddComment()} />
+                <button onClick={handleAddComment} disabled={!comment.trim()} style={{ background: comment.trim() ? HS.chocolate : HS.border, color: comment.trim() ? '#fff' : HS.textMute, border: 'none', padding: '10px 16px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: comment.trim() ? 'pointer' : 'not-allowed', fontFamily: HS.font }}>
+                  Envoyer
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -257,63 +444,235 @@ export default function Community() {
   ];
 
   const load = () => {
-    api.get('/api/testimonies').then((r) => setTestimonies(r.data.data)).catch(() => {});
+    // D'abord charger articles, photos, vidéos depuis localStorage
     const arts = JSON.parse(localStorage.getItem('lesgirls_articles') || '[]');
     const phos = JSON.parse(localStorage.getItem('lesgirls_photos') || '[]');
     const vids = JSON.parse(localStorage.getItem('lesgirls_videos') || '[]');
-    if (arts.length === 0) generateDefault();
-    else {
+    const temps = JSON.parse(localStorage.getItem('lesgirls_testimonies') || '[]');
+
+    // Si aucunes données en localStorage, générer les valeurs par défaut
+    if (arts.length === 0 || temps.length === 0) {
+      generateDefault();
+    } else {
       setArticles(arts);
       setPhotos(phos);
       setVideos(vids);
+      setTestimonies(temps);
     }
+
+    // Charger les témoignages depuis l'API et combiner avec les locaux
+    api.get('/api/testimonies').then((r) => {
+      const apiTestimonies = r.data.data || [];
+      const localTestimonies = JSON.parse(localStorage.getItem('lesgirls_testimonies') || '[]');
+
+      // Déduplicater: ne garder que les IDs uniques (API en priorité, puis les locales)
+      const idsSeen = new Set();
+      const combined = [];
+
+      [...apiTestimonies, ...localTestimonies].forEach(t => {
+        if (!idsSeen.has(t.id)) {
+          idsSeen.add(t.id);
+          combined.push(t);
+        }
+      });
+
+      setTestimonies(combined);
+    }).catch(() => {
+      // En cas d'erreur, utiliser seulement les données locales
+      const localTestimonies = JSON.parse(localStorage.getItem('lesgirls_testimonies') || '[]');
+      if (localTestimonies.length > 0) {
+        setTestimonies(localTestimonies);
+      }
+    });
   };
 
   const generateDefault = () => {
+    const generateExampleComments = () => {
+      const allComments = {};
+
+      // Example comments for testimonies
+      const testimonyComments = {
+        1: [ // Suivi au marché
+          { id: 'tc_1_1', content: 'Bravo pour ton courage! C\'était une bonne idée d\'alerter la vendeuse.', display_name: 'FortePhoenix234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 2 },
+          { id: 'tc_1_2', content: 'Ça m\'est arrivé aussi. C\'est effrayant mais ta réaction était parfaite.', display_name: 'LumiereLotus567', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 1 },
+          { id: 'tc_1_3', content: 'Contente que tu sois en sécurité! Les vendeurs peuvent vraiment nous aider.', display_name: 'VoixCourage891', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 3 },
+        ],
+        2: [ // Agression - J'ai crié
+          { id: 'tc_2_1', content: 'Crier c\'est SO efficace! Merci d\'avoir partagé. Ça aide les autres.', display_name: 'BraveEchoe123', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 5 },
+          { id: 'tc_2_2', content: 'Incroyable tu as réussi à t\'échapper! Je vais utiliser ça aussi.', display_name: 'SageFleur456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 4 },
+          { id: 'tc_2_3', content: 'J\'espère que tu as signalé à la police? C\'est important pour les statistiques.', display_name: 'ForteReine789', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 2 },
+          { id: 'tc_2_4', content: 'Les femmes qui crient sauvent les femmes qui ne peuvent pas. Merci!', display_name: 'LibreAurore234', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 6 },
+          { id: 'tc_2_5', content: 'Ça prend du courage de partager ça. Je suis fière de toi.', display_name: 'CourageuseLotus567', created_at: new Date(Date.now() - 36000000).toISOString(), likes_count: 3 },
+        ],
+        3: [ // Commentaires au travail
+          { id: 'tc_3_1', content: 'RH s\'en fou généralement. Bien d\'avoir documenté. 💪', display_name: 'ForceVoix321', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 4 },
+          { id: 'tc_3_2', content: 'Pareil au mien! On mérite d\'être respectées. Ensemble on est plus fortes.', display_name: 'NobleCouleur654', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 3 },
+          { id: 'tc_3_3', content: 'Oser dire non c\'est la plus belle forme de résistance.', display_name: 'SageLumiere987', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 5 },
+        ],
+        4: [ // Taxi: détour menace
+          { id: 'tc_4_1', content: 'Bravo pour le calme! Enregistrer c\'est très smart. Ça peut servir de preuve.', display_name: 'CourageusePhoenix456', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 3 },
+          { id: 'tc_4_2', content: 'J\'utilise toujours Uber pour cette raison. On doit partager nos numéros de chauffeur.', display_name: 'LumiereLotus123', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 2 },
+        ],
+        5: [ // Vol en minibus
+          { id: 'tc_5_1', content: 'C\'est tellement injuste. Pourquoi personne ne protège les femmes?', display_name: 'VoixColère789', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 1 },
+          { id: 'tc_5_2', content: 'Tu devrais essayer les alternatives: Uber, taxi radio. C\'est plus cher mais plus sûr.', display_name: 'ForteAurore234', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 2 },
+          { id: 'tc_5_3', content: 'Les voleurs savent qu\'on n\'a pas d\'arme ni d\'appui. L\'État doit faire plus.', display_name: 'SageEchoe567', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 1 },
+        ],
+        6: [ // Agression au bureau
+          { id: 'tc_6_1', content: 'C\'est du harcèlement sexuel. Tu peux faire un dossier et le signaler légalement.', display_name: 'ForceJustice234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 4 },
+          { id: 'tc_6_2', content: '"C\'est juste son style" = il s\'en fout. Document tout. Chaque incident.', display_name: 'BraveLotus456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 5 },
+          { id: 'tc_6_3', content: 'Même dans un bureau "respectable". C\'est partout. Courage à toi 💜', display_name: 'LumiereCouleur789', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 3 },
+          { id: 'tc_6_4', content: 'Signaler à RH c\'est bien mais c\'est aussi pas mal. Fais un dossier légal.', display_name: 'SagePhoenix123', created_at: new Date(Date.now() - 36000000).toISOString(), likes_count: 2 },
+        ],
+      };
+
+      // Example comments for articles
+      const articleComments = {
+        100: [ // Reconnaître un comportement toxique
+          { id: 'ac_100_1', content: 'Mon ex faisait TOUS ces trucs. J\'ai enfin compris que c\'était pas normal.', display_name: 'ForteLotus789', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 3 },
+          { id: 'ac_100_2', content: 'Checklist parfaite. Toutes mes amies devraient lire ça.', display_name: 'BraveCouleur234', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 5 },
+          { id: 'ac_100_3', content: 'C\'est tellement vrai. Le contrôle ça ressemble à de l\'amour au début. Puis ça étouffé.', display_name: 'SageEtoile567', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 4 },
+          { id: 'ac_100_4', content: 'J\'ai reconnu plusieurs signes de mon situation actuelle. Merci.', display_name: 'VoixLumiere891', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 2 },
+        ],
+        101: [ // Techniques d'échappement rapide
+          { id: 'ac_101_1', content: 'Les yeux/nez/gorge c\'est TRÈS efficace. Confirmé.', display_name: 'CourageusePhoenix456', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 6 },
+          { id: 'ac_101_2', content: 'Je vais aller à un atelier d\'auto-défense grâce à ça. Merci!', display_name: 'ForteLumiereAure', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 4 },
+          { id: 'ac_101_3', content: 'Le cri c\'est psychologique aussi. Ça paralyse les agresseurs.', display_name: 'NobleLotus234', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 5 },
+          { id: 'ac_101_4', content: 'Jamais oublier qu\'on est plus fortes qu\'on le croit.', display_name: 'BraveVoix789', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 3 },
+          { id: 'ac_101_5', content: 'Les cours d\'auto-défense sont gratuits à [nom du centre] à Abidjan!', display_name: 'SageAurore567', created_at: new Date(Date.now() - 36000000).toISOString(), likes_count: 2 },
+        ],
+        102: [ // Comment documenter le harcèlement
+          { id: 'ac_102_1', content: 'La documentation c\'est LA arme légale. Absolument crucial.', display_name: 'ForceJustice234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 4 },
+          { id: 'ac_102_2', content: 'J\'ai gardé TOUS les SMS. C\'est ce qui a aidé à la police.', display_name: 'LumiereLotus456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 5 },
+          { id: 'ac_102_3', content: 'Bon conseil: screenshot + date + lien au cloud privé.', display_name: 'BraveEtoile789', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 3 },
+          { id: 'ac_102_4', content: 'Photos de blessures = preuve physique. TRÈS importante.', display_name: 'SageCouleur123', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 2 },
+          { id: 'ac_102_5', content: 'On m\'a dit ça et ça a sauvé mon cas. Merci pour ce guide!', display_name: 'VoixForce891', created_at: new Date(Date.now() - 36000000).toISOString(), likes_count: 4 },
+        ],
+        103: [ // Ressources d'urgence 24/7
+          { id: 'ac_103_1', content: 'J\'ai appelé le 180. Ils ont vraiment aidé. Ne pas hésiter!', display_name: 'CourageuseAurore234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 6 },
+          { id: 'ac_103_2', content: 'Ligne d\'écoute 180 sauve des vies. Ils savent ce qu\'ils font.', display_name: 'ForteLotus567', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 5 },
+          { id: 'ac_103_3', content: 'La police (110) ne prend pas toujours au sérieux. L\'hôpital fait un dossier légal.', display_name: 'NobleLumiere789', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 4 },
+          { id: 'ac_103_4', content: 'Bookmark cette page pour l\'urgence. On ne pense pas clair dans le stress.', display_name: 'BraveVoix456', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 3 },
+          { id: 'ac_103_5', content: 'Aucune raison de ne pas appeler. C\'est GRATUIT et confidentiel.', display_name: 'SageCouleur789', created_at: new Date(Date.now() - 36000000).toISOString(), likes_count: 2 },
+          { id: 'ac_103_6', content: 'Merci d\'avoir rappelé les numéros. Je les utiliserai si j\'ai besoin.', display_name: 'LumiereEtoile234', created_at: new Date(Date.now() - 24000000).toISOString(), likes_count: 1 },
+        ],
+        104: [ // Guérir après trauma
+          { id: 'ac_104_1', content: 'Les cauchemars sont RÉELS mais c\'est pas permanent. J\'ai guéri.', display_name: 'RésilienceFleur234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 5 },
+          { id: 'ac_104_2', content: 'Yoga/sport m\'a vraiment aidée à reprendre mon corps. Merci pour ce guide!', display_name: 'FortePhoenix456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 6 },
+          { id: 'ac_104_3', content: 'J\'ai trouvé un groupe de soutien. Les autres survivantes COMPRENNENT.', display_name: 'BraveAurore789', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 4 },
+          { id: 'ac_104_4', content: 'C\'est pas votre faute c\'est TELLEMENT important à entendre.', display_name: 'SageLotus123', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 5 },
+          { id: 'ac_104_5', content: 'Thérapie gratuite existe. Cherchez "thérapie gratuite [votre ville]". Ça aide!', display_name: 'VoixLumiere456', created_at: new Date(Date.now() - 36000000).toISOString(), likes_count: 3 },
+          { id: 'ac_104_6', content: 'Des milliers guérissent = MOI aussi je peux guérir. Merci pour ça.', display_name: 'CourageuseVague789', created_at: new Date(Date.now() - 24000000).toISOString(), likes_count: 4 },
+        ],
+        105: [ // Créer des espaces sûrs (collectivement)
+          { id: 'ac_105_1', content: 'Groupe escorte WhatsApp à notre bâtiment. C\'est efficace!', display_name: 'ForteSage234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 4 },
+          { id: 'ac_105_2', content: 'La sécurité c\'est collectif. Cet article le rappelle bien.', display_name: 'BraveLotus456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 5 },
+          { id: 'ac_105_3', content: 'En famille j\'enseigne le consentement depuis que ma fille a 6 ans.', display_name: 'NoblePhoenix789', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 6 },
+          { id: 'ac_105_4', content: 'Le coup de sifflet c\'est une excellente idée. Je vais le proposer.', display_name: 'LumiereCouleur123', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 3 },
+          { id: 'ac_105_5', content: 'RH chez nous a une politique zéro harcèlement. Il faut le rappeler partout!', display_name: 'VoixJustice456', created_at: new Date(Date.now() - 36000000).toISOString(), likes_count: 4 },
+        ],
+      };
+
+      // Example comments for photos
+      const photoComments = {
+        200: [ // Marche pour la sécurité
+          { id: 'pc_200_1', content: 'Quelle belle mobilisation! 500+ femmes = PUISSANCE 💪', display_name: 'ForteLotus234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 3 },
+          { id: 'pc_200_2', content: 'J\'y étais! C\'était incroyable de se sentir soutenus par tant de monde.', display_name: 'BraveAurore456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 2 },
+          { id: 'pc_200_3', content: 'Merci pour cette marche. Ça montre qu\'on n\'est pas seules.', display_name: 'SageCouleur789', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 1 },
+        ],
+        201: [ // Atelier auto-défense
+          { id: 'pc_201_1', content: 'J\'irai samedi! Merci d\'organiser ça. C\'est crucial.', display_name: 'CourageusePhoenix234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 2 },
+          { id: 'pc_201_2', content: 'Auto-défense gratuite = une ressource qu\'on ne peux pas ignorer.', display_name: 'LumiereLotus456', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 1 },
+          { id: 'pc_201_3', content: 'Combien de places? Je veux amener ma sœur aussi!', display_name: 'VoixForce789', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 0 },
+        ],
+        202: [ // Refuge d'urgence 24/7
+          { id: 'pc_202_1', content: 'Les refuges sauvent des vies. Merci aux gens qui les gèrent.', display_name: 'BraveEtoile234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 2 },
+          { id: 'pc_202_2', content: 'Important qu\'on sache qu\'il existe 24/7. Ça met de la sécurité.', display_name: 'SageLotus456', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 1 },
+          { id: 'pc_202_3', content: 'Le counseling + ressources légales = TOUT ce qu\'il faut pour commencer.', display_name: 'ForteCouleur789', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 0 },
+        ],
+        203: [ // Groupe de soutien
+          { id: 'pc_203_1', content: 'Les groupes de soutien c\'est LA thérapie qu\'on n\'attendait pas!', display_name: 'RésilienceLotus234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 3 },
+          { id: 'pc_203_2', content: 'Mercredi 18h? Je suis intéressée. Comment rejoindre?', display_name: 'BraveLumiere456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 1 },
+          { id: 'pc_203_3', content: 'Les autres survivantes COMPRENNENT comme personne d\'autre. Crucial.', display_name: 'VoixPhoenix789', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 2 },
+          { id: 'pc_203_4', content: 'Confidentialité garantie = pouvoir parler librement. C\'est ça la guérison.', display_name: 'SageAurore123', created_at: new Date(Date.now() - 36000000).toISOString(), likes_count: 1 },
+        ],
+      };
+
+      // Example comments for videos
+      const videoComments = {
+        300: [ // Témoignage: Ma guérison
+          { id: 'vc_300_1', content: 'J\'ai pleuré en regardant. C\'est tellement inspirant.', display_name: 'ForteEtoile234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 5 },
+          { id: 'vc_300_2', content: 'Voir quelqu\'un guérir ça fait tellement du bien. Merci de partager.', display_name: 'BraveAurore456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 4 },
+          { id: 'vc_300_3', content: 'Son histoire est aussi mon histoire. Je me sens moins seule.', display_name: 'SageLotus789', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 3 },
+          { id: 'vc_300_4', content: 'C\'est un parcours long mais possible. Merci pour l\'espoir.', display_name: 'LumiereVoix234', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 2 },
+          { id: 'vc_300_5', content: 'Je reviens regarder ça quand j\'ai besoin de croire que je peux guérir.', display_name: 'CourageusePhoenix456', created_at: new Date(Date.now() - 36000000).toISOString(), likes_count: 3 },
+        ],
+        302: [ // Comprendre le trauma
+          { id: 'vc_302_1', content: 'Finalement c\'est NORMAL ce que je vis. Pas folle. Merci.', display_name: 'BraveLotus234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 4 },
+          { id: 'vc_302_2', content: 'Expert clairement explique. Je comprends pourquoi j\'ai peur des bruits maintenant.', display_name: 'VoixJustice456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 3 },
+          { id: 'vc_302_3', content: 'Cauchemars et flashbacks ne veut pas dire que je suis cassée. ça aide vraiment.', display_name: 'SageEtoile789', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 2 },
+          { id: 'vc_302_4', content: 'On devrait faire passer ça dans les écoles. Les gens ne comprennent pas le trauma.', display_name: 'ForteCouleur123', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 1 },
+        ],
+        303: [ // Vos droits légaux
+          { id: 'vc_303_1', content: 'Je ne savais PAS que je pouvais faire ça! Vais porter plainte demain.', display_name: 'CourageuseAurore234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 3 },
+          { id: 'vc_303_2', content: 'Les droits légaux c\'est une arme. Merci de les rappeler clairement.', display_name: 'BraveLumiere456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 2 },
+          { id: 'vc_303_3', content: 'Je vais apporter à mon avocate. C\'est un bon résumé.', display_name: 'LumiereJustice789', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 1 },
+          { id: 'vc_303_4', content: 'Les policiers devraient regarder ça aussi! Certains refusent de prendre les cas.', display_name: 'VoixForce123', created_at: new Date(Date.now() - 36000000).toISOString(), likes_count: 2 },
+        ],
+      };
+
+      Object.assign(allComments, testimonyComments, articleComments, photoComments, videoComments);
+      return allComments;
+    };
+
     const temps = [
       { id: 1, display_name: 'CourageuseEtoile', created_at: new Date(), title: 'Suivi au marché', content: '👨→👩 Un homme m\'a suivie 20 min\n🙏 Une vendeuse m\'a aidée\n✨ Plus seule désormais!', category: 'suivi', location_label: 'Marché Adjamé', trigger_warning_level: 'moderate', support_count: 12, comment_count: 3, is_anonymous: true },
-      { id: 2, display_name: 'BraveLumiere', created_at: new Date(), title: 'Agression - J\'ai crié', content: '🚨 Groupe de 3 hommes\n📱 Vol téléphone + sac\n💪 J\'ai crié → j\'ai réussi à m\'échapper\n❤️ Une dame m\'a aidée', category: 'agression_physique', location_label: 'Plateau', trigger_warning_level: 'severe', support_count: 45, comment_count: 8, is_anonymous: true },
-      { id: 3, display_name: 'LibreFlamme', created_at: new Date(), title: 'Commentaires au travail', content: '😤 Mon patron: remarques sur mon corps\n📅 Depuis 2 ans, chaque jour\n📢 J\'ai signalé à RH\n💪 Je ne la ferme plus', category: 'harcelement_verbal', location_label: 'Centre-ville', trigger_warning_level: 'moderate', support_count: 28, comment_count: 5, is_anonymous: true },
-      { id: 4, display_name: 'FemmeForte', created_at: new Date(), title: 'Taxi: détour menace', content: '🚕 Chauffeur menaçait détour\n📹 J\'ai gardé calme + enregistré\n🚔 Signalement fait\n✓ Sécurité en priorité', category: 'detour_force', location_label: 'Cocody', trigger_warning_level: 'moderate', support_count: 18, comment_count: 4, is_anonymous: true },
-      { id: 5, display_name: 'VoixLibre', created_at: new Date(), title: 'Vol en minibus', content: '❌ 3e fois cette année\n📱 Téléphone + collier volés\n👊 Poussée quand j\'ai protesté\n😢 Personne n\'a aidé', category: 'vol', location_label: 'Yopougon', trigger_warning_level: 'low', support_count: 35, comment_count: 7, is_anonymous: true },
-      { id: 6, display_name: 'Résiliente', created_at: new Date(), title: 'Agression au bureau', content: '🤨 Collègue main sur mes hanches\n😶 J\'ai gelé\n🙅 Collègue: "c\'est juste son style"\n💜 J\'ai décidé de lutter', category: 'agression_sexuelle', location_label: 'Treichville', trigger_warning_level: 'severe', support_count: 62, comment_count: 12, is_anonymous: true },
+      { id: 2, display_name: 'BraveLumiere', created_at: new Date(), title: 'Agression - J\'ai crié', content: '🚨 Groupe de 3 hommes\n📱 Vol téléphone + sac\n💪 J\'ai crié → j\'ai réussi à m\'échapper\n❤️ Une dame m\'a aidée', category: 'agression_physique', location_label: 'Plateau', trigger_warning_level: 'severe', support_count: 45, comment_count: 5, is_anonymous: true },
+      { id: 3, display_name: 'LibreFlamme', created_at: new Date(), title: 'Commentaires au travail', content: '😤 Mon patron: remarques sur mon corps\n📅 Depuis 2 ans, chaque jour\n📢 J\'ai signalé à RH\n💪 Je ne la ferme plus', category: 'harcelement_verbal', location_label: 'Centre-ville', trigger_warning_level: 'moderate', support_count: 28, comment_count: 3, is_anonymous: true },
+      { id: 4, display_name: 'FemmeForte', created_at: new Date(), title: 'Taxi: détour menace', content: '🚕 Chauffeur menaçait détour\n📹 J\'ai gardé calme + enregistré\n🚔 Signalement fait\n✓ Sécurité en priorité', category: 'detour_force', location_label: 'Cocody', trigger_warning_level: 'moderate', support_count: 18, comment_count: 2, is_anonymous: true },
+      { id: 5, display_name: 'VoixLibre', created_at: new Date(), title: 'Vol en minibus', content: '❌ 3e fois cette année\n📱 Téléphone + collier volés\n👊 Poussée quand j\'ai protesté\n😢 Personne n\'a aidé', category: 'vol', location_label: 'Yopougon', trigger_warning_level: 'low', support_count: 35, comment_count: 3, is_anonymous: true },
+      { id: 6, display_name: 'Résiliente', created_at: new Date(), title: 'Agression au bureau', content: '🤨 Collègue main sur mes hanches\n😶 J\'ai gelé\n🙅 Collègue: "c\'est juste son style"\n💜 J\'ai décidé de lutter', category: 'agression_sexuelle', location_label: 'Treichville', trigger_warning_level: 'severe', support_count: 62, comment_count: 4, is_anonymous: true },
     ];
 
     const arts = [
-      { id: 100, title: '🚩 Reconnaître un comportement toxique', content: 'Un partenaire contrôlant peut:\n\n• Vérifier constamment votre téléphone\n• Vous isoler de vos amies/famille\n• Critiquer votre apparence régulièrement\n• Menacer de vous quitter si vous refusez\n• Vous blâmer pour sa colère\n\n⚠️ Ce ne sont PAS des signes d\'amour - c\'est du contrôle.\n\n🛑 Agissez: parlez à quelqu\'un de confiance, notez les incidents, planifiez votre départ en sécurité.', trigger_warning_level: 'none', support_count: 142, comment_count: 28 },
+      { id: 100, title: '🚩 Reconnaître un comportement toxique', content: 'Un partenaire contrôlant peut:\n\n• Vérifier constamment votre téléphone\n• Vous isoler de vos amies/famille\n• Critiquer votre apparence régulièrement\n• Menacer de vous quitter si vous refusez\n• Vous blâmer pour sa colère\n\n⚠️ Ce ne sont PAS des signes d\'amour - c\'est du contrôle.\n\n🛑 Agissez: parlez à quelqu\'un de confiance, notez les incidents, planifiez votre départ en sécurité.', trigger_warning_level: 'none', support_count: 142, comment_count: 4 },
 
-      { id: 101, title: '💪 Techniques d\'échappement rapide', content: 'Si quelqu\'un vous agresse:\n\n1️⃣ CRIEZ "NON!" très fort (attire l\'attention)\n2️⃣ Frappez les zones vulnérables: yeux, nez, gorge, aine\n3️⃣ Courez vers un endroit éclairé/public\n4️⃣ Appelez la police (110)\n5️⃣ Racontez à quelqu\'un\n\n✅ Votre instinct a raison - n\'hésitez pas!\n✅ Pratiquez avec un coach pour avoir confiance.', trigger_warning_level: 'low', support_count: 89, comment_count: 19 },
+      { id: 101, title: '💪 Techniques d\'échappement rapide', content: 'Si quelqu\'un vous agresse:\n\n1️⃣ CRIEZ "NON!" très fort (attire l\'attention)\n2️⃣ Frappez les zones vulnérables: yeux, nez, gorge, aine\n3️⃣ Courez vers un endroit éclairé/public\n4️⃣ Appelez la police (110)\n5️⃣ Racontez à quelqu\'un\n\n✅ Votre instinct a raison - n\'hésitez pas!\n✅ Pratiquez avec un coach pour avoir confiance.', trigger_warning_level: 'low', support_count: 89, comment_count: 5 },
 
-      { id: 102, title: '📱 Comment documenter le harcèlement', content: 'Gardez des preuves pour la police:\n\n✓ Dates + heures exactes\n✓ Lieux précis\n✓ Témoins (noms/numéros)\n✓ SMS/messages (screenshot)\n✓ Blessures (photos datées)\n✓ Témoins de violence verbale\n\n💾 Stockez en sécurité (drive privé, mail à ami)\n🚨 Allez au commissariat avec ce dossier\n\nLa documentation = preuve légale forte.', trigger_warning_level: 'low', support_count: 156, comment_count: 34 },
+      { id: 102, title: '📱 Comment documenter le harcèlement', content: 'Gardez des preuves pour la police:\n\n✓ Dates + heures exactes\n✓ Lieux précis\n✓ Témoins (noms/numéros)\n✓ SMS/messages (screenshot)\n✓ Blessures (photos datées)\n✓ Témoins de violence verbale\n\n💾 Stockez en sécurité (drive privé, mail à ami)\n🚨 Allez au commissariat avec ce dossier\n\nLa documentation = preuve légale forte.', trigger_warning_level: 'low', support_count: 156, comment_count: 5 },
 
-      { id: 103, title: '🆘 Ressources d\'urgence 24/7', content: '📞 Police: 110 (urgence immédiate)\n\n☎️ Ligne d\'écoute femmes: 180\n• Gratuit • Confidentiel • 24h/24\n• Conseillers formés • Ressources légales\n\n🏥 Hôpital: 111 (soins + dossier légal)\n\n🏠 Abris d\'urgence:\n• Locaux: cherchez \"refuge femmes\" + ville\n• Online: plateforme.ci (ressources locales)\n\n👨‍👩‍👧 Dites à quelqu\'un de confiance', trigger_warning_level: 'none', support_count: 203, comment_count: 51 },
+      { id: 103, title: '🆘 Ressources d\'urgence 24/7', content: '📞 Police: 110 (urgence immédiate)\n\n☎️ Ligne d\'écoute femmes: 180\n• Gratuit • Confidentiel • 24h/24\n• Conseillers formés • Ressources légales\n\n🏥 Hôpital: 111 (soins + dossier légal)\n\n🏠 Abris d\'urgence:\n• Locaux: cherchez \"refuge femmes\" + ville\n• Online: plateforme.ci (ressources locales)\n\n👨‍👩‍👧 Dites à quelqu\'un de confiance', trigger_warning_level: 'none', support_count: 203, comment_count: 6 },
 
-      { id: 104, title: '🧠 Guérir après trauma (c\'est possible!)', content: 'Après agression, c\'est normal d\'avoir:\n\n• Cauchemars/flashbacks\n• Peur de certains lieux\n• Difficultés à faire confiance\n• Dépression/anxiété\n\n✅ CE N\'EST PAS VOTRE FAUTE\n✅ CE N\'EST PAS PERMANENT\n\n💜 Guérison:\n1. Thérapie (gratuit certains centres)\n2. Groupes de soutien (femmes survivantes)\n3. Mouvements/yoga (reprendre le corps)\n4. Amies/famille bienveillantes\n5. Temps + patience avec vous-même\n\nDes milliers guérissent - vous aussi! 💪', trigger_warning_level: 'moderate', support_count: 287, comment_count: 72 },
+      { id: 104, title: '🧠 Guérir après trauma (c\'est possible!)', content: 'Après agression, c\'est normal d\'avoir:\n\n• Cauchemars/flashbacks\n• Peur de certains lieux\n• Difficultés à faire confiance\n• Dépression/anxiété\n\n✅ CE N\'EST PAS VOTRE FAUTE\n✅ CE N\'EST PAS PERMANENT\n\n💜 Guérison:\n1. Thérapie (gratuit certains centres)\n2. Groupes de soutien (femmes survivantes)\n3. Mouvements/yoga (reprendre le corps)\n4. Amies/famille bienveillantes\n5. Temps + patience avec vous-même\n\nDes milliers guérissent - vous aussi! 💪', trigger_warning_level: 'moderate', support_count: 287, comment_count: 6 },
 
-      { id: 105, title: '🤝 Créer des espaces sûrs (collectivement)', content: 'La sécurité, c\'est ensemble:\n\n🏘️ À votre niveau:\n• Groupe escorte du quartier (WhatsApp)\n• Voisines qui se connaissent\n• Signal d\'alerte (coup de sifflet)\n\n💼 Au travail:\n• Signalez harcèlement à RH\n• Groupes femmes internes\n• Politiques claires = protection\n\n👨‍👩‍👧 En famille:\n• Parlez sécurité avec enfants\n• Enseignez le consentement\n• Écoutez sans juger\n\n📱 Online:\n• Plateformes comme celle-ci\n• Partagez ressources/conseils\n• Créez communauté\n\n✨ Seules on est fortes. Ensemble = invincibles.', trigger_warning_level: 'none', support_count: 412, comment_count: 98 },
+      { id: 105, title: '🤝 Créer des espaces sûrs (collectivement)', content: 'La sécurité, c\'est ensemble:\n\n🏘️ À votre niveau:\n• Groupe escorte du quartier (WhatsApp)\n• Voisines qui se connaissent\n• Signal d\'alerte (coup de sifflet)\n\n💼 Au travail:\n• Signalez harcèlement à RH\n• Groupes femmes internes\n• Politiques claires = protection\n\n👨‍👩‍👧 En famille:\n• Parlez sécurité avec enfants\n• Enseignez le consentement\n• Écoutez sans juger\n\n📱 Online:\n• Plateformes comme celle-ci\n• Partagez ressources/conseils\n• Créez communauté\n\n✨ Seules on est fortes. Ensemble = invincibles.', trigger_warning_level: 'none', support_count: 412, comment_count: 5 },
     ];
 
     const phos = [
-      { id: 200, title: '🚺 Marche pour la sécurité', description: 'Femmes unies pour des espaces plus sûrs\nÀbidjan 2026 • 500+ participantes', image_url: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=500&h=500&fit=crop', trigger_warning_level: 'none', user_id: null, support_count: 89, comment_count: 18 },
-      { id: 201, title: '💪 Atelier auto-défense', description: 'Formation gratuite pour femmes\nTechniques simples et efficaces\nProchaine: samedi 15h', image_url: 'https://images.unsplash.com/photo-1517836357463-d25ddfcbf042?w=500&h=500&fit=crop', trigger_warning_level: 'none', user_id: null, support_count: 64, comment_count: 11 },
-      { id: 202, title: '🏠 Refuge d\'urgence 24/7', description: 'Accueil sûr et confidentiel\nAide gratuite • Counseling • Ressources légales', image_url: 'https://images.unsplash.com/photo-1517457373614-b7152f800fd1?w=500&h=500&fit=crop', trigger_warning_level: 'none', user_id: null, support_count: 72, comment_count: 9 },
-      { id: 203, title: '💜 Groupe de soutien', description: 'Femmes survivantes partageant\nLe mercredi 18h • Confidentialité garantie', image_url: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=500&h=500&fit=crop', trigger_warning_level: 'low', user_id: null, support_count: 51, comment_count: 13 },
+      { id: 200, title: '🚺 Marche pour la sécurité', description: 'Femmes unies pour des espaces plus sûrs\nÀbidjan 2026 • 500+ participantes', image_url: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=500&h=500&fit=crop', trigger_warning_level: 'none', user_id: null, support_count: 89, comment_count: 3 },
+      { id: 201, title: '💪 Atelier auto-défense', description: 'Formation gratuite pour femmes\nTechniques simples et efficaces\nProchaine: samedi 15h', image_url: 'https://images.unsplash.com/photo-1517836357463-d25ddfcbf042?w=500&h=500&fit=crop', trigger_warning_level: 'none', user_id: null, support_count: 64, comment_count: 3 },
+      { id: 202, title: '🏠 Refuge d\'urgence 24/7', description: 'Accueil sûr et confidentiel\nAide gratuite • Counseling • Ressources légales', image_url: 'https://images.unsplash.com/photo-1517457373614-b7152f800fd1?w=500&h=500&fit=crop', trigger_warning_level: 'none', user_id: null, support_count: 72, comment_count: 3 },
+      { id: 203, title: '💜 Groupe de soutien', description: 'Femmes survivantes partageant\nLe mercredi 18h • Confidentialité garantie', image_url: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=500&h=500&fit=crop', trigger_warning_level: 'low', user_id: null, support_count: 51, comment_count: 4 },
     ];
 
     const vids = [
-      { id: 300, title: '💜 Témoignage: Ma guérison', description: 'Femme partagant son parcours de résilience\n⏱️ 8 min • Inspirant et délicat', video_url: 'https://www.youtube.com/embed/jNQXAC9IVRw?t=3', trigger_warning_level: 'moderate', user_id: null, support_count: 142, comment_count: 31 },
-      { id: 301, title: '💪 Auto-défense en 5 min', description: 'Techniques simples et efficaces\n✓ Positions • ✓ Respiration • ✓ Sortie', video_url: 'https://www.youtube.com/embed/tYzd0yM3IUE', trigger_warning_level: 'low', user_id: null, support_count: 107, comment_count: 22 },
-      { id: 302, title: '🧠 Comprendre le trauma', description: 'Expert en santé mentale explique\n⏱️ 10 min • Validant et utile', video_url: 'https://www.youtube.com/embed/LHIhuKJaHNY', trigger_warning_level: 'moderate', user_id: null, support_count: 95, comment_count: 19 },
-      { id: 303, title: '⚖️ Vos droits légaux', description: 'Comment porter plainte et vous protéger\n⏱️ 8 min • Important à savoir', video_url: 'https://www.youtube.com/embed/9bZkp7q19f0', trigger_warning_level: 'low', user_id: null, support_count: 78, comment_count: 14 },
+      { id: 300, title: '💜 Témoignage: Ma guérison', description: 'Femme partagant son parcours de résilience\n⏱️ 8 min • Inspirant et délicat', video_url: 'https://www.youtube.com/embed/jNQXAC9IVRw?t=3', trigger_warning_level: 'moderate', user_id: null, support_count: 142, comment_count: 5 },
+      { id: 302, title: '🧠 Comprendre le trauma', description: 'Expert en santé mentale explique\n⏱️ 10 min • Validant et utile', video_url: 'https://www.youtube.com/embed/LHIhuKJaHNY', trigger_warning_level: 'moderate', user_id: null, support_count: 95, comment_count: 4 },
+      { id: 303, title: '⚖️ Vos droits légaux', description: 'Comment porter plainte et vous protéger\n⏱️ 8 min • Important à savoir', video_url: 'https://www.youtube.com/embed/9bZkp7q19f0', trigger_warning_level: 'low', user_id: null, support_count: 78, comment_count: 4 },
     ];
 
     setTestimonies(temps);
     setArticles(arts);
     setPhotos(phos);
     setVideos(vids);
+    localStorage.setItem('lesgirls_testimonies', JSON.stringify(temps));
     localStorage.setItem('lesgirls_articles', JSON.stringify(arts));
     localStorage.setItem('lesgirls_photos', JSON.stringify(phos));
     localStorage.setItem('lesgirls_videos', JSON.stringify(vids));
+
+    // Generate and store example comments
+    const exampleComments = generateExampleComments();
+    localStorage.setItem('lesgirls_comments', JSON.stringify(exampleComments));
   };
 
   useEffect(() => { load(); }, []);
@@ -390,6 +749,12 @@ export default function Community() {
   };
 
   const handleReport = async (itemId, type, reason) => {
+    const reported_items = JSON.parse(localStorage.getItem('lesgirls_reported') || '[]');
+    if (!reported_items.includes(itemId)) {
+      reported_items.push(itemId);
+      localStorage.setItem('lesgirls_reported', JSON.stringify(reported_items));
+    }
+
     if (type === 'testimony') {
       try {
         // TODO: Uncomment when /api/content-reports endpoint is available
@@ -398,7 +763,6 @@ export default function Community() {
         console.error('Report error:', err);
       }
     }
-    // Pour tous types: marquer comme reporté localement (géré dans le state du Post)
   };
 
   const data = { testimonies, articles, photos, videos };

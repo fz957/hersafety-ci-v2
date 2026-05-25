@@ -256,13 +256,26 @@ router.get('/:testimonyId/comments', async (req, res) => {
       .limit(value.limit)
       .offset(value.offset);
 
-    // Ajouter un flag pour indiquer si l'utilisateur est le propriétaire
-    const commentsWithOwnership = comments.map((c) => ({
-      ...c,
-      is_owner: c.user_id === userId,
+    // Compter les likes pour chaque commentaire
+    const commentsWithCounts = await Promise.all(comments.map(async (c) => {
+      const likesCount = await knex('comment_likes')
+        .where({ comment_id: c.id })
+        .count('* as cnt')
+        .first();
+
+      const userLiked = await knex('comment_likes')
+        .where({ comment_id: c.id, user_id: userId })
+        .first();
+
+      return {
+        ...c,
+        is_owner: c.user_id === userId,
+        likes_count: likesCount?.cnt || 0,
+        liked: !!userLiked,
+      };
     }));
 
-    return res.json({ success: true, data: commentsWithOwnership });
+    return res.json({ success: true, data: commentsWithCounts });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Erreur récupération commentaires' });
   }
@@ -301,14 +314,6 @@ router.post('/:testimonyId/comments', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Témoignage introuvable' });
     }
 
-    // Vérifier que l'utilisateur n'a pas déjà commenté (max 1 comment par utilisateur)
-    const existingComment = await knex('testimony_comments')
-      .where({ testimony_id: testimonyId, user_id: userId })
-      .first();
-
-    if (existingComment) {
-      return res.status(409).json({ success: false, error: 'Vous avez déjà commenté ce témoignage' });
-    }
 
     let display_name = null;
     if (value.is_anonymous) {
@@ -382,6 +387,52 @@ router.delete('/:testimonyId/comments/:commentId', async (req, res) => {
     return res.json({ success: true, data: { deleted: true } });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Erreur suppression commentaire' });
+  }
+});
+
+// ─── POST /api/testimonies/:id/comments/:commentId/like — Like comment ──────────
+
+router.post('/:testimonyId/comments/:commentId/like', async (req, res) => {
+  const { testimonyId, commentId } = req.params;
+  const { userId } = req.user;
+
+  try {
+    const existingLike = await knex('comment_likes')
+      .where({ comment_id: commentId, user_id: userId })
+      .first();
+
+    if (existingLike) {
+      await knex('comment_likes')
+        .where({ comment_id: commentId, user_id: userId })
+        .del();
+      return res.json({ success: true, data: { liked: false } });
+    } else {
+      await knex('comment_likes').insert({
+        comment_id: commentId,
+        user_id: userId,
+      });
+      return res.json({ success: true, data: { liked: true } });
+    }
+  } catch (err) {
+    console.error('Comment like error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur like commentaire' });
+  }
+});
+
+// ─── GET /api/testimonies/:id/comments/:commentId/like — Check if user liked comment ──
+
+router.get('/:testimonyId/comments/:commentId/like', async (req, res) => {
+  const { commentId } = req.params;
+  const { userId } = req.user;
+
+  try {
+    const like = await knex('comment_likes')
+      .where({ comment_id: commentId, user_id: userId })
+      .first();
+
+    return res.json({ success: true, data: { liked: !!like } });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Erreur vérification like' });
   }
 });
 
