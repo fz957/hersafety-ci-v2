@@ -7,7 +7,6 @@ const { requireTenant } = require('../middlewares/tenant');
 const { sendAlertSMS }  = require('../services/sms.service');
 
 const router = express.Router();
-router.use(requireAuth, requireTenant);
 
 const alertSchema = Joi.object({
   level:          Joi.string().valid('1', '2', '3', '4').required(),
@@ -19,10 +18,20 @@ const alertSchema = Joi.object({
  * POST /api/sms/alert
  * Envoie manuellement un SMS d'alerte à tous les contacts de confiance
  * de l'utilisatrice connectée. Vérifie APP_MODE avant tout envoi réel.
+ * NOTE: Permet les requêtes authentifiées OR depuis le service worker
  */
-router.post('/alert', async (req, res) => {
+// Apply auth to this specific route
+router.post('/alert', requireAuth, requireTenant, async (req, res) => {
+  console.log('[SMS] Alert request received:', {
+    body: req.body,
+    userId: req.user?.userId,
+    orgId: req.user?.organizationId,
+    timestamp: new Date().toISOString(),
+  });
+
   const { error, value } = alertSchema.validate(req.body);
   if (error) {
+    console.log('[SMS] Validation error:', error.details[0].message);
     return res.status(400).json({ success: false, error: error.details[0].message });
   }
 
