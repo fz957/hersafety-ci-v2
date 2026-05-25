@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { HS } from '../tokens';
+import useSpeechRecognition from '../hooks/useSpeechRecognition';
 
 /**
  * CheckInAssistant - Chat simple avec Claude pour évaluer la situation
@@ -16,6 +17,7 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
   const [hasTimeout, setHasTimeout] = useState(false);
   const timeoutRef = useRef(null);
   const countdownRef = useRef(null);
+  const { isListening, transcript, toggleListening, clearTranscript, isSupported } = useSpeechRecognition();
 
   // Gérer le timeout d'inactivité
   const handleInactivityTimeout = async () => {
@@ -85,6 +87,15 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
     if (countdownRef.current) clearInterval(countdownRef.current);
     startInactivityTimer();
   };
+
+  // Traiter la transcription vocale
+  useEffect(() => {
+    if (!isListening && transcript && transcript.trim() !== '🎤') {
+      const cleaned = transcript.replace('🎤', '').trim();
+      setUserInput(cleaned);
+      clearTranscript();
+    }
+  }, [isListening, transcript]);
 
   // Initialiser la conversation
   useEffect(() => {
@@ -331,25 +342,51 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
         flexShrink: 0
       }}>
         {/* Input */}
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <input
             type="text"
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
-            placeholder="Dis-moi..."
+            placeholder={isListening ? '🎤 Écoute...' : 'Dis-moi...'}
             style={{
               flex: 1,
               padding: '10px 16px',
               borderRadius: '20px',
-              border: `1px solid ${HS.sakura}40`,
-              background: '#F0E6E6',
+              border: `1px solid ${isListening ? HS.sakura : HS.sakura + '40'}`,
+              background: isListening ? HS.sakura + '10' : '#F0E6E6',
               color: '#333',
               fontSize: '14px',
               outline: 'none',
-              fontFamily: 'inherit'
+              fontFamily: 'inherit',
+              transition: 'all 0.2s'
             }}
             disabled={isLoading || hasTimeout}
           />
+          {isSupported && (
+            <button
+              type="button"
+              onClick={toggleListening}
+              disabled={isLoading || hasTimeout}
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                background: isListening ? HS.sakura : '#E0E0E0',
+                color: isListening ? 'white' : '#666',
+                border: 'none',
+                fontSize: '18px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: isLoading || hasTimeout ? 0.4 : 1,
+                transition: 'all 0.2s'
+              }}
+              title={isListening ? 'Arrêter l\'enregistrement' : 'Parler'}
+            >
+              🎤
+            </button>
+          )}
           <button
             type="submit"
             disabled={isLoading || !userInput.trim() || hasTimeout}
