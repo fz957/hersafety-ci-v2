@@ -46,8 +46,8 @@ router.get('/', async (req, res) => {
       .select(
         'id', 'organization_id', 'is_anonymous', 'display_name',
         'category', 'title', 'content', 'location_label',
-        'trigger_warning_level', 'support_count', 'comment_count', 'status', 'created_at'
-        // user_id délibérément exclu pour préserver l'anonymat
+        'trigger_warning_level', 'support_count', 'comment_count', 'status', 'created_at',
+        'user_id' // Inclure pour vérifier propriétaire (anonymat préservé via is_anonymous)
       )
       .orderBy('created_at', 'desc')
       .limit(limit)
@@ -93,6 +93,7 @@ router.post('/', async (req, res) => {
       .returning([
         'id', 'organization_id', 'is_anonymous', 'display_name',
         'category', 'title', 'content', 'location_label', 'trigger_warning_level', 'status', 'created_at',
+        'user_id', // Inclure pour client-side ownership check
       ]);
 
     return res.status(201).json({ success: true, data: testimony });
