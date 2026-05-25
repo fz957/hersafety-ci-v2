@@ -97,9 +97,8 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
           console.log('[CheckIn] 📞 Notifiant les contacts...');
           await api.post('/api/sms/alert', {
             alert_id: activeTrack.id,
-            level: 2, // Niveau 2 = malaise, besoin d'aide
-            hasLocation: true,
-          });
+            level: '2',
+          }).catch(err => console.warn('[CheckIn] SMS notification:', err.message));
         }
 
         // Puis commencer l'évaluation avec Lyra
