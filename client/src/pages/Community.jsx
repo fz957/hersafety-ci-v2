@@ -20,10 +20,17 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
 
   const handleDeleteConfirm = async () => {
     try {
+      console.log('handleDeleteConfirm called', { itemId: item.id, type, onDelete });
+      if (!onDelete) {
+        console.error('onDelete is undefined!');
+        setToast({ message: 'Erreur: onDelete non défini', type: 'error' });
+        return;
+      }
       await onDelete(item.id, type);
       setShowDeleteModal(false);
       setToast({ message: 'Supprimé ✓', type: 'success' });
     } catch (err) {
+      console.error('Delete error:', err);
       setToast({ message: 'Erreur suppression', type: 'error' });
     }
   };
@@ -396,7 +403,10 @@ export default function Community() {
                 <div>Sois la première à partager</div>
               </div>
             ) : (
-              items.map((item) => <Post key={item.id} item={item} type={contentType.slice(0, -3)} onDelete={handleDelete} onReport={handleReport} user={user} setToast={setToast} CATEGORIES={CATEGORIES} />)
+              items.map((item) => {
+                const typeMap = { testimonies: 'testimony', articles: 'article', photos: 'photo', videos: 'video' };
+                return <Post key={item.id} item={item} type={typeMap[contentType]} onDelete={handleDelete} onReport={handleReport} user={user} setToast={setToast} CATEGORIES={CATEGORIES} />;
+              })
             )
           ) : (
             <form onSubmit={submit} style={{ maxWidth: 700 }}>
