@@ -284,11 +284,15 @@ export default function Community() {
 
     try {
       if (contentType === 'testimonies') {
-        await api.post('/api/testimonies', {
+        const payload = {
           title: form.title, content: form.content, category: form.category,
-          location_label: form.location_label, is_anonymous: form.is_anonymous,
+          is_anonymous: form.is_anonymous,
           trigger_warning_level: form.trigger_warning_level,
-        });
+        };
+        if (form.location_label.trim()) {
+          payload.location_label = form.location_label.trim();
+        }
+        await api.post('/api/testimonies', payload);
         setToast({ message: 'Témoignage publié ✓', type: 'success' });
       } else {
         const item = { id: Date.now(), title: form.title, content: form.content, description: form.content, trigger_warning_level: form.trigger_warning_level, user_id: user?.id };
