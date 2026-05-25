@@ -96,7 +96,10 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
         console.log('[CheckIn] 📞 Notifiant les contacts...');
         await api.post('/api/sms/alert', {
           level: '2',
-        }).catch(err => console.warn('[CheckIn] SMS notification:', err.message));
+        }).catch(err => {
+          console.warn('[CheckIn] SMS notification error:', err.response?.data?.error || err.message);
+          console.warn('[CheckIn] Full error:', err.response?.data || err);
+        });
 
         // Puis commencer l'évaluation avec Lyra
         const response = await api.post('/api/claude/assist', {
@@ -188,11 +191,13 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
       await api.post('/api/sms/alert', {
         alert_id: activeTrack.id,
         level: 3,
+      }).catch(err => {
+        console.warn('[CheckIn] SMS escalade error:', err.response?.data?.error || err.message);
       });
 
       onEmergency?.();
     } catch (err) {
-      console.error('Erreur escalade:', err);
+      console.error('Erreur escalade:', err.response?.data?.error || err.message);
     }
   };
 
