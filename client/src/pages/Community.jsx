@@ -135,13 +135,13 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
         </div>
       </div>
 
-      {type === 'photos' && item.image_url && (
+      {type === 'photo' && item.image_url && (
         <div style={{ marginBottom: 12, borderRadius: 8, overflow: 'hidden', maxHeight: 300, background: HS.surface }}>
           <img src={item.image_url} alt={item.title} style={{ width: '100%', height: 'auto', display: 'block', maxHeight: 300, objectFit: 'cover' }} />
         </div>
       )}
 
-      {type === 'videos' && item.video_url && (
+      {type === 'video' && item.video_url && (
         <div style={{ marginBottom: 12, borderRadius: 8, overflow: 'hidden', aspectRatio: '16/9', background: HS.surface }}>
           <iframe width="100%" height="100%" src={item.video_url} title={item.title} style={{ border: 'none', borderRadius: 8 }} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
         </div>
