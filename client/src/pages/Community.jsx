@@ -285,13 +285,16 @@ export default function Community() {
     try {
       if (contentType === 'testimonies') {
         const payload = {
-          title: form.title, content: form.content, category: form.category,
+          title: form.title.trim(),
+          content: form.content.trim(),
+          category: form.category,
           is_anonymous: form.is_anonymous,
-          trigger_warning_level: form.trigger_warning_level,
+          trigger_warning_level: form.trigger_warning_level || 'none',
         };
-        if (form.location_label.trim()) {
+        if (form.location_label?.trim()) {
           payload.location_label = form.location_label.trim();
         }
+        console.log('Sending testimony:', payload);
         await api.post('/api/testimonies', payload);
         setToast({ message: 'Témoignage publié ✓', type: 'success' });
       } else {
