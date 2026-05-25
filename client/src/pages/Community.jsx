@@ -18,6 +18,14 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
   const isOwner = item.user_id === user?.id;
   const isSensitive = item.trigger_warning_level === 'moderate' || item.trigger_warning_level === 'severe';
 
+  // Charger l'état "signalé" depuis localStorage
+  useEffect(() => {
+    const reported_items = JSON.parse(localStorage.getItem('lesgirls_reported') || '[]');
+    if (reported_items.includes(item.id)) {
+      setReported(true);
+    }
+  }, [item.id]);
+
   const handleDeleteConfirm = async () => {
     try {
       console.log('handleDeleteConfirm called', { itemId: item.id, type, onDelete });
@@ -39,11 +47,22 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
     try {
       await onReport(item.id, type, reportReason);
       setReported(true);
+      // Sauvegarder dans localStorage
+      const reported_items = JSON.parse(localStorage.getItem('lesgirls_reported') || '[]');
+      if (!reported_items.includes(item.id)) {
+        reported_items.push(item.id);
+        localStorage.setItem('lesgirls_reported', JSON.stringify(reported_items));
+      }
       setShowReportModal(false);
       setToast({ message: 'Signalé ✓ Merci!', type: 'success' });
     } catch (err) {
       console.error('Report error:', err);
       setReported(true);
+      const reported_items = JSON.parse(localStorage.getItem('lesgirls_reported') || '[]');
+      if (!reported_items.includes(item.id)) {
+        reported_items.push(item.id);
+        localStorage.setItem('lesgirls_reported', JSON.stringify(reported_items));
+      }
       setShowReportModal(false);
       setToast({ message: 'Signalé ✓ Merci!', type: 'success' });
     }
@@ -131,11 +150,11 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 16, fontSize: 12, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${HS.border}` }}>
-        <button onClick={handleLike} style={{ background: 'none', border: 'none', color: liked ? HS.danger : HS.textMute, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0 }}>
+      <div style={{ display: 'flex', gap: 16, fontSize: 12, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${HS.border}`, opacity: reported ? 0.5 : 1 }}>
+        <button disabled={reported} onClick={handleLike} style={{ background: 'none', border: 'none', color: reported ? HS.textMute : (liked ? HS.danger : HS.textMute), cursor: reported ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0 }}>
           {liked ? '❤️' : '🤍'} {supportCount}
         </button>
-        <button onClick={() => setShowCommentInput(!showCommentInput)} style={{ background: 'none', border: 'none', color: showCommentInput ? HS.chocolate : HS.textMute, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0 }}>
+        <button disabled={reported} onClick={() => !reported && setShowCommentInput(!showCommentInput)} style={{ background: 'none', border: 'none', color: reported ? HS.textMute : (showCommentInput ? HS.chocolate : HS.textMute), cursor: reported ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0 }}>
           💬 {commentCount}
         </button>
       </div>
@@ -403,10 +422,24 @@ export default function Community() {
                 <div>Sois la première à partager</div>
               </div>
             ) : (
-              items.map((item) => {
-                const typeMap = { testimonies: 'testimony', articles: 'article', photos: 'photo', videos: 'video' };
-                return <Post key={item.id} item={item} type={typeMap[contentType]} onDelete={handleDelete} onReport={handleReport} user={user} setToast={setToast} CATEGORIES={CATEGORIES} />;
-              })
+              (() => {
+                const reported_items = JSON.parse(localStorage.getItem('lesgirls_reported') || '[]');
+                // Trier: d'abord non-signalés (par interactions), ensuite signalés
+                const sorted = [...items].sort((a, b) => {
+                  const a_reported = reported_items.includes(a.id);
+                  const b_reported = reported_items.includes(b.id);
+                  if (a_reported === b_reported) {
+                    // Même statut, trier par support_count (plus d'interactions en premier)
+                    return (b.support_count || 0) - (a.support_count || 0);
+                  }
+                  // Non-signalés avant signalés
+                  return a_reported ? 1 : -1;
+                });
+                return sorted.map((item) => {
+                  const typeMap = { testimonies: 'testimony', articles: 'article', photos: 'photo', videos: 'video' };
+                  return <Post key={item.id} item={item} type={typeMap[contentType]} onDelete={handleDelete} onReport={handleReport} user={user} setToast={setToast} CATEGORIES={CATEGORIES} />;
+                });
+              })()
             )
           ) : (
             <form onSubmit={submit} style={{ maxWidth: 700 }}>
