@@ -181,6 +181,7 @@ function AppRoutes() {
       <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
       <Route path="/emergency"  element={<ProtectedRoute><Emergency /></ProtectedRoute>} />
       <Route path="/tracking"   element={<ProtectedRoute><Tracking /></ProtectedRoute>} />
+      <Route path="/track/:token" element={<Tracking />} /> {/* Public track sharing - no auth required */}
       <Route path="/chat"       element={<ProtectedRoute><Chat /></ProtectedRoute>} />
       <Route path="/community"  element={<ProtectedRoute><Community /></ProtectedRoute>} />
       <Route path="/reports"    element={<ProtectedRoute><Reports /></ProtectedRoute>} />

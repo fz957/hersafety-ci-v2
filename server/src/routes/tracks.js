@@ -1,11 +1,49 @@
 const express = require('express');
 const Joi     = require('joi');
+const crypto  = require('crypto');
 
 const knex              = require('../db/knex');
 const { requireAuth }   = require('../middlewares/auth');
 const { requireTenant } = require('../middlewares/tenant');
+const { sendNotificationToUser, notifyContacts } = require('../services/firebase.service');
+const { sendTrackNotification } = require('../services/email.service');
 
 const router = express.Router();
+
+// ─── PUBLIC ROUTE: GET /api/tracks/share/:token ───────────────────────────────
+// Permet aux contacts de voir la position d'un trajet en direct (sans auth)
+
+router.get('/share/:token', async (req, res) => {
+  try {
+    const track = await knex('tracks')
+      .where({ share_token: req.params.token, status: 'active' })
+      .first();
+
+    if (!track) {
+      return res.status(404).json({ success: false, error: 'Trajet introuvable ou terminé' });
+    }
+
+    // Obtenir les infos de l'utilisateur pour le nom
+    const user = await knex('users').where({ id: track.user_id }).first();
+
+    return res.json({
+      success: true,
+      data: {
+        id: track.id,
+        userName: user ? user.full_name : 'Utilisateur',
+        destination_label: track.destination_label,
+        started_at: track.started_at,
+        waypoints: track.waypoints ? JSON.parse(track.waypoints) : [],
+        status: track.status,
+      }
+    });
+  } catch (err) {
+    console.error('Track share error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur chargement trajet' });
+  }
+});
+
+// Routes authentifiées à partir d'ici
 router.use(requireAuth, requireTenant);
 
 // ─── GET /api/tracks ─────────────────────────────────────────────────────────
@@ -61,6 +99,9 @@ router.post('/', async (req, res) => {
       ? JSON.stringify([{ lat: value.location_lat, lng: value.location_lng, at: new Date().toISOString() }])
       : JSON.stringify([]);
 
+    // Générer un token de partage unique
+    const shareToken = crypto.randomBytes(16).toString('hex');
+
     const [track] = await knex('tracks')
       .insert({
         user_id:              userId,
@@ -68,11 +109,34 @@ router.post('/', async (req, res) => {
         destination_label:    value.destination_label,
         checkin_interval_min: value.checkin_interval_min,
         waypoints:            knex.raw('?::jsonb', [initialWaypoints]),
+        share_token:          shareToken,
       })
       .returning('*');
 
+    // Envoyer les notifications aux contacts
+    const user = await knex('users').where({ id: userId }).first();
+    const contacts = await knex('contacts')
+      .where({ user_id: userId, organization_id: organizationId });
+
+    if (contacts.length > 0) {
+      const shareLink = `${process.env.FRONTEND_URL}/track/${shareToken}`;
+
+      // Envoyer notifications email aux contacts
+      for (const contact of contacts) {
+        if (contact.email) {
+          await sendTrackNotification(contact.email, {
+            senderName: user.full_name,
+            trackLink: shareLink,
+          }).catch(err => console.error('Track notification error:', err.message));
+        }
+      }
+
+      console.log(`✓ Track notifications sent to ${contacts.length} contacts`);
+    }
+
     return res.status(201).json({ success: true, data: track });
   } catch (err) {
+    console.error('Track creation error:', err);
     return res.status(500).json({ success: false, error: 'Erreur démarrage trajet' });
   }
 });

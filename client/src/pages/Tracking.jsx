@@ -1,29 +1,60 @@
 import { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import api from '../services/api';
 import { useGPS } from '../hooks/useGPS';
 import { HS, ICONS } from '../tokens';
-import { Icon, Button, Card, Eyebrow, H2, BottomNav, PageShell, ScrollArea, Toast } from '../components/ui/index.jsx';
+import { Icon, Button, Card, Eyebrow, H2, BottomNav, PageShell, ScrollArea, Toast, BackButton } from '../components/ui/index.jsx';
 import { TrackingMap } from '../components/maps/TrackingMap';
 
 export default function Tracking() {
-  const { position, error: gpsError } = useGPS({ watch: true });
+  const { token } = useParams(); // Pour accès public via /track/:token
+  const isPublic = !!token;
+
+  const { position, error: gpsError } = useGPS({ watch: true, enabled: !isPublic });
   const [track, setTrack]   = useState(null);
+  const [publicTrack, setPublicTrack] = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const [checkins, setCheckins] = useState(0);
   const [loading, setLoading]   = useState(false);
   const [toast, setToast]       = useState(null);
   const timerRef = useRef(null);
+  const [pollInterval, setPollInterval] = useState(null);
+
+  // Charger le trajet public si token fourni
+  useEffect(() => {
+    if (!isPublic || !token) return;
+
+    const loadPublicTrack = async () => {
+      try {
+        const res = await api.get(`/api/tracks/share/${token}`);
+        if (res.data.success) {
+          setPublicTrack(res.data.data);
+        } else {
+          setToast({ message: 'Trajet introuvable', type: 'error' });
+        }
+      } catch (err) {
+        console.error('Error loading public track:', err);
+        setToast({ message: 'Erreur chargement trajet', type: 'error' });
+      }
+    };
+
+    loadPublicTrack();
+
+    // Recharger toutes les 5 secondes pour les updates
+    const interval = setInterval(loadPublicTrack, 5000);
+    return () => clearInterval(interval);
+  }, [token, isPublic]);
 
   // Timer for elapsed time
   useEffect(() => {
-    if (track) {
+    if (track || publicTrack) {
       timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
     } else {
       clearInterval(timerRef.current);
       setElapsed(0);
     }
     return () => clearInterval(timerRef.current);
-  }, [track]);
+  }, [track, publicTrack]);
 
   // Send GPS position to server every 10 seconds while tracking
   useEffect(() => {
@@ -92,70 +123,104 @@ export default function Tracking() {
     }
   };
 
+  const currentTrack = isPublic ? publicTrack : track;
+  const currentPosition = isPublic && publicTrack && publicTrack.waypoints && publicTrack.waypoints.length > 0
+    ? { lat: publicTrack.waypoints[publicTrack.waypoints.length - 1].lat, lng: publicTrack.waypoints[publicTrack.waypoints.length - 1].lng }
+    : position;
+
   return (
     <PageShell>
       {/* Header */}
-      <div style={{ padding: '54px 20px 16px' }}>
-        <Eyebrow>Suivi de trajet</Eyebrow>
-        <H2 style={{ marginTop: 4 }}>GPS en direct</H2>
+      <div style={{ padding: '54px 20px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {isPublic && <BackButton to="/dashboard" />}
+        <div style={{ flex: 1 }}>
+          <Eyebrow>{isPublic ? 'Suivi en direct' : 'Suivi de trajet'}</Eyebrow>
+          <H2 style={{ marginTop: 4 }}>
+            {isPublic ? publicTrack?.userName || '...' : 'GPS en direct'}
+          </H2>
+        </div>
+        {!isPublic && <span style={{ width: 40 }} />}
       </div>
 
       <ScrollArea style={{ padding: '0 16px 90px' }}>
         {/* Carte statut GPS */}
-        <Card style={{ padding: 18, marginBottom: 16, background: track
+        <Card style={{ padding: 18, marginBottom: 16, background: currentTrack
           ? `linear-gradient(135deg, ${HS.safeSoft}, ${HS.surface})`
           : HS.surface }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 48, height: 48, borderRadius: 14, flexShrink: 0,
-              background: track ? HS.safe : HS.mistyRose,
+              background: currentTrack ? HS.safe : HS.mistyRose,
               display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icon d={ICONS.loc} size={24} color={track ? '#fff' : HS.sakuraDeep} />
+              <Icon d={ICONS.loc} size={24} color={currentTrack ? '#fff' : HS.sakuraDeep} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: HS.chocolate }}>
-                {track ? 'Trajet en cours' : 'Aucun trajet actif'}
+                {currentTrack ? (isPublic ? 'Trajet en cours' : 'Trajet en cours') : 'Aucun trajet actif'}
               </div>
               <div style={{ fontSize: 12, color: HS.textMute, marginTop: 2 }}>
-                {position
-                  ? `${position.lat.toFixed(4)}°, ${position.lng.toFixed(4)}° · ±${Math.round(position.accuracy)}m`
-                  : gpsError ? 'GPS indisponible' : 'Recherche GPS…'}
+                {currentPosition
+                  ? `${currentPosition.lat.toFixed(4)}°, ${currentPosition.lng.toFixed(4)}°`
+                  : isPublic ? 'Chargement...' : gpsError ? 'GPS indisponible' : 'Recherche GPS…'}
               </div>
             </div>
-            {track && (
+            {currentTrack && (
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontFamily: HS.serif, fontSize: 26, color: HS.safe, lineHeight: 1 }}>{fmt(elapsed)}</div>
-                <div style={{ fontSize: 10, color: HS.textMute }}>{checkins} check-ins</div>
+                {!isPublic && <div style={{ fontSize: 10, color: HS.textMute }}>{checkins} check-ins</div>}
               </div>
             )}
           </div>
         </Card>
 
         {/* Carte du trajet */}
-        <TrackingMap userPosition={position} track={track} checkins={checkins} />
-
-        {/* Actions */}
-        {!track ? (
-          <Button onClick={startTrack} disabled={loading} variant="safe"
-            icon={<Icon d={ICONS.play} size={20} color="#fff" />}>
-            {loading ? 'Démarrage…' : 'Démarrer le suivi'}
-          </Button>
+        {isPublic && publicTrack ? (
+          <TrackingMap userPosition={publicTrack.waypoints && publicTrack.waypoints.length > 0
+            ? { lat: publicTrack.waypoints[publicTrack.waypoints.length - 1].lat, lng: publicTrack.waypoints[publicTrack.waypoints.length - 1].lng }
+            : null}
+            track={publicTrack}
+            checkins={0} />
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <button
-              onClick={checkin}
-              style={{ width: '100%', minHeight: 72, borderRadius: 22,
-                background: `linear-gradient(135deg, ${HS.safe}, #3d6b30)`,
-                border: 'none', color: '#fff', fontFamily: HS.font, fontWeight: 800,
-                fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                gap: 12, boxShadow: '0 6px 20px rgba(92,127,79,0.4)', cursor: 'pointer' }}>
-              <span style={{ fontSize: 28 }}>✅</span>
-              Je suis en sécurité
-            </button>
-            <Button onClick={endTrack} disabled={loading} variant="ghost"
-              icon={<Icon d={ICONS.stop} size={18} color={HS.chocolate} />}>
-              {loading ? 'Arrêt…' : 'Terminer le trajet'}
-            </Button>
-          </div>
+          <TrackingMap userPosition={position} track={track} checkins={checkins} />
+        )}
+
+        {/* Actions - Only for private mode */}
+        {!isPublic && (
+          <>
+            {!track ? (
+              <Button onClick={startTrack} disabled={loading} variant="safe"
+                icon={<Icon d={ICONS.play} size={20} color="#fff" />}>
+                {loading ? 'Démarrage…' : 'Démarrer le suivi'}
+              </Button>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button
+                  onClick={checkin}
+                  style={{ width: '100%', minHeight: 72, borderRadius: 22,
+                    background: `linear-gradient(135deg, ${HS.safe}, #3d6b30)`,
+                    border: 'none', color: '#fff', fontFamily: HS.font, fontWeight: 800,
+                    fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    gap: 12, boxShadow: '0 6px 20px rgba(92,127,79,0.4)', cursor: 'pointer' }}>
+                  <span style={{ fontSize: 28 }}>✅</span>
+                  Je suis en sécurité
+                </button>
+                <Button onClick={endTrack} disabled={loading} variant="ghost"
+                  icon={<Icon d={ICONS.stop} size={18} color={HS.chocolate} />}>
+                  {loading ? 'Arrêt…' : 'Terminer le trajet'}
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Info publique */}
+        {isPublic && publicTrack && (
+          <Card style={{ padding: 16, marginTop: 20, background: HS.safeSoft }}>
+            <div style={{ fontSize: 12, color: HS.textMute }}>
+              <p><strong>📍 Suivi en direct</strong></p>
+              <p style={{ marginTop: 8 }}>Vous suivez la position de <strong>{publicTrack.userName}</strong> en temps réel.</p>
+              <p style={{ marginTop: 8, fontSize: 11 }}>Cette page se met à jour automatiquement.</p>
+            </div>
+          </Card>
         )}
 
         {/* Info */}
