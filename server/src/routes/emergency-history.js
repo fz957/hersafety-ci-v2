@@ -64,7 +64,7 @@ router.post('/', requireAuth, requireTenant, async (req, res) => {
     }
 
     // Insérer dans la BDD
-    const [id] = await knex('emergency_history').insert({
+    const insertResult = await knex('emergency_history').insert({
       user_id: userId,
       organization_id: orgId,
       level,
@@ -72,15 +72,17 @@ router.post('/', requireAuth, requireTenant, async (req, res) => {
       latitude,
       longitude,
       location_name,
-      contacts_alerted: contacts_alerted ? JSON.stringify(contacts_alerted) : null,
-      sms_sent: sms_sent ? JSON.stringify(sms_sent) : null,
+      contacts_alerted: Array.isArray(contacts_alerted) ? JSON.stringify(contacts_alerted) : null,
+      sms_sent: Array.isArray(sms_sent) ? JSON.stringify(sms_sent) : null,
       notes,
       status,
       audio_file_path: audioFilePath ? `/uploads/emergency-audio/${path.basename(audioFilePath)}` : null,
       audio_duration_seconds: audioDuration,
       created_at: knex.fn.now(),
-    });
+    }).returning('id');
 
+    // Extract ID from result (could be array or object depending on DB)
+    const id = Array.isArray(insertResult) ? insertResult[0]?.id || insertResult[0] : insertResult?.id || insertResult;
     console.log(`[EmergencyHistory] Emergency sauvegardé: ${id}`);
 
     return res.json({
@@ -116,11 +118,22 @@ router.get('/', requireAuth, requireTenant, async (req, res) => {
       .limit(100);
 
     // Parser les JSON
-    const parsed = emergencies.map(e => ({
-      ...e,
-      contacts_alerted: e.contacts_alerted ? JSON.parse(e.contacts_alerted) : [],
-      sms_sent: e.sms_sent ? JSON.parse(e.sms_sent) : [],
-    }));
+    const parsed = emergencies.map(e => {
+      try {
+        return {
+          ...e,
+          contacts_alerted: e.contacts_alerted ? JSON.parse(e.contacts_alerted) : [],
+          sms_sent: e.sms_sent ? JSON.parse(e.sms_sent) : [],
+        };
+      } catch (parseErr) {
+        console.error('[EmergencyHistory] Erreur parsing JSON pour emergency', e.id, parseErr);
+        return {
+          ...e,
+          contacts_alerted: [],
+          sms_sent: [],
+        };
+      }
+    });
 
     return res.json({
       success: true,
@@ -153,8 +166,14 @@ router.get('/:id', requireAuth, requireTenant, async (req, res) => {
     }
 
     // Parser les JSON
-    emergency.contacts_alerted = emergency.contacts_alerted ? JSON.parse(emergency.contacts_alerted) : [];
-    emergency.sms_sent = emergency.sms_sent ? JSON.parse(emergency.sms_sent) : [];
+    try {
+      emergency.contacts_alerted = emergency.contacts_alerted ? JSON.parse(emergency.contacts_alerted) : [];
+      emergency.sms_sent = emergency.sms_sent ? JSON.parse(emergency.sms_sent) : [];
+    } catch (parseErr) {
+      console.error('[EmergencyHistory] Erreur parsing JSON pour emergency', emergency.id, parseErr);
+      emergency.contacts_alerted = [];
+      emergency.sms_sent = [];
+    }
 
     return res.json({ success: true, data: emergency });
   } catch (err) {

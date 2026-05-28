@@ -55,11 +55,21 @@ export function useAudioRecorder() {
   const stopRecording = async () => {
     return new Promise((resolve) => {
       if (!mediaRecorderRef.current) {
+        console.log('[AudioRecorder] Pas d\'enregistrement actif');
         resolve(null);
         return;
       }
 
       const mediaRecorder = mediaRecorderRef.current;
+
+      // Check if already stopping
+      if (mediaRecorder.state === 'inactive') {
+        console.log('[AudioRecorder] Enregistrement déjà arrêté');
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        audioChunksRef.current = [];
+        resolve(audioBlob);
+        return;
+      }
 
       mediaRecorder.onstop = () => {
         // Créer le blob audio
@@ -75,10 +85,11 @@ export function useAudioRecorder() {
         mediaRecorderRef.current = null;
         setIsRecording(false);
 
-        console.log('[AudioRecorder] Enregistrement arrêté');
+        console.log('[AudioRecorder] Enregistrement arrêté, blob size:', audioBlob.size);
         resolve(audioBlob);
       };
 
+      console.log('[AudioRecorder] Arrêt en cours...');
       mediaRecorder.stop();
     });
   };
@@ -86,11 +97,12 @@ export function useAudioRecorder() {
   // Nettoyer les ressources
   useEffect(() => {
     return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
-      }
-      if (mediaRecorderRef.current) {
-        mediaRecorderRef.current.stop();
+        streamRef.current = null;
       }
     };
   }, []);
