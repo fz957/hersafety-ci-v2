@@ -72,7 +72,7 @@ function getSafetyLevel(safety) {
   }
 }
 
-// GET /api/locations/osm-search - Search real locations from CI_LOCATIONS
+// GET /api/locations/osm-search - Search TOUS les lieux réels via Photon API
 router.get('/osm-search', async (req, res) => {
   const { query, lat, lng } = req.query;
 
@@ -81,43 +81,56 @@ router.get('/osm-search', async (req, res) => {
   }
 
   try {
-    // Search in real locations list
-    const searchTerm = normalizeAccents(query.toLowerCase());
-    const results = CI_LOCATIONS.filter(loc =>
-      normalizeAccents(loc.name.toLowerCase()).includes(searchTerm) ||
-      normalizeAccents(loc.area.toLowerCase()).includes(searchTerm) ||
-      normalizeAccents(loc.description.toLowerCase()).includes(searchTerm)
-    );
-
-    // Calculate distance if lat/lng provided
+    // Use Photon API (Komoot) for real-time, comprehensive location search
+    // Same as Delivera - searches ALL real places from OpenStreetMap
+    const photonUrl = new URL('https://photon.komoot.io/api/');
+    photonUrl.searchParams.append('q', query);
+    photonUrl.searchParams.append('limit', '20');
+    photonUrl.searchParams.append('lang', 'fr');
     if (lat && lng) {
-      const userLat = parseFloat(lat);
-      const userLng = parseFloat(lng);
-      results.forEach(loc => {
-        const dLat = (loc.lat - userLat) * Math.PI / 180;
-        const dLng = (loc.lng - userLng) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(userLat * Math.PI / 180) * Math.cos(loc.lat * Math.PI / 180) *
-                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        loc.distance = 6371 * c; // km
-      });
-      results.sort((a, b) => a.distance - b.distance);
+      photonUrl.searchParams.append('lat', lat);
+      photonUrl.searchParams.append('lon', lng);
     }
 
-    // Add safety info
-    results.forEach(loc => {
-      if (!loc.safety_info) {
-        if (loc.safety === 4) loc.safety_info = { label: '🟢 Sûr', color: '#1B5E20' };
-        else if (loc.safety === 3) loc.safety_info = { label: '🟡 Modéré', color: '#FBC02D' };
-        else loc.safety_info = { label: '🟠 Dangereux', color: '#FF8F00' };
-      }
+    const response = await fetch(photonUrl.toString());
+    const data = await response.json();
+
+    const results = (data.features || []).map(f => {
+      const [lng_coord, lat_coord] = f.geometry.coordinates;
+      const props = f.properties;
+
+      // Build full address name from Photon data
+      const addressParts = [
+        props.name,
+        props.street,
+        props.city || props.state,
+        props.country
+      ].filter(Boolean);
+
+      return {
+        name: props.name || 'Lieu',
+        area: props.city || props.state || 'Abidjan',
+        lat: lat_coord,
+        lng: lng_coord,
+        description: addressParts.slice(1).join(', '),
+        safety_info: { label: '📍 Lieu', color: '#757575' }
+      };
     });
 
-    return res.json({ success: true, data: { locations: results.slice(0, 20), query } });
+    return res.json({ success: true, data: { locations: results, query } });
   } catch (err) {
-    console.error('OSM search error:', err);
-    return res.json({ success: true, data: { locations: [], query } });
+    console.error('Photon search error:', err);
+    // Fallback to CI_LOCATIONS if Photon fails
+    try {
+      const searchTerm = normalizeAccents(query.toLowerCase());
+      const fallbackResults = CI_LOCATIONS.filter(loc =>
+        normalizeAccents(loc.name.toLowerCase()).includes(searchTerm) ||
+        normalizeAccents(loc.area.toLowerCase()).includes(searchTerm)
+      );
+      return res.json({ success: true, data: { locations: fallbackResults.slice(0, 10), query } });
+    } catch (fallbackErr) {
+      return res.json({ success: true, data: { locations: [], query } });
+    }
   }
 });
 

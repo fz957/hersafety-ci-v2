@@ -6,6 +6,7 @@ import 'leaflet-routing-machine';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import { useGPS } from '../hooks/useGPS';
 import { useOverpassPOIs } from '../hooks/useOverpassPOIs';
+import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import useSpeechRecognition from '../hooks/useSpeechRecognition';
 import api from '../services/api';
 import { HS, ICONS } from '../tokens';
@@ -27,7 +28,7 @@ function RoutingControl({ start, end }) {
       map.removeControl(routingRef.current);
     }
 
-    // Create new routing control
+    // Create new routing control - SANS panneau UI (juste la route sur la map)
     routingRef.current = L.Routing.control({
       waypoints: [
         L.latLng(start.lat, start.lng),
@@ -35,6 +36,8 @@ function RoutingControl({ start, end }) {
       ],
       routeWhileDragging: false,
       showAlternatives: false,
+      show: false,  // Cache le panneau d'informations (l'X qui gène)
+      addWaypoints: false,
       lineOptions: {
         styles: [{ color: HS.sakura, weight: 4, opacity: 0.8 }]
       },
@@ -53,10 +56,12 @@ function RoutingControl({ start, end }) {
   return null;
 }
 
-// Véhicules de transport avec lieux de destination sûrs pré-remplis
-const getVTCLinks = (position) => {
-  const defaultDest = { lat: 6.8276, lng: -5.2893 }; // Centre-ville Abidjan par défaut
-  const dest = position || defaultDest;
+// Véhicules de transport avec destination = lieu sûr le plus proche
+const getVTCLinks = (safePlace) => {
+  // Si on a un lieu sûr sélectionné, l'utiliser comme destination
+  // Sinon utiliser le premier lieu sûr (le plus proche)
+  const defaultDest = { lat: 6.8276, lng: -5.2893 }; // Fallback Abidjan
+  const dest = safePlace || defaultDest;
 
   return [
     {
@@ -82,6 +87,7 @@ export default function Emergency() {
   const navigate    = useNavigate();
   const { position } = useGPS({ watch: true });
   const { isListening, transcript, toggleListening, clearTranscript, isSupported } = useSpeechRecognition();
+  const { isRecording, startRecording, stopRecording } = useAudioRecorder();
 
   const [emergencyNums, setEmergencyNums] = useState([]);
   const [places, setPlaces]               = useState([]);
@@ -94,8 +100,8 @@ export default function Emergency() {
   const timerRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // Charger POIs depuis Overpass
-  const { pois, loading: poiLoading } = useOverpassPOIs(position?.lat, position?.lng, 10);
+  // Charger POIs depuis Overpass - UTILISER POUR LES LIEUX SÛRS
+  const { pois, loading: poiLoading } = useOverpassPOIs(position?.lat, position?.lng, 5);
 
   // Modals de confirmation
   const [callModal, setCallModal]         = useState({ isOpen: false, number: null, name: null });
@@ -103,6 +109,18 @@ export default function Emergency() {
 
   // Niveaux 3 et 4 fusionnés : tout va au niveau 3 complet
   const level = '3';
+
+  // Calcul distance EXACT (Haversine formula)
+  const getDistance = (lat1, lng1, lat2, lng2) => {
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
   // Gestion appels d'urgence
   const handleCallClick = (number, name) => {
@@ -134,6 +152,22 @@ export default function Emergency() {
     return () => clearInterval(timerRef.current);
   }, []);
 
+  // Enregistrement audio automatique en cas d'urgence
+  useEffect(() => {
+    console.log('[Emergency] Démarrage enregistrement audio...');
+    startRecording();
+
+    // Arrêter l'enregistrement et sauvegarder en quittant
+    return () => {
+      console.log('[Emergency] Arrêt enregistrement audio...');
+      stopRecording().then(audioBlob => {
+        if (audioBlob) {
+          saveEmergencyWithAudio(audioBlob);
+        }
+      });
+    };
+  }, []);
+
   const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
   // Numéros d'urgence
@@ -150,42 +184,26 @@ export default function Emergency() {
     }
   }, [isListening, transcript]);
 
-  // Lieux sûrs — /api/places primary (has distributed locations), Overpass supplemental
+  // Lieux sûrs — Utiliser les POIs d'Overpass directement (tous les lieux OSM)
   useEffect(() => {
-    if (!position) return;
+    if (!position || !pois || pois.length === 0) return;
 
-    console.log('[Emergency] Cherchant lieux sûrs pour', position.lat.toFixed(4), position.lng.toFixed(4));
+    // Calculer distances et trier
+    const withDistances = pois.map(p => ({
+      ...p,
+      distance: getDistance(position.lat, position.lng, p.lat, p.lng)
+    }));
 
-    // Primary: Use /api/places (distributed across Abidjan including Bietry)
-    api.get(`/api/places?lat=${position.lat}&lng=${position.lng}&radius=10000`)
-      .then((r) => {
-        const apiPlaces = r.data.data || [];
-        console.log('[Emergency] API places trouvés:', apiPlaces.length);
+    // Garder les plus proches (< 5km)
+    const filtered = withDistances.filter(p => p.distance < 5);
 
-        // Combine with Overpass results if available (for areas with good OSM data)
-        if (pois && pois.length > 0) {
-          console.log('[Emergency] Augmentant avec', pois.length, 'Overpass POIs');
-          const combined = [...apiPlaces, ...pois];
-          // Remove duplicates by location
-          const unique = combined.reduce((acc, p) => {
-            const exists = acc.find(x => Math.abs(x.lat - p.lat) < 0.001 && Math.abs(x.lng - p.lng) < 0.001);
-            return exists ? acc : [...acc, p];
-          }, []);
-          setPlaces(unique.slice(0, 5));
-        } else {
-          setPlaces(apiPlaces.slice(0, 5));
-        }
-      })
-      .catch((err) => {
-        console.error('[Emergency] Erreur places:', err.message);
-        // Fallback to Overpass if API fails
-        if (pois && pois.length > 0) {
-          console.log('[Emergency] Fallback Overpass:', pois.length);
-          setPlaces(pois.slice(0, 5));
-        } else {
-          setPlaces([]);
-        }
-      });
+    // Trier par distance et prendre les 10 plus proches
+    const sorted = filtered
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 10);
+
+    console.log('[Emergency] Lieux sûrs trouvés:', sorted.length);
+    setPlaces(sorted);
   }, [position, pois]);
 
   // Init: Appel initial à Claude pour commencer la conversation
@@ -200,7 +218,7 @@ export default function Emergency() {
         position,
         emergencyNumbers: emergencyNums,
         nearbyPlaces: places,
-        vtcOptions: getVTCLinks(position)
+        vtcOptions: getVTCLinks(places[0])  // Utiliser le lieu le plus proche comme destination
       }
     })
       .then((r) => {
@@ -215,6 +233,44 @@ export default function Emergency() {
   }, [position, emergencyNums, places]);
 
   // Pas de scroll auto - chaque seconde compte en urgence
+
+  // Sauvegarder l'urgence avec l'enregistrement audio
+  const saveEmergencyWithAudio = async (audioBlob) => {
+    try {
+      if (!audioBlob) return;
+
+      // Convertir le blob en base64
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Audio = reader.result.split(',')[1]; // Enlever le préfixe "data:..."
+
+        // Préparer les données
+        const emergencyData = {
+          level: level,
+          trigger_type: 'emergency_page',
+          latitude: position?.lat,
+          longitude: position?.lng,
+          location_name: places[0]?.name || 'Position actuelle',
+          contacts_alerted: [], // À compléter si nécessaire
+          sms_sent: [],
+          audio_base64: base64Audio,
+          status: 'active',
+        };
+
+        // Envoyer à l'API
+        try {
+          const response = await api.post('/api/emergency-history', emergencyData);
+          console.log('[Emergency] Urgence sauvegardée:', response.data.data);
+        } catch (err) {
+          console.error('[Emergency] Erreur sauvegarde urgence:', err);
+        }
+      };
+
+      reader.readAsDataURL(audioBlob);
+    } catch (err) {
+      console.error('[Emergency] Erreur conversion audio:', err);
+    }
+  };
 
   // Envoyer message utilisateur et obtenir réponse IA
   const handleSendMessage = async (e) => {
@@ -235,7 +291,7 @@ export default function Emergency() {
           position,
           emergencyNumbers: emergencyNums,
           nearbyPlaces: places,
-          vtcOptions: getVTCLinks(position)
+          vtcOptions: getVTCLinks(places[0])  // Utiliser le lieu le plus proche comme destination
         }
       });
       const aiMessage = { role: 'assistant', content: response.data.data.message };
@@ -352,7 +408,15 @@ export default function Emergency() {
                 Appeler le 110
               </button>
             </a>
-            <button onClick={() => navigate('/dashboard')}
+            <button onClick={async () => {
+              // Arrêter l'enregistrement et sauvegarder
+              const audioBlob = await stopRecording();
+              if (audioBlob) {
+                await saveEmergencyWithAudio(audioBlob);
+              }
+              // Aller au dashboard
+              navigate('/dashboard');
+            }}
               style={{ flex: 1, background: 'transparent', border: `1.5px solid ${HS.chocolate}`,
                 color: HS.chocolate, padding: '12px', borderRadius: 12, fontWeight: 700, fontSize: 13,
                 fontFamily: HS.font }}>
@@ -389,9 +453,9 @@ export default function Emergency() {
             <MapContainer
               center={position || { lat: 6.8276, lng: -5.2893 }}
               zoom={14}
-              style={{ width: '100%', height: '100%' }}>
+              style={{ width: '100%', height: '100%' }}
+              attributionControl={false}>
               <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
               {/* Display routing if a place is selected */}
@@ -496,20 +560,6 @@ export default function Emergency() {
           ))}
         </div>
 
-        {/* Escalade */}
-        <button
-          onClick={() => {/* Escalade niveau supérieur */}}
-          style={{
-            width: '100%', minHeight: 60, borderRadius: 18,
-            background: HS.danger, color: '#fff', border: 'none',
-            fontWeight: 800, fontSize: 15, letterSpacing: 0.3,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-            boxShadow: '0 8px 24px rgba(178,58,72,0.35)', fontFamily: HS.font,
-          }}
-        >
-          <Icon d={ICONS.alert} size={20} color="#fff" />
-          ESCALADER — Police + vidéo live
-        </button>
       </ScrollArea>
 
       {/* Modal confirmation appel d'urgence */}

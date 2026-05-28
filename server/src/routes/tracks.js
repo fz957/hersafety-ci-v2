@@ -5,7 +5,6 @@ const crypto  = require('crypto');
 const knex              = require('../db/knex');
 const { requireAuth }   = require('../middlewares/auth');
 const { requireTenant } = require('../middlewares/tenant');
-const { sendNotificationToUser, notifyContacts } = require('../services/firebase.service');
 const { sendTrackNotification } = require('../services/email.service');
 
 const router = express.Router();
@@ -232,7 +231,8 @@ router.patch('/:id', async (req, res) => {
     }
 
     // Add waypoint to track
-    const waypoints = track.waypoints ? JSON.parse(track.waypoints) : [];
+    // waypoints is already an object (from JSONB), not a string
+    const waypoints = Array.isArray(track.waypoints) ? track.waypoints : [];
     waypoints.push({
       lat: value.location_lat,
       lng: value.location_lng,
@@ -248,7 +248,8 @@ router.patch('/:id', async (req, res) => {
 
     return res.json({ success: true, data: updated });
   } catch (err) {
-    return res.status(500).json({ success: false, error: 'Erreur mise à jour position' });
+    console.error('[PATCH /api/tracks/:id] Error:', err.message);
+    return res.status(500).json({ success: false, error: 'Erreur mise à jour position: ' + err.message });
   }
 });
 

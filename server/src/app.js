@@ -18,6 +18,7 @@ const adminRoutes            = require('./routes/admin');
 const emergencyNumbersRoutes = require('./routes/emergency-numbers');
 const locationsRoutes    = require('./routes/locations');
 const fcmRoutes          = require('./routes/fcm');
+const emergencyHistoryRoutes = require('./routes/emergency-history');
 
 const { apiLimiter } = require('./middlewares/rateLimit');
 
@@ -34,9 +35,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Parsers
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: false }));
+// Parsers - augmentée pour les fichiers audio en base64
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 app.use(cookieParser());
 
 // Rate limiting global sur /api
@@ -61,6 +62,7 @@ app.use('/api/admin',             adminRoutes);
 app.use('/api/emergency-numbers', emergencyNumbersRoutes);
 app.use('/api/locations',     locationsRoutes);
 app.use('/api/fcm',           fcmRoutes);
+app.use('/api/emergency-history', emergencyHistoryRoutes);
 
 // Santé de l'API
 app.get('/api/health', (req, res) => {

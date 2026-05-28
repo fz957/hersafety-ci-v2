@@ -4,6 +4,7 @@ import L from 'leaflet';
 import api from '../services/api';
 import { HS, ICONS } from '../tokens';
 import { Icon, Button, Card, Input, Eyebrow, H2, BottomNav, PageShell, ScrollArea, Toast } from '../components/ui/index.jsx';
+import { PlaceSearchInput } from '../components/PlaceSearchInput.jsx';
 import { useGPS } from '../hooks/useGPS';
 
 // Custom user location marker icon
@@ -61,9 +62,12 @@ export default function Reports() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [form, setForm]     = useState({
-    report_type: 'lieu', danger_type: 'harcelement_verbal',
-    description: '', place_name: '', place_address: '',
-    vehicle_plate: '', vtc_app: '', is_anonymous: true,
+    report_type: 'lieu',
+    danger_type: 'harcelement_verbal',
+    description: '',
+    place_name: '',
+    place_address: '',
+    is_anonymous: true,
   });
 
   // Auto-update map when position changes - ANIMATE to position
@@ -81,15 +85,9 @@ export default function Reports() {
     setLoading(true);
     const pos = position || defaultCenter;
 
-    Promise.all([
-      api.get('/api/reports'),
-      api.get('/api/reports/danger-zones'),
-    ])
-      .then(([reportsRes, zonesRes]) => {
-        setReports(reportsRes.data.data);
-        setDangerZones(zonesRes.data.data);
-      })
-      .then(() => loadCategorizedLocations(pos))
+    // Load categorized locations
+    loadCategorizedLocations(pos)
+      .catch(err => console.error('Error loading data:', err))
       .finally(() => setLoading(false));
   }, []);
 
@@ -172,6 +170,13 @@ export default function Reports() {
     setSearchQuery(location.name);
     setShowSuggestions(false);
 
+    // Auto-fill form with selected location
+    setForm((f) => ({
+      ...f,
+      place_name: location.name || '',
+      place_address: location.area || ''
+    }));
+
     // Fit bounds to show both user position and selected location
     if (position && mapRef.current) {
       const bounds = L.latLngBounds(
@@ -214,10 +219,26 @@ export default function Reports() {
         payload.place_lat = position.lat;
         payload.place_lng = position.lng;
       }
-      await api.post('/api/reports', payload);
+      const response = await api.post('/api/reports', payload);
       setToast({ message: 'Signalement soumis ✓ — merci pour ta vigilance.', type: 'success' });
+
+      // Add new report to map immediately with correct category
+      if (response.data?.data && position) {
+        const newLocation = {
+          lat: position.lat,
+          lng: position.lng,
+          place_name: form.place_name,
+          place_address: form.place_address,
+          danger_types: [form.danger_type],
+          incident_count: 1,
+          category: 'medium', // New reports start as medium (1 incident < 3)
+          latest_report: new Date().toISOString()
+        };
+        setDangerZones(prev => [...prev, newLocation]);
+      }
+
       setForm({ report_type: 'lieu', danger_type: 'harcelement_verbal', description: '',
-        place_name: '', place_address: '', vehicle_plate: '', vtc_app: '', is_anonymous: true });
+        place_name: '', place_address: '', is_anonymous: true });
 
       // Auto-refresh map after submission
       if (position) {
@@ -397,12 +418,12 @@ export default function Reports() {
 
                 <MapContainer
                   ref={mapRef}
-                  center={mapCenter}
+                  center={[mapCenter.lat, mapCenter.lng]}
                   zoom={13}
                   style={{ width: '100%', height: '100%' }}
+                  attributionControl={false}
                 >
                   <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
 
@@ -424,6 +445,12 @@ export default function Reports() {
                   {/* Incident Markers */}
                   {dangerZones && dangerZones.length > 0 ? (
                     dangerZones.map((location, idx) => {
+                      // Validate coordinates before rendering
+                      if (!location.lat || !location.lng || isNaN(location.lat) || isNaN(location.lng)) {
+                        console.warn('Invalid location coordinates:', location);
+                        return null;
+                      }
+
                       const color = getCategoryColor(location.category);
                       const size = Math.max(10, Math.min(30, (location.incident_count || 1) * 4));
 
@@ -509,7 +536,7 @@ export default function Reports() {
                   ) : null}
 
                   {/* Selected Location from Search - Green circle */}
-                  {selectedLocation && (
+                  {selectedLocation && selectedLocation.lat && selectedLocation.lng && !isNaN(selectedLocation.lat) && !isNaN(selectedLocation.lng) && (
                     <CircleMarker
                       center={[selectedLocation.lat, selectedLocation.lng]}
                       radius={15}
@@ -582,47 +609,21 @@ export default function Reports() {
               </div>
             </div>
 
-            {/* Liste des signalements */}
-            {!loading && reports.length > 0 && (
-              <>
-                <Eyebrow style={{ marginBottom: 10 }}>Tous les signalements ({reports.length})</Eyebrow>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {reports.map((r) => {
-                    const st = STATUS_STYLE[r.status] || STATUS_STYLE.pending;
-                    return (
-                      <Card key={r.id} style={{ padding: 14 }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                          <div style={{ width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-                            background: r.report_type === 'chauffeur' ? HS.warnSoft : HS.mistyRose,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Icon d={r.report_type === 'chauffeur' ? ICONS.car : ICONS.pin} size={20}
-                              color={r.report_type === 'chauffeur' ? HS.warn : HS.sakuraDeep} />
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: HS.chocolate }}>
-                                {r.place_name || r.vtc_app || (r.report_type === 'chauffeur' ? 'VTC' : 'Lieu signalé')}
-                              </span>
-                              <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
-                                background: st.bg, color: st.color }}>{st.label}</span>
-                            </div>
-                            {r.place_address && (
-                              <div style={{ fontSize: 11, color: HS.textMute, marginTop: 2 }}>📍 {r.place_address}</div>
-                            )}
-                            <div style={{ fontSize: 12, color: HS.textDim, marginTop: 6, lineHeight: 1.5 }}>
-                              {r.description}
-                            </div>
-                            <div style={{ fontSize: 10, color: HS.textFaint, marginTop: 6 }}>
-                              {fmtDate(r.created_at)} ·{' '}
-                              {DANGER_TYPES.find((d) => d.v === r.danger_type)?.l || r.danger_type}
-                            </div>
-                          </div>
-                        </div>
-                      </Card>
-                    );
-                  })}
+            {/* Stats Section */}
+            {!loading && dangerZones.length > 0 && (
+              <div style={{ marginTop: 24, marginBottom: 20 }}>
+                <Eyebrow style={{ marginBottom: 12 }}>📊 Situation</Eyebrow>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <Card style={{ padding: 16, background: HS.safeSoft, textAlign: 'center' }}>
+                    <div style={{ fontSize: 32, fontWeight: 800, color: HS.safe }}>{stats.unsafe}</div>
+                    <div style={{ fontSize: 12, color: HS.textMute, marginTop: 4, fontWeight: 600 }}>🚨 Haute risque</div>
+                  </Card>
+                  <Card style={{ padding: 16, background: HS.warnSoft, textAlign: 'center' }}>
+                    <div style={{ fontSize: 32, fontWeight: 800, color: HS.warn }}>{stats.medium}</div>
+                    <div style={{ fontSize: 12, color: HS.textMute, marginTop: 4, fontWeight: 600 }}>⚠️ Modéré</div>
+                  </Card>
                 </div>
-              </>
+              </div>
             )}
             </>
           </ScrollArea>
@@ -661,37 +662,24 @@ export default function Reports() {
                   </div>
                 )}
 
-                {/* Type de signalement */}
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: HS.textDim, marginBottom: 8,
-                    letterSpacing: 0.6, textTransform: 'uppercase' }}>Type</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {[{ v: 'lieu', l: '📍 Lieu dangereux' }, { v: 'chauffeur', l: '🚕 Chauffeur/VTC' }].map((t) => (
-                      <button key={t.v} type="button" onClick={() => setForm((f) => ({ ...f, report_type: t.v }))}
-                        style={{ flex: 1, padding: '12px 8px', borderRadius: 14, fontSize: 13, fontWeight: 700,
-                          background: form.report_type === t.v ? HS.chocolate : HS.surface,
-                          color: form.report_type === t.v ? HS.textOnDark : HS.textDim,
-                          border: `1px solid ${form.report_type === t.v ? HS.chocolate : HS.border}`,
-                          fontFamily: HS.font }}>
-                        {t.l}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                {/* Localisation avec autocomplete Photon */}
+                <PlaceSearchInput
+                  label="📍 Nom du lieu"
+                  placeholder="Marché Adjamé, Gare Routière, Cocody…"
+                  value={form.place_name}
+                  onChange={setF('place_name')}
+                  onSelectLocation={(loc) => {
+                    setForm((f) => ({
+                      ...f,
+                      place_name: loc.name || '',
+                      place_address: loc.area || ''
+                    }));
+                  }}
+                  userPosition={position}
+                  icon={<Icon d={ICONS.pin} size={18} />}
+                />
 
-                {/* Champs selon le type */}
-                {form.report_type === 'lieu' ? (
-                  <>
-                    <Input label="Nom du lieu" placeholder="Ex: Marché Adjamé" value={form.place_name} onChange={setF('place_name')}
-                      icon={<Icon d={ICONS.pin} size={18} />} />
-                    <Input label="Adresse" placeholder="Quartier, commune…" value={form.place_address} onChange={setF('place_address')} />
-                  </>
-                ) : (
-                  <>
-                    <Input label="Plaque / immatriculation" placeholder="CI-0123-AB" value={form.vehicle_plate} onChange={setF('vehicle_plate')} />
-                    <Input label="Application VTC" placeholder="Yango, Heetch, Uber…" value={form.vtc_app} onChange={setF('vtc_app')} />
-                  </>
-                )}
+                <Input label="Commune / Quartier" placeholder="Ex: Adjamé, Cocody, Yopougon…" value={form.place_address} onChange={setF('place_address')} />
 
                 {/* Danger */}
                 <div>

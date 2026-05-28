@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, Marker, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import api from '../../services/api';
-import { HS } from '../../tokens';
+import { HS, ICONS } from '../../tokens';
+import { Icon } from '../ui/index.jsx';
+import { PlaceSearchInput } from '../PlaceSearchInput.jsx';
 import { useGPS } from '../../hooks/useGPS';
 
 // Custom user location marker icon
@@ -78,35 +80,6 @@ export function HomeMap() {
     }
   };
 
-  // Search for locations by name or area
-  const handleSearch = async (query) => {
-    setSearchQuery(query);
-
-    if (query.trim().length < 2) {
-      setSearchSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-
-    try {
-      const response = await api.get('/api/locations/search', {
-        params: {
-          query: query,
-          lat: position?.lat,
-          lng: position?.lng,
-          radius: 20000
-        }
-      });
-
-      const results = response.data.data?.locations || [];
-      setSearchSuggestions(results);
-      setShowSuggestions(true);
-    } catch (err) {
-      console.error('Search error:', err);
-      setSearchSuggestions([]);
-    }
-  };
-
   // Handle location selection from search
   const handleSelectLocation = (location) => {
     setSelectedLocation(location);
@@ -146,135 +119,16 @@ export function HomeMap() {
 
   return (
     <div>
-      {/* Search Box */}
-      <div style={{
-        position: 'relative',
-        marginBottom: 12,
-      }}>
-        <div style={{
-          display: 'flex',
-          gap: 8,
-          alignItems: 'center',
-        }}>
-          <input
-            type="text"
-            placeholder="🔍 Chercher un endroit (ex: Marché Adjamé)..."
-            value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
-            onFocus={() => searchQuery.trim().length >= 2 && setShowSuggestions(true)}
-            style={{
-              flex: 1,
-              padding: '10px 12px',
-              borderRadius: 8,
-              border: `1px solid ${HS.border}`,
-              background: 'rgba(255,255,255,0.05)',
-              color: HS.text,
-              fontSize: 14,
-              outline: 'none',
-              transition: 'all 0.2s',
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setShowSuggestions(false);
-              }
-            }}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSearchSuggestions([]);
-                setShowSuggestions(false);
-              }}
-              style={{
-                background: 'rgba(255,255,255,0.1)',
-                border: 'none',
-                color: HS.textMute,
-                padding: '8px 12px',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: 14,
-              }}
-            >
-              ✕
-            </button>
-          )}
-        </div>
-
-        {/* Search Suggestions */}
-        {showSuggestions && searchSuggestions.length > 0 && (
-          <div style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            right: 0,
-            background: 'rgba(13, 13, 13, 0.95)',
-            border: `1px solid ${HS.border}`,
-            borderRadius: 8,
-            marginTop: 4,
-            maxHeight: 300,
-            overflowY: 'auto',
-            zIndex: 100,
-          }}>
-            {searchSuggestions.map((loc, idx) => (
-              <div
-                key={idx}
-                onClick={() => handleSelectLocation(loc)}
-                style={{
-                  padding: '10px 12px',
-                  borderBottom: idx < searchSuggestions.length - 1 ? `1px solid ${HS.border}` : 'none',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                }}
-                onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.05)'}
-                onMouseLeave={(e) => e.target.style.background = 'transparent'}
-              >
-                <div style={{
-                  fontWeight: 600,
-                  color: loc.safety_info?.color || HS.text,
-                  fontSize: 13,
-                }}>
-                  {loc.name}
-                </div>
-                <div style={{
-                  fontSize: 11,
-                  color: HS.textMute,
-                  marginTop: 2,
-                }}>
-                  {loc.area} • {loc.safety_info?.label}
-                  {loc.distance !== undefined && ` • ${loc.distance.toFixed(1)} km`}
-                </div>
-                <div style={{
-                  fontSize: 10,
-                  color: HS.textDim,
-                  marginTop: 2,
-                }}>
-                  {loc.description}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {showSuggestions && searchQuery.trim().length >= 2 && searchSuggestions.length === 0 && (
-          <div style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            right: 0,
-            background: 'rgba(13, 13, 13, 0.95)',
-            border: `1px solid ${HS.border}`,
-            borderRadius: 8,
-            marginTop: 4,
-            padding: '12px',
-            textAlign: 'center',
-            color: HS.textMute,
-            fontSize: 13,
-            zIndex: 100,
-          }}>
-            Aucun lieu trouvé
-          </div>
-        )}
+      {/* Search Box with PlaceSearchInput */}
+      <div style={{ marginBottom: 12 }}>
+        <PlaceSearchInput
+          placeholder="Chercher un endroit (ex: Marché Adjamé)..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onSelectLocation={handleSelectLocation}
+          userPosition={position}
+          icon={<Icon d={ICONS.search} size={16} />}
+        />
       </div>
 
       {/* Status Bar */}
@@ -374,9 +228,9 @@ export function HomeMap() {
           center={mapCenter}
           zoom={13}
           style={{ width: '100%', height: '100%' }}
+          attributionControl={false}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 

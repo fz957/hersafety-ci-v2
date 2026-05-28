@@ -13,6 +13,15 @@ const defaultIcon = L.icon({
   shadowSize: [41, 41],
 });
 
+// Green flag for starting point
+const startIcon = L.divIcon({
+  html: `<div style="background-color: #1B5E20; width: 30px; height: 40px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid white; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 16px;">🚩</div>`,
+  iconSize: [30, 40],
+  iconAnchor: [15, 40],
+  popupAnchor: [0, -40],
+  className: 'custom-icon'
+});
+
 // Component to update map view when userPosition changes
 function MapUpdater({ userPosition }) {
   const map = useMap();
@@ -31,22 +40,17 @@ export function TrackingMap({ userPosition, track, checkins }) {
 
   const center = [pos.lat, pos.lng];
 
-  // Vérifie que le track a des coordonnées valides
-  const trackHasLocation = track && (track.location_lat || track.place_lat) && (track.location_lng || track.place_lng);
-  const trackLat = track?.location_lat || track?.place_lat;
-  const trackLng = track?.location_lng || track?.place_lng;
-
-  const trackPath = (trackHasLocation && trackLat && trackLng) ? [
-    [trackLat, trackLng],
-    [pos.lat, pos.lng],
-  ] : [];
+  // Construire la route à partir des waypoints du track
+  const waypoints = track?.waypoints && Array.isArray(track.waypoints) ? track.waypoints : [];
+  const trackPath = waypoints.length > 0
+    ? waypoints.map(wp => [wp.lat, wp.lng])
+    : [];
 
   return (
     <div style={{ height: '280px', borderRadius: 16, marginBottom: 16, overflow: 'hidden', position: 'relative' }}>
-      <MapContainer center={center} zoom={userPosition ? 15 : 13} style={{ height: '100%', width: '100%' }}>
+      <MapContainer center={center} zoom={userPosition ? 15 : 13} style={{ height: '100%', width: '100%' }} attributionControl={false}>
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; OpenStreetMap contributors'
         />
 
         {/* Update map view when position changes */}
@@ -61,39 +65,28 @@ export function TrackingMap({ userPosition, track, checkins }) {
           </Popup>
         </Marker>
 
-        {/* Point de départ du trajet */}
-        {trackHasLocation && trackLat && trackLng && (
-          <>
-            <Marker
-              position={[trackLat, trackLng]}
-              icon={L.icon({
-                iconUrl: markerIcon,
-                shadowUrl: markerShadow,
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34],
-                shadowSize: [41, 41],
-                className: 'start-marker',
-              })}
-            >
-              <Popup>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#333' }}>
-                  Point de départ
-                </div>
-              </Popup>
-            </Marker>
+        {/* Ligne du trajet (tous les waypoints) */}
+        {trackPath.length > 1 && (
+          <Polyline
+            positions={trackPath}
+            color="#C2185B"
+            weight={4}
+            opacity={0.8}
+          />
+        )}
 
-            {/* Ligne du trajet */}
-            {trackPath.length > 1 && (
-              <Polyline
-                positions={trackPath}
-                color="#EC9C9D"
-                weight={3}
-                opacity={0.7}
-                dashArray="5, 5"
-              />
-            )}
-          </>
+        {/* Point de départ du trajet - GREEN FLAG */}
+        {waypoints.length > 0 && (
+          <Marker
+            position={[waypoints[0].lat, waypoints[0].lng]}
+            icon={startIcon}
+          >
+            <Popup>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#333' }}>
+                Point de départ
+              </div>
+            </Popup>
+          </Marker>
         )}
       </MapContainer>
     </div>

@@ -55,10 +55,9 @@ export function PlacesMap({ places = [], userPosition }) {
 
   return (
     <div style={{ height: '280px', borderRadius: 16, marginBottom: 16, overflow: 'hidden', position: 'relative' }}>
-      <MapContainer center={center} zoom={zoom} style={{ height: '100%', width: '100%' }}>
+      <MapContainer center={center} zoom={zoom} style={{ height: '100%', width: '100%' }} attributionControl={false}>
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; OpenStreetMap contributors'
         />
 
         <Marker position={center} icon={defaultIcon}>

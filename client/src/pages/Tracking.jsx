@@ -62,10 +62,14 @@ export default function Tracking() {
 
     const updateLocation = async () => {
       try {
-        await api.patch(`/api/tracks/${track.id}`, {
+        const res = await api.patch(`/api/tracks/${track.id}`, {
           location_lat: position.lat,
           location_lng: position.lng,
         });
+        // Update track with new waypoints from server
+        if (res.data.success) {
+          setTrack(res.data.data);
+        }
       } catch (err) {
         // Silently fail - don't disrupt UX with error toast
         console.debug('Location update failed:', err.message);
@@ -78,7 +82,7 @@ export default function Tracking() {
     // Then every 10 seconds
     const interval = setInterval(updateLocation, 10000);
     return () => clearInterval(interval);
-  }, [track, position]);
+  }, [track?.id, position?.lat, position?.lng]);
 
   const fmt = (s) => {
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
@@ -102,11 +106,18 @@ export default function Tracking() {
   const checkin = async () => {
     if (!track) return;
     try {
-      const body = position ? { location_lat: position.lat, location_lng: position.lng } : {};
-      await api.patch(`/api/tracks/${track.id}/checkin`, body);
+      const body = {
+        response: 'ok',
+        ...(position && { location_lat: position.lat, location_lng: position.lng })
+      };
+      const res = await api.patch(`/api/tracks/${track.id}/checkin`, body);
       setCheckins((n) => n + 1);
+      if (res.data.success) {
+        setTrack(prev => ({ ...prev, waypoints: res.data.data.waypoints || prev.waypoints }));
+      }
       setToast({ message: '✓ Check-in envoyé — tes proches savent que tu vas bien.', type: 'success' });
-    } catch {
+    } catch (err) {
+      console.error('Checkin error:', err.response?.data);
       setToast({ message: 'Erreur check-in', type: 'error' });
     }
   };

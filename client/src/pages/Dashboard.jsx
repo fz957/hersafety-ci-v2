@@ -148,6 +148,12 @@ export default function Dashboard() {
             <span style={{ position: 'absolute', top: 8, right: 9, width: 8, height: 8,
               background: HS.sakuraDeep, borderRadius: 4, border: `2px solid ${HS.bg}` }} />
           </button>
+          <button onClick={() => navigate('/history')}
+            style={{ background: HS.surface, border: `1px solid ${HS.border}`, width: 40, height: 40,
+              borderRadius: 12, color: HS.chocolate, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            title="Historique des urgences">
+            <Icon d={ICONS.clock} size={18} />
+          </button>
           <button onClick={() => navigate('/onboarding')}>
             <Avatar size={40} name={firstName} />
           </button>
