@@ -64,6 +64,7 @@ router.post('/', requireAuth, requireTenant, async (req, res) => {
     }
 
     // Insérer dans la BDD
+    // Note: JSON columns in PostgreSQL should store JSON, not stringified strings
     const insertResult = await knex('emergency_history').insert({
       user_id: userId,
       organization_id: orgId,
@@ -72,8 +73,8 @@ router.post('/', requireAuth, requireTenant, async (req, res) => {
       latitude,
       longitude,
       location_name,
-      contacts_alerted: Array.isArray(contacts_alerted) ? JSON.stringify(contacts_alerted) : null,
-      sms_sent: Array.isArray(sms_sent) ? JSON.stringify(sms_sent) : null,
+      contacts_alerted: Array.isArray(contacts_alerted) ? contacts_alerted : [],
+      sms_sent: Array.isArray(sms_sent) ? sms_sent : [],
       notes,
       status,
       audio_file_path: audioFilePath ? `/uploads/emergency-audio/${path.basename(audioFilePath)}` : null,
@@ -117,23 +118,12 @@ router.get('/', requireAuth, requireTenant, async (req, res) => {
       .orderBy('created_at', 'desc')
       .limit(100);
 
-    // Parser les JSON
-    const parsed = emergencies.map(e => {
-      try {
-        return {
-          ...e,
-          contacts_alerted: e.contacts_alerted ? JSON.parse(e.contacts_alerted) : [],
-          sms_sent: e.sms_sent ? JSON.parse(e.sms_sent) : [],
-        };
-      } catch (parseErr) {
-        console.error('[EmergencyHistory] Erreur parsing JSON pour emergency', e.id, parseErr);
-        return {
-          ...e,
-          contacts_alerted: [],
-          sms_sent: [],
-        };
-      }
-    });
+    // JSON columns are already parsed by Knex, no need to parse
+    const parsed = emergencies.map(e => ({
+      ...e,
+      contacts_alerted: Array.isArray(e.contacts_alerted) ? e.contacts_alerted : [],
+      sms_sent: Array.isArray(e.sms_sent) ? e.sms_sent : [],
+    }));
 
     return res.json({
       success: true,
@@ -165,15 +155,9 @@ router.get('/:id', requireAuth, requireTenant, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Enregistrement non trouvé' });
     }
 
-    // Parser les JSON
-    try {
-      emergency.contacts_alerted = emergency.contacts_alerted ? JSON.parse(emergency.contacts_alerted) : [];
-      emergency.sms_sent = emergency.sms_sent ? JSON.parse(emergency.sms_sent) : [];
-    } catch (parseErr) {
-      console.error('[EmergencyHistory] Erreur parsing JSON pour emergency', emergency.id, parseErr);
-      emergency.contacts_alerted = [];
-      emergency.sms_sent = [];
-    }
+    // JSON columns are already parsed by Knex
+    emergency.contacts_alerted = Array.isArray(emergency.contacts_alerted) ? emergency.contacts_alerted : [];
+    emergency.sms_sent = Array.isArray(emergency.sms_sent) ? emergency.sms_sent : [];
 
     return res.json({ success: true, data: emergency });
   } catch (err) {
