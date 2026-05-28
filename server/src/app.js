@@ -2,6 +2,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const path = require('path');
 
 const authRoutes         = require('./routes/auth');
 const usersRoutes        = require('./routes/users');
@@ -39,6 +40,12 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 app.use(cookieParser());
+
+// Servir les fichiers statiques (uploads - audio, etc.)
+app.use('/uploads', express.static(path.join(__dirname, '../../uploads'), {
+  // Cache les fichiers audio pendant 7 jours
+  maxAge: 7 * 24 * 60 * 60 * 1000
+}));
 
 // Rate limiting global sur /api
 app.use('/api', apiLimiter);
