@@ -25,8 +25,23 @@ const { apiLimiter } = require('./middlewares/rateLimit');
 
 const app = express();
 
+// Servir les fichiers statiques AVANT Helmet (pour éviter les bloques CORS)
+app.use('/uploads', express.static(path.join(__dirname, '../../uploads'), {
+  // Cache les fichiers audio pendant 7 jours
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  // Permettre le CORS pour les fichiers statiques
+  setHeaders: (res) => {
+    res.set('Access-Control-Allow-Origin', process.env.FRONTEND_URL || 'http://localhost:5173');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+  }
+}));
+
 // Sécurité HTTP headers
-app.use(helmet());
+app.use(helmet({
+  // Permettre les fichiers statiques
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 
 // CORS — uniquement le frontend autorisé, avec cookies
 app.use(cors({
@@ -40,12 +55,6 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 app.use(cookieParser());
-
-// Servir les fichiers statiques (uploads - audio, etc.)
-app.use('/uploads', express.static(path.join(__dirname, '../../uploads'), {
-  // Cache les fichiers audio pendant 7 jours
-  maxAge: 7 * 24 * 60 * 60 * 1000
-}));
 
 // Rate limiting global sur /api
 app.use('/api', apiLimiter);
