@@ -43,10 +43,16 @@ export function useAudioRecorder() {
       mediaRecorder.start();
       setIsRecording(true);
 
-      console.log('[AudioRecorder] Enregistrement démarré');
+      console.log('[AudioRecorder] ✓ Enregistrement démarré');
     } catch (err) {
-      console.error('[AudioRecorder] Erreur:', err);
-      setError('Impossible d\'accéder au microphone');
+      const errorMsg = err.name === 'NotAllowedError'
+        ? 'Microphone: Permission refusée. Accepte l\'accès au microphone pour enregistrer l\'audio.'
+        : err.name === 'NotFoundError'
+        ? 'Microphone: Aucun périphérique trouvé'
+        : 'Impossible d\'accéder au microphone';
+
+      console.error('[AudioRecorder] ✗ Erreur:', err.name, '-', err.message);
+      setError(errorMsg);
       setIsRecording(false);
     }
   };
