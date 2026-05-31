@@ -172,6 +172,7 @@ router.patch('/:id/checkin', async (req, res) => {
       .insert({
         track_id:        track.id,
         user_id:         userId,
+        organization_id: track.organization_id,
         response:        value.response,
         responded_at:    new Date(),
         location_lat:    value.location_lat,
