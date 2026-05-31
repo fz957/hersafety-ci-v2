@@ -282,7 +282,32 @@ router.get('/notifications', async (req, res) => {
       ...photoComments,
       ...videoComments,
       ...contentCommentLikes,
-    ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    ]
+      .map(notif => {
+        // Format the display message based on type
+        let displayMessage = '';
+        switch (notif.type) {
+          case 'testimony_like':
+            displayMessage = `${notif.actor_name} a aimé votre témoignage`;
+            break;
+          case 'testimony_comment':
+            displayMessage = `${notif.actor_name} a commenté votre témoignage`;
+            break;
+          case 'comment_like':
+            displayMessage = `${notif.actor_name} a aimé votre commentaire`;
+            break;
+          case 'content_comment':
+            displayMessage = `${notif.actor_name} a commenté votre ${notif.title ? 'publication' : 'contenu'}`;
+            break;
+          case 'content_comment_like':
+            displayMessage = `${notif.actor_name} a aimé votre commentaire`;
+            break;
+          default:
+            displayMessage = `${notif.actor_name} a interagi avec votre contenu`;
+        }
+        return { ...notif, display_message: displayMessage };
+      })
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     return res.json({ success: true, data: allNotifications });
   } catch (err) {
