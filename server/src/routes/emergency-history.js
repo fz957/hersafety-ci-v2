@@ -41,7 +41,6 @@ router.post('/', requireAuth, async (req, res) => {
   try {
     const { level, trigger_type, latitude, longitude, location_name, final_latitude, final_longitude, final_location_name, contacts_alerted, sms_sent, lyra_messages, notes, status, audio_base64 } = value;
     const userId = req.user.userId;
-    const orgId = req.organization.id;
 
     // Sauvegarder le fichier audio s'il existe
     let audioFilePath = null;
@@ -128,15 +127,13 @@ router.post('/', requireAuth, async (req, res) => {
 router.get('/', requireAuth, async (req, res) => {
   try {
     const userId = req.user?.userId;
-    const orgId = req.organization?.id;
 
-    if (!userId || !orgId) {
-      return res.status(400).json({ success: false, error: 'userId ou orgId manquant' });
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId manquant' });
     }
 
     const emergencies = await knex('emergency_history')
       .where('user_id', userId)
-      .where('organization_id', orgId)
       .orderBy('created_at', 'desc')
       .limit(100);
 
@@ -165,12 +162,10 @@ router.get('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.userId;
-    const orgId = req.organization.id;
 
     const emergency = await knex('emergency_history')
       .where('id', id)
       .where('user_id', userId)
-      .where('organization_id', orgId)
       .first();
 
     if (!emergency) {
@@ -204,13 +199,11 @@ router.patch('/:id', requireAuth, async (req, res) => {
     const { id } = req.params;
     const { status, notes } = value;
     const userId = req.user.userId;
-    const orgId = req.organization.id;
 
     // Vérifier l'accès
     const emergency = await knex('emergency_history')
       .where('id', id)
       .where('user_id', userId)
-      .where('organization_id', orgId)
       .first();
 
     if (!emergency) {
@@ -239,13 +232,11 @@ router.delete('/:id/audio', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.userId;
-    const orgId = req.organization.id;
 
     // Vérifier l'accès et récupérer le chemin du fichier
     const emergency = await knex('emergency_history')
       .where('id', id)
       .where('user_id', userId)
-      .where('organization_id', orgId)
       .first();
 
     if (!emergency) {

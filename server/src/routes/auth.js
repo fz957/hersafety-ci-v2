@@ -28,7 +28,7 @@ const loginSchema = Joi.object({
 
 function generateAccessToken(user) {
   return jwt.sign(
-    { userId: user.id, role: user.role },
+    { userId: user.id, organizationId: user.organization_id, role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
   );
@@ -95,8 +95,18 @@ router.post('/register', async (req, res) => {
 
     const password_hash = await bcrypt.hash(password, 12);
 
+    // Créer une organisation par défaut pour l'utilisateur
+    const [org] = await knex('organizations')
+      .insert({
+        name: `${full_name}'s Organization`,
+        type: 'personal',
+        is_active: true,
+        is_approved: true,
+      })
+      .returning('id');
+
     const [user] = await knex('users')
-      .insert({ email, password_hash, full_name, phone })
+      .insert({ email, password_hash, full_name, phone, organization_id: org.id })
       .returning(['id', 'organization_id', 'email', 'full_name', 'role', 'onboarding_done']);
 
     const accessToken  = generateAccessToken(user);
