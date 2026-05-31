@@ -9,7 +9,7 @@ const router = express.Router();
 
 // Logger helper - only logs in development mode
 const isDev = process.env.NODE_ENV === 'development';
-const log = (...args) => isDev && log(...args);
+const log = (...args) => isDev && console.log('[SMS]', ...args);
 
 const alertSchema = Joi.object({
   level:          Joi.string().valid('1', '2', '3', '4').required(),
