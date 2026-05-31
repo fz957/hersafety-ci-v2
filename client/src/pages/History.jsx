@@ -70,6 +70,12 @@ export default function History() {
 
     try {
       setDeleting(id);
+
+      // Arrêter la lecture si c'est cet enregistrement qui joue
+      if (audioPlaying === id) {
+        setAudioPlaying(null);
+      }
+
       await api.delete(`/api/emergency-history/${id}/audio`);
       // Mettre à jour l'état local
       setEmergencies(emergencies.map(e =>
