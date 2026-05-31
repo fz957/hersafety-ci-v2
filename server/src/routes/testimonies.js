@@ -206,21 +206,43 @@ router.get('/notifications', async (req, res) => {
       )
       .orderBy('reactions.created_at', 'desc');
 
-    // 7. Comments on user's articles, photos, videos
-    const contentComments = await knex('content_comments')
+    // 7. Comments on user's articles
+    const articleComments = await knex('content_comments')
+      .join('articles', 'content_comments.content_id', '=', 'articles.id')
       .join('users', 'content_comments.user_id', '=', 'users.id')
-      .whereRaw(`
-        (
-          (content_comments.content_type = 'article' AND content_comments.content_id IN
-            (SELECT id FROM articles WHERE user_id = ?))
-          OR
-          (content_comments.content_type = 'photo' AND content_comments.content_id IN
-            (SELECT id FROM photos WHERE user_id = ?))
-          OR
-          (content_comments.content_type = 'video' AND content_comments.content_id IN
-            (SELECT id FROM videos WHERE user_id = ?))
-        )
-      `, [userId, userId, userId])
+      .where({ 'content_comments.content_type': 'article', 'articles.user_id': userId })
+      .select(
+        'content_comments.id as notification_id',
+        'content_comments.content_id as testimony_id',
+        'content_comments.comment_text as title',
+        'users.id as actor_id',
+        'users.full_name as actor_name',
+        'content_comments.created_at',
+        knex.raw(`'content_comment' as type`)
+      )
+      .orderBy('content_comments.created_at', 'desc');
+
+    // Comments on user's photos
+    const photoComments = await knex('content_comments')
+      .join('photos', 'content_comments.content_id', '=', 'photos.id')
+      .join('users', 'content_comments.user_id', '=', 'users.id')
+      .where({ 'content_comments.content_type': 'photo', 'photos.user_id': userId })
+      .select(
+        'content_comments.id as notification_id',
+        'content_comments.content_id as testimony_id',
+        'content_comments.comment_text as title',
+        'users.id as actor_id',
+        'users.full_name as actor_name',
+        'content_comments.created_at',
+        knex.raw(`'content_comment' as type`)
+      )
+      .orderBy('content_comments.created_at', 'desc');
+
+    // Comments on user's videos
+    const videoComments = await knex('content_comments')
+      .join('videos', 'content_comments.content_id', '=', 'videos.id')
+      .join('users', 'content_comments.user_id', '=', 'users.id')
+      .where({ 'content_comments.content_type': 'video', 'videos.user_id': userId })
       .select(
         'content_comments.id as notification_id',
         'content_comments.content_id as testimony_id',
@@ -256,7 +278,9 @@ router.get('/notifications', async (req, res) => {
       ...articleLikes,
       ...photoLikes,
       ...videoLikes,
-      ...contentComments,
+      ...articleComments,
+      ...photoComments,
+      ...videoComments,
       ...contentCommentLikes,
     ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
