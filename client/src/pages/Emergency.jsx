@@ -24,31 +24,44 @@ function RoutingControl({ start, end }) {
     if (!map || !start || !end) return;
 
     // Remove old routing if it exists
-    if (routingRef.current) {
-      map.removeControl(routingRef.current);
+    if (routingRef.current && map) {
+      try {
+        map.removeControl(routingRef.current);
+      } catch (err) {
+        console.warn('[Routing] Error removing control:', err.message);
+      }
+      routingRef.current = null;
     }
 
     // Create new routing control - SANS panneau UI (juste la route sur la map)
-    routingRef.current = L.Routing.control({
-      waypoints: [
-        L.latLng(start.lat, start.lng),
-        L.latLng(end.lat, end.lng)
-      ],
-      routeWhileDragging: false,
-      showAlternatives: false,
-      show: false,  // Cache le panneau d'informations (l'X qui gène)
-      addWaypoints: false,
-      lineOptions: {
-        styles: [{ color: HS.sakura, weight: 4, opacity: 0.8 }]
-      },
-      altLineOptions: {
-        styles: [{ color: HS.sakura, weight: 3, opacity: 0.3 }]
-      }
-    }).addTo(map);
+    try {
+      routingRef.current = L.Routing.control({
+        waypoints: [
+          L.latLng(start.lat, start.lng),
+          L.latLng(end.lat, end.lng)
+        ],
+        routeWhileDragging: false,
+        showAlternatives: false,
+        show: false,  // Cache le panneau d'informations (l'X qui gène)
+        addWaypoints: false,
+        lineOptions: {
+          styles: [{ color: HS.sakura, weight: 4, opacity: 0.8 }]
+        },
+        altLineOptions: {
+          styles: [{ color: HS.sakura, weight: 3, opacity: 0.3 }]
+        }
+      }).addTo(map);
+    } catch (err) {
+      console.warn('[Routing] Error creating routing:', err.message);
+    }
 
     return () => {
-      if (routingRef.current) {
-        map.removeControl(routingRef.current);
+      if (routingRef.current && map) {
+        try {
+          map.removeControl(routingRef.current);
+        } catch (err) {
+          console.warn('[Routing] Error in cleanup:', err.message);
+        }
       }
     };
   }, [map, start, end]);
