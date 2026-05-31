@@ -95,18 +95,8 @@ router.post('/register', async (req, res) => {
 
     const password_hash = await bcrypt.hash(password, 12);
 
-    // Créer une organisation par défaut pour l'utilisateur
-    const [org] = await knex('organizations')
-      .insert({
-        name: `${full_name}'s Organization`,
-        type: 'personal',
-        is_active: true,
-        is_approved: true,
-      })
-      .returning('id');
-
     const [user] = await knex('users')
-      .insert({ email, password_hash, full_name, phone, organization_id: org.id })
+      .insert({ email, password_hash, full_name, phone })
       .returning(['id', 'organization_id', 'email', 'full_name', 'role', 'onboarding_done']);
 
     const accessToken  = generateAccessToken(user);
