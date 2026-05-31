@@ -168,11 +168,14 @@ router.patch('/:id/checkin', async (req, res) => {
     }
     console.log('[CHECKIN] ✓ Track found:', track.id);
 
+    // Get user's organization_id for checkin
+    const user = await knex('users').where({ id: userId }).first();
+
     const [checkin] = await knex('checkins')
       .insert({
         track_id:        track.id,
         user_id:         userId,
-        organization_id: track.organization_id,
+        organization_id: user.organization_id,
         response:        value.response,
         responded_at:    new Date(),
         location_lat:    value.location_lat,
