@@ -9,7 +9,7 @@ const router = express.Router();
 
 // Logger helper - only logs in development mode
 const isDev = process.env.NODE_ENV === 'development';
-const log = (...args) => isDev && log(...args);
+const log = (...args) => isDev && console.log('[EmergencyHistory]', ...args);
 
 // Dossier pour stocker les enregistrements audio
 const AUDIO_DIR = path.join(__dirname, '../../uploads/emergency-audio');
@@ -83,7 +83,6 @@ router.post('/', requireAuth, async (req, res) => {
     // Note: JSON columns in PostgreSQL should store JSON, not stringified strings
     const insertResult = await knex('emergency_history').insert({
       user_id: userId,
-      organization_id: orgId,
       level,
       trigger_type,
       latitude,
