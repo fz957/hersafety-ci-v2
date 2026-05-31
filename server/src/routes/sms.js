@@ -57,7 +57,7 @@ router.post('/alert', requireAuth, async (req, res) => {
     const logs = await sendAlertSMS({
       alertId:       value.alert_id || null,
       userId,
-      organizationId,
+      organizationId: req.user.organizationId,
       level:         value.level,
       contacts,
       locationLabel: value.location_label,
