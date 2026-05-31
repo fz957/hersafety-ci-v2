@@ -321,7 +321,7 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
                       <div style={{ color: HS.textDim, fontSize: 13, lineHeight: 1.5, marginBottom: 8 }}>{c.content}</div>
                       <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
                         <button onClick={() => handleCommentLike(c.id)} style={{ background: 'none', border: 'none', color: commentLikes[c.id] ? HS.danger : HS.textMute, fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0, cursor: 'pointer' }}>
-                          {commentLikes[c.id] ? '❤️' : '🤍'} {c.likes_count || 0}
+                          {commentLikes[c.id] ? '❤️' : '🤍'} {c.like_count || 0}
                         </button>
                         <button onClick={() => setReplyingTo(c.id)} style={{ background: 'none', border: 'none', color: HS.textMute, fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0, cursor: 'pointer' }}>
                           💬 Répondre
