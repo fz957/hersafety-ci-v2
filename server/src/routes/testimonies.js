@@ -206,6 +206,48 @@ router.get('/notifications', async (req, res) => {
       )
       .orderBy('reactions.created_at', 'desc');
 
+    // 7. Comments on user's articles, photos, videos
+    const contentComments = await knex('content_comments')
+      .join('users', 'content_comments.user_id', '=', 'users.id')
+      .whereRaw(`
+        (
+          (content_comments.content_type = 'article' AND content_comments.content_id IN
+            (SELECT id FROM articles WHERE user_id = ?))
+          OR
+          (content_comments.content_type = 'photo' AND content_comments.content_id IN
+            (SELECT id FROM photos WHERE user_id = ?))
+          OR
+          (content_comments.content_type = 'video' AND content_comments.content_id IN
+            (SELECT id FROM videos WHERE user_id = ?))
+        )
+      `, [userId, userId, userId])
+      .select(
+        'content_comments.id as notification_id',
+        'content_comments.content_id as testimony_id',
+        'content_comments.comment_text as title',
+        'users.id as actor_id',
+        'users.full_name as actor_name',
+        'content_comments.created_at',
+        knex.raw(`'content_comment' as type`)
+      )
+      .orderBy('content_comments.created_at', 'desc');
+
+    // 8. Likes on user's comments (on articles, photos, videos)
+    const contentCommentLikes = await knex('content_comment_likes')
+      .join('content_comments', 'content_comment_likes.comment_id', '=', 'content_comments.id')
+      .join('users', 'content_comment_likes.user_id', '=', 'users.id')
+      .where('content_comments.user_id', userId)
+      .select(
+        'content_comment_likes.id as notification_id',
+        'content_comments.content_id as testimony_id',
+        'content_comments.comment_text as title',
+        'users.id as actor_id',
+        'users.full_name as actor_name',
+        'content_comment_likes.created_at',
+        knex.raw(`'content_comment_like' as type`)
+      )
+      .orderBy('content_comment_likes.created_at', 'desc');
+
     // Merge all notifications and sort by date
     const allNotifications = [
       ...testimonyLikes,
@@ -214,6 +256,8 @@ router.get('/notifications', async (req, res) => {
       ...articleLikes,
       ...photoLikes,
       ...videoLikes,
+      ...contentComments,
+      ...contentCommentLikes,
     ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     return res.json({ success: true, data: allNotifications });
