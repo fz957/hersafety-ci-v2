@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { HS, ICONS } from '../../tokens';
+import { useTheme } from '../../context/ThemeContext';
 
 // ─── Icon ────────────────────────────────────────────────────────────────────
 export function Icon({ d, size = 20, color = 'currentColor', style }) {
@@ -250,6 +251,7 @@ export function Spinner({ size = 24, color = HS.sakura }) {
 export function SideNav({ user, onLogout }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const { theme } = useTheme();
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
   const isSuper = user?.role === 'superadmin';
 
@@ -282,8 +284,8 @@ export function SideNav({ user, onLogout }) {
   return (
     <aside style={{
       width: 260, minHeight: '100vh', flexShrink: 0,
-      background: HS.surface,
-      borderRight: `1px solid ${HS.border}`,
+      background: theme.surface,
+      borderRight: `1px solid ${theme.border}`,
       display: 'flex', flexDirection: 'column',
       position: 'sticky', top: 0, alignSelf: 'flex-start', height: '100vh',
       overflowY: 'auto',
@@ -300,10 +302,10 @@ export function SideNav({ user, onLogout }) {
             onClick={() => navigate('/emergency')}
             style={{
               width: '100%', padding: '14px', borderRadius: 16,
-              background: `linear-gradient(135deg, ${HS.sakura}, ${HS.sakuraDeep})`,
+              background: `linear-gradient(135deg, ${theme.sakura}, ${theme.sakuraDeep})`,
               border: 'none', color: '#fff', fontWeight: 800, fontSize: 15,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              fontFamily: HS.font, cursor: 'pointer',
+              fontFamily: theme.font, cursor: 'pointer',
               boxShadow: `0 4px 16px rgba(214,126,128,0.4)`,
             }}>
             <Icon d={ICONS.alert} size={18} color="#fff" />
@@ -323,18 +325,18 @@ export function SideNav({ user, onLogout }) {
               style={{
                 width: '100%', textAlign: 'left', padding: '12px 24px',
                 display: 'flex', alignItems: 'center', gap: 12,
-                background: on ? HS.mistyRose : 'transparent',
+                background: on ? theme.mistyRose : 'transparent',
                 border: 'none', borderRadius: on ? '0 12px 12px 0' : 0,
-                color: on ? HS.chocolate : HS.textDim, fontWeight: on ? 700 : 500,
-                fontSize: 14, fontFamily: HS.font, cursor: 'pointer',
+                color: on ? theme.chocolate : theme.textDim, fontWeight: on ? 700 : 500,
+                fontSize: 14, fontFamily: theme.font, cursor: 'pointer',
                 marginRight: 16,
                 transition: 'background .15s',
               }}>
-              <Icon d={it.icon} size={20} color={on ? HS.sakuraDeep : HS.textMute} />
+              <Icon d={it.icon} size={20} color={on ? theme.sakuraDeep : theme.textMute} />
               {it.label}
               {on && (
                 <div style={{ marginLeft: 'auto', width: 4, height: 4,
-                  borderRadius: 2, background: HS.sakuraDeep }} />
+                  borderRadius: 2, background: theme.sakuraDeep }} />
               )}
             </button>
           );
@@ -342,22 +344,28 @@ export function SideNav({ user, onLogout }) {
       </nav>
 
       {/* Profil + déconnexion */}
-      <div style={{ padding: '16px 24px', borderTop: `1px solid ${HS.border}` }}>
+      <div style={{ padding: '16px 24px', borderTop: `1px solid ${theme.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <Avatar size={36} name={user?.full_name} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: HS.chocolate,
+            <div style={{ fontSize: 13, fontWeight: 700, color: theme.text,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {user?.full_name || user?.email}
             </div>
-            <div style={{ fontSize: 11, color: HS.textMute }}>{user?.organization_name}</div>
           </div>
         </div>
         <button
+          onClick={() => navigate('/settings')}
+          style={{ width: '100%', padding: '8px', borderRadius: 10, border: 'none',
+            background: theme.mistyRose, color: theme.chocolate, fontSize: 12, fontWeight: 700,
+            fontFamily: theme.font, cursor: 'pointer', marginBottom: 8 }}>
+          ⚙️ Réglages
+        </button>
+        <button
           onClick={onLogout}
           style={{ width: '100%', padding: '8px', borderRadius: 10, border: 'none',
-            background: HS.dangerSoft, color: HS.danger, fontSize: 12, fontWeight: 700,
-            fontFamily: HS.font, cursor: 'pointer' }}>
+            background: theme.dangerSoft, color: theme.danger, fontSize: 12, fontWeight: 700,
+            fontFamily: theme.font, cursor: 'pointer' }}>
           Se déconnecter
         </button>
       </div>
@@ -449,6 +457,7 @@ export function BottomNav({ user } = {}) {
 // Contenu d'une page. Flex colonne, min-height viewport.
 // Pas de max-width ici — c'est AppLayout qui gère la largeur globale.
 export function PageShell({ children, style }) {
+  const { theme } = useTheme();
   return (
     <div style={{
       position: 'relative',
@@ -456,9 +465,9 @@ export function PageShell({ children, style }) {
       display: 'flex',
       flexDirection: 'column',
       overflowX: 'hidden',
-      background: HS.bg,
-      color: HS.text,
-      fontFamily: HS.font,
+      background: theme.bg,
+      color: theme.text,
+      fontFamily: theme.font,
       ...style,
     }}>
       {children}

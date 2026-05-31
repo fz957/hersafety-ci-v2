@@ -3,6 +3,10 @@ const Joi     = require('joi');
 
 const { requireAuth } = require('../middlewares/auth');
 
+// Logger helper - only logs in development mode
+const isDev = process.env.NODE_ENV === 'development';
+const log = (...args) => isDev && log(...args);
+
 const router = express.Router();
 // No auth needed for emergency places
 
@@ -114,7 +118,7 @@ async function fetchFoursquare(lat, lng, radius) {
   const allPlaces = [];
 
   try {
-    console.log(`[Foursquare] Searching safe places around ${lat.toFixed(4)}, ${lng.toFixed(4)} (radius: ${radius}m)`);
+    log(`[Foursquare] Searching safe places around ${lat.toFixed(4)}, ${lng.toFixed(4)} (radius: ${radius}m)`);
 
     for (const query of queries) {
       try {
@@ -131,17 +135,17 @@ async function fetchFoursquare(lat, lng, radius) {
         });
 
         if (!response.ok) {
-          console.log(`[Foursquare] ${query.q}: HTTP ${response.status}`);
+          log(`[Foursquare] ${query.q}: HTTP ${response.status}`);
           continue;
         }
 
         const data = await response.json();
         if (!data.results || data.results.length === 0) {
-          console.log(`[Foursquare] ${query.q}: no results`);
+          log(`[Foursquare] ${query.q}: no results`);
           continue;
         }
 
-        console.log(`[Foursquare] ${query.q}: found ${data.results.length} results`);
+        log(`[Foursquare] ${query.q}: found ${data.results.length} results`);
 
         // Convert Foursquare format to our format
         const places = data.results
@@ -159,7 +163,7 @@ async function fetchFoursquare(lat, lng, radius) {
 
         if (places.length > 0) {
           allPlaces.push(...places);
-          console.log(`[Foursquare] Added ${places.length} places from ${query.q}`);
+          log(`[Foursquare] Added ${places.length} places from ${query.q}`);
         }
       } catch (err) {
         console.error(`[Foursquare] Error: ${query.q} -`, err.message);
@@ -167,7 +171,7 @@ async function fetchFoursquare(lat, lng, radius) {
     }
 
     if (allPlaces.length === 0) {
-      console.log('[Foursquare] No places found');
+      log('[Foursquare] No places found');
       return null;
     }
 
@@ -188,9 +192,9 @@ async function fetchFoursquare(lat, lng, radius) {
     // Sort by closest distance
     const sorted = withDistance.sort((a, b) => a.distance - b.distance);
 
-    console.log(`[Foursquare] Found ${unique.length} places, ${withDistance.length} within radius`);
+    log(`[Foursquare] Found ${unique.length} places, ${withDistance.length} within radius`);
     if (sorted.length > 0) {
-      console.log('[Foursquare] Top 5:', sorted.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(3)}km)`));
+      log('[Foursquare] Top 5:', sorted.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(3)}km)`));
     }
 
     // Remove distance field before returning
@@ -219,7 +223,7 @@ async function fetchOverpass(lat, lng, radius) {
 out center;`;
 
   try {
-    console.log(`[Overpass] Searching all amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)} (radius: ${radius}m)`);
+    log(`[Overpass] Searching all amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)} (radius: ${radius}m)`);
 
     const response = await fetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
@@ -229,7 +233,7 @@ out center;`;
     });
 
     if (!response.ok) {
-      console.log(`[Overpass] HTTP ${response.status}`);
+      log(`[Overpass] HTTP ${response.status}`);
       return null;
     }
 
@@ -237,11 +241,11 @@ out center;`;
     const json = JSON.parse(text);
 
     if (!json.elements || json.elements.length === 0) {
-      console.log('[Overpass] No amenities found');
+      log('[Overpass] No amenities found');
       return null;
     }
 
-    console.log(`[Overpass] Found ${json.elements.length} total amenities, filtering by distance...`);
+    log(`[Overpass] Found ${json.elements.length} total amenities, filtering by distance...`);
 
     // Convert Overpass format and calculate distances
     const placesWithDistance = json.elements
@@ -277,9 +281,9 @@ out center;`;
       // Sort by distance - CLOSEST first
       .sort((a, b) => a.distance - b.distance);
 
-    console.log(`[Overpass] After distance filter: ${placesWithDistance.length} places within ${radius}m`);
+    log(`[Overpass] After distance filter: ${placesWithDistance.length} places within ${radius}m`);
     if (placesWithDistance.length > 0) {
-      console.log('[Overpass] Top results:', placesWithDistance.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(3)}km, ${p.type})`));
+      log('[Overpass] Top results:', placesWithDistance.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(3)}km, ${p.type})`));
     }
 
     // Remove distance field before returning
@@ -311,7 +315,7 @@ async function fetchNominatim(lat, lng, radius) {
   const bbox = `${lng - 0.3},${lat - 0.3},${lng + 0.3},${lat + 0.3}`;
 
   try {
-    console.log(`[Nominatim] Searching French amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    log(`[Nominatim] Searching French amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
 
     // Search for each French term
     for (const query of queries) {
@@ -320,7 +324,7 @@ async function fetchNominatim(lat, lng, radius) {
           `q=${encodeURIComponent(query)}&format=json&limit=100&` +
           `viewbox=${bbox}&bounded=1&countrycodes=ci&accept-language=fr`;
 
-        console.log(`[Nominatim] Searching: ${query}`);
+        log(`[Nominatim] Searching: ${query}`);
 
         const response = await fetch(url, {
           signal: AbortSignal.timeout(8000),
@@ -328,17 +332,17 @@ async function fetchNominatim(lat, lng, radius) {
         });
 
         if (!response.ok) {
-          console.log(`[Nominatim] ${query}: HTTP ${response.status}`);
+          log(`[Nominatim] ${query}: HTTP ${response.status}`);
           continue;
         }
 
         const results = await response.json();
         if (!results || results.length === 0) {
-          console.log(`[Nominatim] ${query}: no results`);
+          log(`[Nominatim] ${query}: no results`);
           continue;
         }
 
-        console.log(`[Nominatim] ${query}: found ${results.length} results`);
+        log(`[Nominatim] ${query}: found ${results.length} results`);
 
         // Convert all results to our format
         const places = results
@@ -365,7 +369,7 @@ async function fetchNominatim(lat, lng, radius) {
 
         if (places.length > 0) {
           allPlaces.push(...places);
-          console.log(`[Nominatim] Added ${places.length} places from "${query}"`);
+          log(`[Nominatim] Added ${places.length} places from "${query}"`);
         }
       } catch (err) {
         console.error(`[Nominatim] Error: ${query} -`, err.message);
@@ -373,7 +377,7 @@ async function fetchNominatim(lat, lng, radius) {
     }
 
     if (allPlaces.length === 0) {
-      console.log('[Nominatim] No places found');
+      log('[Nominatim] No places found');
       return null;
     }
 
@@ -396,11 +400,11 @@ async function fetchNominatim(lat, lng, radius) {
     // Sort by closest distance
     const sorted = withinRadius.sort((a, b) => a.distance - b.distance);
 
-    console.log(`[Nominatim] Total: ${allPlaces.length}, unique: ${unique.length}, within 5km: ${withinRadius.length}`);
+    log(`[Nominatim] Total: ${allPlaces.length}, unique: ${unique.length}, within 5km: ${withinRadius.length}`);
 
     // Return top 5 closest within 5km
     const top5 = sorted.slice(0, 5);
-    console.log('[Nominatim] Top 5 closest (within 5km):', top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km, ${p.type})`));
+    log('[Nominatim] Top 5 closest (within 5km):', top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km, ${p.type})`));
 
     // Remove distance field before returning
     const result = top5.map(({ distance, ...p }) => p);
@@ -422,7 +426,7 @@ function getCacheKey(lat, lng, radius) {
 function getCachedPlaces(key) {
   const cached = placesCache.get(key);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    console.log(`[Places] Cache hit for ${key}`);
+    log(`[Places] Cache hit for ${key}`);
     return cached.data;
   }
   return null;
@@ -470,7 +474,7 @@ router.get('/', async (req, res) => {
   const radiusMeters = parseInt(radius) || 5000;
   const radiusKm = radiusMeters / 1000;
 
-  console.log(`[Places] Looking for safe places around ${userLat.toFixed(4)}, ${userLng.toFixed(4)} (radius: ${radiusKm}km)`);
+  log(`[Places] Looking for safe places around ${userLat.toFixed(4)}, ${userLng.toFixed(4)} (radius: ${radiusKm}km)`);
 
   // Check cache first
   const cacheKey = getCacheKey(userLat, userLng, radiusMeters);
@@ -481,14 +485,14 @@ router.get('/', async (req, res) => {
 
   try {
     // Try Foursquare first (with timeout)
-    console.log(`[Places] Fetching from Foursquare...`);
+    log(`[Places] Fetching from Foursquare...`);
     const foursquareResults = await Promise.race([
       fetchFoursquare(userLat, userLng, radiusMeters),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
     ]);
 
     if (foursquareResults && foursquareResults.length > 0) {
-      console.log(`[Places] Got ${foursquareResults.length} results from Foursquare`);
+      log(`[Places] Got ${foursquareResults.length} results from Foursquare`);
       const withDistance = foursquareResults.map(p => ({
         ...p,
         distance: getDistance(userLat, userLng, p.lat, p.lng)
@@ -505,7 +509,7 @@ router.get('/', async (req, res) => {
         .slice(0, 5)
         .map(({ distance, ...p }) => p);
 
-      console.log(`[Places] Returning ${nearest.length} from Foursquare`);
+      log(`[Places] Returning ${nearest.length} from Foursquare`);
       setCachedPlaces(cacheKey, nearest);
       return res.json({ success: true, data: nearest });
     }
@@ -514,7 +518,7 @@ router.get('/', async (req, res) => {
     throw new Error('No Foursquare results');
 
   } catch (err) {
-    console.log(`[Places] Foursquare failed (${err.message}), using fallback list...`);
+    log(`[Places] Foursquare failed (${err.message}), using fallback list...`);
 
     // Fallback: use SAFE_PLACES + FALLBACK_PLACES
     const allPlaces = [...SAFE_PLACES, ...FALLBACK_PLACES];
@@ -534,7 +538,7 @@ router.get('/', async (req, res) => {
       .slice(0, 5)
       .map(({ distance, ...p }) => p);
 
-    console.log(`[Places] Returning ${nearest.length} from fallback list`);
+    log(`[Places] Returning ${nearest.length} from fallback list`);
     setCachedPlaces(cacheKey, nearest);
     return res.json({ success: true, data: nearest });
   }

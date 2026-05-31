@@ -22,15 +22,15 @@ router.get('/stats', async (req, res) => {
         .count('id as total').first(),
 
       knex('users')
-        .where({ organization_id: organizationId, is_active: true })
+        .where({ is_active: true })
         .count('id as total').first(),
 
       knex('reports')
-        .where({ organization_id: organizationId, status: 'pending' })
+        .where({ status: 'pending' })
         .count('id as total').first(),
 
       knex('testimonies')
-        .where({ organization_id: organizationId, status: 'pending' })
+        .where({ status: 'pending' })
         .count('id as total').first(),
     ]);
 
@@ -81,7 +81,7 @@ router.patch('/users/:id/status', async (req, res) => {
 
   try {
     const [user] = await knex('users')
-      .where({ id: req.params.id, organization_id: req.user.organizationId })
+      .where({ id: req.params.id})
       .update({ is_active: value.is_active, updated_at: new Date() })
       .returning(['id', 'email', 'full_name', 'role', 'is_active']);
 
@@ -100,7 +100,7 @@ router.patch('/users/:id/status', async (req, res) => {
 router.get('/testimonies/pending', async (req, res) => {
   try {
     const testimonies = await knex('testimonies')
-      .where({ organization_id: req.user.organizationId, status: 'pending' })
+      .where({ status: 'pending' })
       .select('id', 'user_id', 'is_anonymous', 'display_name', 'category', 'title', 'content', 'location_label', 'created_at')
       .orderBy('created_at', 'asc')
       .limit(50);
@@ -116,7 +116,7 @@ router.get('/testimonies/pending', async (req, res) => {
 router.get('/reports/pending', async (req, res) => {
   try {
     const reports = await knex('reports')
-      .where({ organization_id: req.user.organizationId, status: 'pending' })
+      .where({ status: 'pending' })
       .select(
         'id', 'user_id', 'is_anonymous', 'report_type', 'danger_type',
         'place_name', 'place_address', 'place_lat', 'place_lng',

@@ -1,0 +1,169 @@
+const express = require('express');
+const Joi     = require('joi');
+const { v4: uuidv4 } = require('uuid');
+
+const knex              = require('../db/knex');
+const { requireAuth }   = require('../middlewares/auth');
+
+const router = express.Router();
+router.use(requireAuth);
+
+const DANGER_TYPES = ['harcelement_verbal', 'agression_physique', 'agression_sexuelle', 'vol', 'suivi', 'detour_force', 'autre'];
+
+// ─── GET /api/articles ────────────────────────────────────────────────────────
+
+router.get('/articles', async (req, res) => {
+  try {
+    const articles = await knex('articles')
+      .where({ organization_id: req.user.status: 'pending' })
+      .select('*')
+      .orderBy('created_at', 'desc')
+      .limit(100);
+
+    return res.json({ success: true, data: articles });
+  } catch (err) {
+    console.error('Error fetching articles:', err);
+    return res.status(500).json({ success: false, error: 'Erreur récupération articles' });
+  }
+});
+
+// ─── GET /api/photos ──────────────────────────────────────────────────────────
+
+router.get('/photos', async (req, res) => {
+  try {
+    const photos = await knex('photos')
+      .where({ organization_id: req.user.status: 'pending' })
+      .select('*')
+      .orderBy('created_at', 'desc')
+      .limit(100);
+
+    return res.json({ success: true, data: photos });
+  } catch (err) {
+    console.error('Error fetching photos:', err);
+    return res.status(500).json({ success: false, error: 'Erreur récupération photos' });
+  }
+});
+
+// ─── GET /api/videos ──────────────────────────────────────────────────────────
+
+router.get('/videos', async (req, res) => {
+  try {
+    const videos = await knex('videos')
+      .where({ organization_id: req.user.status: 'pending' })
+      .select('*')
+      .orderBy('created_at', 'desc')
+      .limit(100);
+
+    return res.json({ success: true, data: videos });
+  } catch (err) {
+    console.error('Error fetching videos:', err);
+    return res.status(500).json({ success: false, error: 'Erreur récupération vidéos' });
+  }
+});
+
+// ─── POST /api/articles ────────────────────────────────────────────────────────
+
+router.post('/articles', async (req, res) => {
+  const { error, value } = Joi.object({
+    title: Joi.string().trim().max(255).required(),
+    content: Joi.string().trim().max(5000).required(),
+    category: Joi.string().valid(...DANGER_TYPES).required(),
+  }).validate(req.body);
+
+  if (error) {
+    return res.status(400).json({ success: false, error: error.details[0].message });
+  }
+
+  try {
+    const id = uuidv4();
+    const now = new Date();
+
+    const [article] = await knex('articles').insert({
+      id,
+      user_id: req.user.userId,
+      title: value.title,
+      content: value.content,
+      category: value.category,
+      status: 'pending',
+      created_at: now,
+      updated_at: now,
+    }).returning('*');
+
+    return res.json({ success: true, data: article });
+  } catch (err) {
+    console.error('Error creating article:', err);
+    return res.status(500).json({ success: false, error: 'Erreur création article' });
+  }
+});
+
+// ─── POST /api/photos ──────────────────────────────────────────────────────────
+
+router.post('/photos', async (req, res) => {
+  const { error, value } = Joi.object({
+    url: Joi.string().uri().required(),
+    description: Joi.string().trim().max(500).optional(),
+    category: Joi.string().valid(...DANGER_TYPES).required(),
+  }).validate(req.body);
+
+  if (error) {
+    return res.status(400).json({ success: false, error: error.details[0].message });
+  }
+
+  try {
+    const id = uuidv4();
+    const now = new Date();
+
+    const [photo] = await knex('photos').insert({
+      id,
+      user_id: req.user.userId,
+      url: value.url,
+      description: value.description,
+      category: value.category,
+      status: 'pending',
+      created_at: now,
+      updated_at: now,
+    }).returning('*');
+
+    return res.json({ success: true, data: photo });
+  } catch (err) {
+    console.error('Error creating photo:', err);
+    return res.status(500).json({ success: false, error: 'Erreur création photo' });
+  }
+});
+
+// ─── POST /api/videos ──────────────────────────────────────────────────────────
+
+router.post('/videos', async (req, res) => {
+  const { error, value } = Joi.object({
+    url: Joi.string().uri().required(),
+    description: Joi.string().trim().max(500).optional(),
+    category: Joi.string().valid(...DANGER_TYPES).required(),
+  }).validate(req.body);
+
+  if (error) {
+    return res.status(400).json({ success: false, error: error.details[0].message });
+  }
+
+  try {
+    const id = uuidv4();
+    const now = new Date();
+
+    const [video] = await knex('videos').insert({
+      id,
+      user_id: req.user.userId,
+      url: value.url,
+      description: value.description,
+      category: value.category,
+      status: 'pending',
+      created_at: now,
+      updated_at: now,
+    }).returning('*');
+
+    return res.json({ success: true, data: video });
+  } catch (err) {
+    console.error('Error creating video:', err);
+    return res.status(500).json({ success: false, error: 'Erreur création vidéo' });
+  }
+});
+
+module.exports = router;

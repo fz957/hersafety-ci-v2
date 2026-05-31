@@ -17,7 +17,6 @@ const registerSchema = Joi.object({
   password:  Joi.string().min(8).max(128).required(),
   full_name: Joi.string().max(255).required(),
   phone:     Joi.string().max(20).optional(),
-  join_code: Joi.string().optional(),
 });
 
 const loginSchema = Joi.object({
@@ -29,7 +28,7 @@ const loginSchema = Joi.object({
 
 function generateAccessToken(user) {
   return jwt.sign(
-    { userId: user.id, organizationId: user.organization_id, role: user.role },
+    { userId: user.id, role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
   );
@@ -85,23 +84,9 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ success: false, error: error.details[0].message });
   }
 
-  const { email, password, full_name, phone, join_code } = value;
+  const { email, password, full_name, phone } = value;
 
   try {
-    // Si un join_code est fourni, on l'utilise ; sinon on rattache à l'org par défaut HerSafety CI
-    const orgQuery = join_code
-      ? { join_code, is_active: true, is_approved: true }
-      : { join_code: 'HERSAFE1', is_active: true, is_approved: true };
-
-    const org = await knex('organizations').where(orgQuery).first();
-
-    if (!org) {
-      return res.status(400).json({
-        success: false,
-        error: join_code ? 'Code d\'invitation invalide ou organisation inactive' : 'Organisation par défaut introuvable',
-      });
-    }
-
     // Email déjà utilisé ?
     const existing = await knex('users').where({ email }).first();
     if (existing) {
@@ -111,7 +96,7 @@ router.post('/register', async (req, res) => {
     const password_hash = await bcrypt.hash(password, 12);
 
     const [user] = await knex('users')
-      .insert({ organization_id: org.id, email, password_hash, full_name, phone })
+      .insert({ email, password_hash, full_name, phone })
       .returning(['id', 'organization_id', 'email', 'full_name', 'role', 'onboarding_done']);
 
     const accessToken  = generateAccessToken(user);
@@ -128,7 +113,6 @@ router.post('/register', async (req, res) => {
       success: true,
       data: {
         user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role, onboarding_done: user.onboarding_done },
-        organization: { id: org.id, name: org.name, type: org.type },
       },
     });
   } catch (err) {
@@ -176,15 +160,6 @@ router.post('/login', authLimiter, async (req, res) => {
       });
     }
 
-    // Vérifie que l'organisation est toujours active
-    const org = await knex('organizations')
-      .where({ id: user.organization_id, is_active: true, is_approved: true })
-      .first();
-
-    if (!org) {
-      return res.status(403).json({ success: false, error: 'Votre organisation est inactive ou non approuvée' });
-    }
-
     await logAttempt(email, ip, true);
 
     const accessToken  = generateAccessToken(user);
@@ -203,7 +178,6 @@ router.post('/login', authLimiter, async (req, res) => {
       success: true,
       data: {
         user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role, onboarding_done: user.onboarding_done },
-        organization: { id: org.id, name: org.name, type: org.type },
       },
     });
   } catch (err) {

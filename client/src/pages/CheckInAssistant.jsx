@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
-import { HS } from '../tokens';
+import { HS, ICONS } from '../tokens';
+import { Icon } from '../components/ui/index.jsx';
 import useSpeechRecognition from '../hooks/useSpeechRecognition';
 
 /**
@@ -15,20 +16,12 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
   const [riskLevel, setRiskLevel] = useState(null);
   const [timeRemaining, setTimeRemaining] = useState(INACTIVITY_TIMEOUT);
   const [hasTimeout, setHasTimeout] = useState(false);
+  const [contacts, setContacts] = useState([]);
+  const [showContacts, setShowContacts] = useState(false);
   const timeoutRef = useRef(null);
   const countdownRef = useRef(null);
   const { isListening, transcript, toggleListening, clearTranscript, isSupported } = useSpeechRecognition();
 
-  // DEBUG: Log isSupported value
-  console.log('[CheckInAssistant] isSupported:', isSupported, 'API check:', {
-    hasSR: typeof window.SpeechRecognition !== 'undefined',
-    hasWebkit: typeof window.webkitSpeechRecognition !== 'undefined'
-  });
-
-  // DEBUG: Alert to confirm component is mounted
-  useEffect(() => {
-    alert('🎤 CheckInAssistant mounted! isSupported: ' + isSupported);
-  }, []);
 
   // Gérer le timeout d'inactivité
   const handleInactivityTimeout = async () => {
@@ -110,20 +103,22 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
 
   // Initialiser la conversation
   useEffect(() => {
+    console.log('========== [CheckIn INIT] Starting initialization ==========');
     const initializeConversation = async () => {
       try {
+        console.log('[CheckIn INIT] Setting loading...');
         setIsLoading(true);
 
         // 🚨 NOTIFIER LES CONTACTS IMMÉDIATEMENT
-        console.log('[CheckIn] 📞 Notifiant les contacts...');
+        console.log('[CheckIn INIT] 📞 Notifying contacts via SMS...');
         await api.post('/api/sms/alert', {
           level: '2',
         }).catch(err => {
-          console.warn('[CheckIn] SMS notification error:', err.response?.data?.error || err.message);
-          console.warn('[CheckIn] Full error:', err.response?.data || err);
+          console.warn('[CheckIn INIT] SMS notification error:', err.response?.data?.error || err.message);
         });
 
         // Puis commencer l'évaluation avec Lyra
+        console.log('[CheckIn INIT] Calling Claude /assist...');
         const response = await api.post('/api/claude/assist', {
           level: '2',
           context: 'utilisatrice a cliqué "je vais pas bien" lors d\'un check-in',
@@ -131,39 +126,65 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
           mode: 'evaluator',
         });
 
+        console.log('[CheckIn INIT] Claude response received');
         const data = response.data.data || {};
         const assistantMessage = data.message || 'Bonjour, je suis là pour toi.';
+        console.log('[CheckIn INIT] Setting initial message:', assistantMessage.substring(0, 50) + '...');
         setMessages([{ role: 'assistant', content: assistantMessage }]);
 
         if (data.riskLevel) {
+          console.log('[CheckIn INIT] Risk level:', data.riskLevel);
           setRiskLevel(data.riskLevel);
         }
       } catch (err) {
-        console.error('Erreur initialisation:', err);
+        console.error('[CheckIn INIT] Error:', err);
         setMessages([{ role: 'assistant', content: 'Bonjour, je suis là pour toi. Raconte-moi ce qui se passe.' }]);
       } finally {
+        console.log('[CheckIn INIT] Setting loading false');
         setIsLoading(false);
+        console.log('========== [CheckIn INIT] Completed ==========');
       }
     };
 
     initializeConversation();
 
     // Démarrer le timer d'inactivité
+    console.log('[CheckIn INIT] Starting inactivity timer');
     startInactivityTimer();
 
     // Cleanup
     return () => {
+      console.log('[CheckIn CLEANUP] Clearing timers');
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
+  }, []);
+
+  // Charger les contacts
+  useEffect(() => {
+    const loadContacts = async () => {
+      try {
+        const response = await api.get('/api/contacts');
+        setContacts(response.data.data || []);
+      } catch (err) {
+        console.error('Erreur chargement contacts:', err);
+        setContacts([]);
+      }
+    };
+    loadContacts();
   }, []);
 
 
   // Envoyer un message
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!userInput.trim() || isLoading || hasTimeout) return;
+    console.log('[CheckIn SEND] Checking conditions - input:', !!userInput.trim(), 'loading:', isLoading, 'timeout:', hasTimeout);
+    if (!userInput.trim() || isLoading || hasTimeout) {
+      console.log('[CheckIn SEND] Conditions not met, returning');
+      return;
+    }
 
+    console.log('[CheckIn SEND] Message:', userInput);
     // Réinitialiser le timer à chaque message
     resetInactivityTimer();
 
@@ -173,6 +194,7 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
     setIsLoading(true);
 
     try {
+      console.log('[CheckIn SEND] Calling Claude...');
       const response = await api.post('/api/claude/assist', {
         level: '2',
         context: 'évaluation de situation lors d\'un check-in',
@@ -180,20 +202,24 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
         mode: 'evaluator',
       });
 
+      console.log('[CheckIn SEND] Claude response received');
       const data = response.data.data || {};
       setMessages((prev) => [...prev, { role: 'assistant', content: data.message || 'Je comprends.' }]);
 
       if (data.riskLevel) {
+        console.log('[CheckIn SEND] Risk level:', data.riskLevel);
         setRiskLevel(data.riskLevel);
 
         // Si haute risque, escalader automatiquement
         if (data.riskLevel === 'high') {
+          console.log('[CheckIn SEND] High risk detected - escalating in 1s');
           setTimeout(() => handleActivateEmergency(), 1000);
         }
       }
     } catch (err) {
-      console.error('Erreur:', err);
+      console.error('[CheckIn SEND] Error:', err);
     } finally {
+      console.log('[CheckIn SEND] Setting loading false');
       setIsLoading(false);
     }
   };
@@ -356,6 +382,83 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
             {riskLevel === 'high' && 'Escalade...'}
           </div>
         )}
+
+        {/* Contacts section */}
+        {contacts.length > 0 && (
+          <div style={{
+            marginTop: '16px',
+            paddingTop: '16px',
+            borderTop: '2px solid #E8D7D7'
+          }}>
+            <div style={{
+              fontSize: '12px',
+              fontWeight: 'bold',
+              color: HS.chocolate,
+              marginBottom: '12px',
+              textAlign: 'center'
+            }}>
+              📞 Veux-tu appeler l'un de tes contacts ?
+            </div>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }}>
+              {contacts.map((contact) => (
+                <div
+                  key={contact.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 12px',
+                    background: HS.surface2 || '#F8E7DD',
+                    borderRadius: '12px',
+                    border: `1px solid ${HS.borderStrong || '#E8D7D7'}`
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      color: HS.chocolate,
+                      marginBottom: '2px'
+                    }}>
+                      {contact.full_name}
+                    </div>
+                    {contact.phone && (
+                      <div style={{
+                        fontSize: '11px',
+                        color: HS.textMute,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {contact.phone}
+                      </div>
+                    )}
+                  </div>
+                  {contact.phone && (
+                    <a href={`tel:${contact.phone}`} style={{ textDecoration: 'none' }}>
+                      <button style={{
+                        background: HS.sakura,
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '8px',
+                        color: '#fff',
+                        display: 'flex',
+                        cursor: 'pointer',
+                        flexShrink: 0
+                      }}>
+                        <Icon d={ICONS.phone} size={16} />
+                      </button>
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Input + Buttons (Fixed) */}
@@ -437,15 +540,34 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
         </div>
 
         {/* Action buttons */}
-        {riskLevel !== 'high' && (
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {riskLevel !== 'high' && (
+            <button
+              type={riskLevel === 'low' ? 'button' : 'button'}
+              onClick={riskLevel === 'low' ? handleResolve : handleActivateEmergency}
+              style={{
+                flex: 1,
+                padding: '10px',
+                borderRadius: '20px',
+                background: riskLevel === 'low' ? '#1B5E20' : HS.danger,
+                color: 'white',
+                border: 'none',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                cursor: 'pointer'
+              }}
+            >
+              {riskLevel === 'low' ? '✓ Tout va bien' : 'J\'ai besoin d\'aide'}
+            </button>
+          )}
           <button
-            type={riskLevel === 'low' ? 'button' : 'button'}
-            onClick={riskLevel === 'low' ? handleResolve : handleActivateEmergency}
+            type="button"
+            onClick={onClose}
             style={{
-              width: '100%',
+              flex: 1,
               padding: '10px',
               borderRadius: '20px',
-              background: riskLevel === 'low' ? '#1B5E20' : HS.danger,
+              background: HS.warn,
               color: 'white',
               border: 'none',
               fontWeight: 'bold',
@@ -453,9 +575,9 @@ export function CheckInAssistant({ activeTrack, onClose, onEmergency, onResolve 
               cursor: 'pointer'
             }}
           >
-            {riskLevel === 'low' ? '✓ Tout va bien' : 'J\'ai besoin d\'aide'}
+            Ne me demande plus
           </button>
-        )}
+        </div>
       </form>
     </div>
   );

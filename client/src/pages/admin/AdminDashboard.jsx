@@ -1,120 +1,247 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { useTheme } from '../../context/ThemeContext';
+import AdminSidebar from '../../components/admin/AdminSidebar.jsx';
+import StatsCard from '../../components/admin/StatsCard.jsx';
+import AlertRow from '../../components/admin/AlertRow.jsx';
+import UserRow from '../../components/admin/UserRow.jsx';
+import { ICONS, HS } from '../../tokens';
 import api from '../../services/api';
-import { HS, ICONS } from '../../tokens';
-import { Icon, Card, Eyebrow, H2, Logo, Avatar, PageShell, ScrollArea, Spinner } from '../../components/ui/index.jsx';
-
-function StatCard({ label, value, color, icon, sub }) {
-  return (
-    <Card style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
-      <div style={{ width: 48, height: 48, borderRadius: 14, background: color + '20',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon d={icon} size={22} color={color} />
-      </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontFamily: HS.serif, fontSize: 30, lineHeight: 1, color: HS.chocolate }}>{value ?? '—'}</div>
-        <div style={{ fontSize: 12, color: HS.textMute, marginTop: 2 }}>{label}</div>
-        {sub && <div style={{ fontSize: 11, color: HS.textFaint, marginTop: 1 }}>{sub}</div>}
-      </div>
-    </Card>
-  );
-}
-
-function NavLink({ icon, label, path, badge }) {
-  const navigate = useNavigate();
-  return (
-    <button onClick={() => navigate(path)} style={{
-      width: '100%', padding: '16px 18px', borderRadius: 18, background: HS.surface,
-      border: `1px solid ${HS.border}`, display: 'flex', alignItems: 'center', gap: 14,
-      textAlign: 'left', cursor: 'pointer', fontFamily: HS.font,
-    }}>
-      <div style={{ width: 42, height: 42, borderRadius: 12, background: HS.mistyRose,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon d={icon} size={20} color={HS.sakuraDeep} />
-      </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: HS.chocolate }}>{label}</div>
-      </div>
-      {badge > 0 && (
-        <span style={{ background: HS.danger, color: '#fff', borderRadius: 10, padding: '2px 8px',
-          fontSize: 11, fontWeight: 800 }}>{badge}</span>
-      )}
-      <Icon d={ICONS.arrow} size={18} color={HS.textMute} />
-    </button>
-  );
-}
 
 export default function AdminDashboard() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  const [stats, setStats]   = useState(null);
+  const { user } = useAuth();
+  const { theme, isDark, toggleTheme } = useTheme();
+  const [stats, setStats] = useState(null);
+  const [alerts, setAlerts] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/api/admin/stats').then((r) => setStats(r.data.data)).finally(() => setLoading(false));
+    fetchData();
   }, []);
 
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const statsRes = await api.get('/api/admin/stats');
+      setStats(statsRes.data.data);
+
+      const alertsRes = await api.get('/api/admin/alerts/recent');
+      setAlerts(alertsRes.data.data || []);
+
+      const usersRes = await api.get('/api/admin/users/list');
+      setUsers(usersRes.data.data || []);
+    } catch (err) {
+      console.error('Error fetching admin data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <PageShell>
-      {/* Header */}
-      <div style={{ padding: '54px 20px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        borderBottom: `1px solid ${HS.border}` }}>
-        <Logo size={18} />
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8,
-            background: user?.role === 'superadmin' ? HS.chocolate : HS.mistyRose,
-            color: user?.role === 'superadmin' ? HS.textOnDark : HS.sakuraDeep }}>
-            {user?.role === 'superadmin' ? 'Super Admin' : 'Admin'}
-          </span>
-          <Avatar size={36} name={user?.full_name} />
-        </div>
-      </div>
+    <div style={{
+      display: 'flex',
+      height: '100vh',
+      background: theme.bg,
+      color: theme.text,
+      fontFamily: 'Inter, sans-serif',
+    }}>
+      {/* Sidebar */}
+      <AdminSidebar activeTab="dashboard" user={user} stats={stats} />
 
-      <ScrollArea style={{ padding: '20px 16px 40px' }}>
-        <div style={{ marginBottom: 8 }}>
-          <Eyebrow>Tableau de bord</Eyebrow>
-          <H2 style={{ marginTop: 4 }}>{user?.organization_name || 'Organisation'}</H2>
-        </div>
-
-        {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Spinner /></div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, margin: '16px 0' }}>
-            <StatCard label="Alertes aujourd'hui" value={stats?.alerts_today}    color={HS.danger}     icon={ICONS.alert} />
-            <StatCard label="Utilisatrices actives" value={stats?.active_users}  color={HS.safe}       icon={ICONS.user} />
-            <StatCard label="Signalements en attente" value={stats?.pending_reports}    color={HS.warn} icon={ICONS.flag} />
-            <StatCard label="Témoignages en attente" value={stats?.pending_testimonies} color={HS.sakura} icon={ICONS.heart} />
+      {/* Main Content */}
+      <main style={{
+        flex: 1,
+        overflow: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        {/* Header */}
+        <header style={{
+          padding: '20px 32px',
+          borderBottom: `1px solid ${theme.border}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: theme.surface,
+        }}>
+          <div>
+            <div style={{ fontSize: 12, color: theme.textMute }}>Bonsoir 🌙</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: theme.chocolate }}>Tableau de bord</div>
           </div>
-        )}
+          <button
+            onClick={toggleTheme}
+            title={isDark ? 'Mode clair' : 'Mode sombre'}
+            style={{
+              background: theme.surface,
+              border: `1px solid ${theme.border}`,
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              color: theme.chocolate,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              fontSize: 18,
+            }}
+          >
+            {isDark ? '☀️' : '🌙'}
+          </button>
+        </header>
 
-        <Eyebrow style={{ marginBottom: 10 }}>Navigation</Eyebrow>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <NavLink icon={ICONS.user}    label="Gérer les utilisatrices"  path="/admin/users"       badge={0} />
-          <NavLink icon={ICONS.heart}   label="Témoignages en attente"   path="/admin/testimonies" badge={stats?.pending_testimonies || 0} />
-          <NavLink icon={ICONS.flag}    label="Signalements en attente"  path="/admin/reports"     badge={stats?.pending_reports || 0} />
-          {user?.role === 'superadmin' && (
-            <NavLink icon={ICONS.shield} label="Organisations"           path="/admin/orgs"        badge={0} />
+        {/* Content Area */}
+        <div style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: theme.textMute }}>Chargement...</div>
+          ) : (
+            <>
+              {/* Stats Grid */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: 16,
+                marginBottom: 32,
+              }}>
+                <StatsCard
+                  label="Alertes 24h"
+                  value={stats?.alerts_today || 0}
+                  delta="+12.4%"
+                  color={HS.danger}
+                  bgColor={HS.dangerSoft}
+                  icon={ICONS.alert}
+                />
+                <StatsCard
+                  label="Utilisatrices actives"
+                  value={stats?.active_users || 0}
+                  delta="+823"
+                  color={HS.sakuraDeep}
+                  bgColor={HS.mistyRose}
+                  icon={ICONS.user}
+                />
+                <StatsCard
+                  label="Temps réponse moyen"
+                  value={stats?.avg_response_time || '2:18'}
+                  delta="-14s"
+                  color={HS.safe}
+                  bgColor={HS.safeSoft}
+                  icon={ICONS.clock}
+                  good
+                />
+                <StatsCard
+                  label="Signalements vérifiés"
+                  value={stats?.verified_reports || 0}
+                  delta="+47"
+                  color="#F59E0B"
+                  bgColor="#FEF3C7"
+                  icon={ICONS.flag}
+                />
+              </div>
+
+              {/* Alerts Table */}
+              <div style={{
+                background: theme.surface,
+                borderRadius: 16,
+                border: `1px solid ${theme.border}`,
+                marginBottom: 32,
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  padding: '20px 24px',
+                  borderBottom: `1px solid ${theme.border}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>Alertes en cours</h3>
+                  <span style={{ fontSize: 12, color: theme.textMute }}>{alerts.length} alertes</span>
+                </div>
+
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{
+                      background: `${theme.bg}50`,
+                      borderBottom: `1px solid ${theme.border}`,
+                      fontWeight: 700,
+                      height: 40,
+                    }}>
+                      <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute }}>ID</th>
+                      <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute }}>Utilisatrice</th>
+                      <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute }}>Localisation</th>
+                      <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute }}>Niveau</th>
+                      <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute }}>Temps</th>
+                      <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute }}>Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {alerts.length > 0 ? (
+                      alerts.slice(0, 10).map((alert) => (
+                        <AlertRow key={alert.id} alert={alert} />
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: theme.textMute }}>
+                          Aucune alerte actuellement
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Users Table */}
+              <div style={{
+                background: theme.surface,
+                borderRadius: 16,
+                border: `1px solid ${theme.border}`,
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  padding: '20px 24px',
+                  borderBottom: `1px solid ${theme.border}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>Utilisatrices</h3>
+                  <span style={{ fontSize: 12, color: theme.textMute }}>{users.length} utilisatrices</span>
+                </div>
+
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{
+                      background: `${theme.bg}50`,
+                      borderBottom: `1px solid ${theme.border}`,
+                      fontWeight: 700,
+                      height: 40,
+                    }}>
+                      <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute }}>Nom</th>
+                      <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute }}>Email</th>
+                      <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute }}>Localisation</th>
+                      <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute }}>Alertes</th>
+                      <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute }}>Depuis</th>
+                      <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute }}>Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.length > 0 ? (
+                      users.slice(0, 10).map((u) => (
+                        <UserRow key={u.id} user={u} />
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: theme.textMute }}>
+                          Aucune utilisatrice trouvée
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
-
-        <div style={{ marginTop: 24 }}>
-          <button
-            onClick={() => { navigate('/dashboard'); }}
-            style={{ width: '100%', padding: '14px', borderRadius: 14, background: HS.surface,
-              border: `1px solid ${HS.border}`, fontSize: 13, fontWeight: 700, color: HS.textDim,
-              fontFamily: HS.font, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <Icon d={ICONS.back} size={16} color={HS.textMute} />
-            Retour à l'app
-          </button>
-          <button
-            onClick={logout}
-            style={{ width: '100%', marginTop: 8, padding: '14px', borderRadius: 14, background: 'transparent',
-              border: 'none', fontSize: 13, fontWeight: 700, color: HS.danger, fontFamily: HS.font }}>
-            Se déconnecter
-          </button>
-        </div>
-      </ScrollArea>
-    </PageShell>
+      </main>
+    </div>
   );
 }

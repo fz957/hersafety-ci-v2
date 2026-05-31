@@ -6,7 +6,6 @@ const path = require('path');
 
 const authRoutes         = require('./routes/auth');
 const usersRoutes        = require('./routes/users');
-const organizationsRoutes = require('./routes/organizations');
 const alertsRoutes       = require('./routes/alerts');
 const contactsRoutes     = require('./routes/contacts');
 const tracksRoutes       = require('./routes/tracks');
@@ -20,10 +19,17 @@ const emergencyNumbersRoutes = require('./routes/emergency-numbers');
 const locationsRoutes    = require('./routes/locations');
 const fcmRoutes          = require('./routes/fcm');
 const emergencyHistoryRoutes = require('./routes/emergency-history');
+const contentRoutes      = require('./routes/content');
+const articlesRoutes     = require('./routes/articles');
+const photosRoutes       = require('./routes/photos');
+const videosRoutes       = require('./routes/videos');
 
 const { apiLimiter } = require('./middlewares/rateLimit');
 
 const app = express();
+
+// Servir les images statiques
+app.use('/images', express.static(path.join(__dirname, '../public/images')));
 
 // Servir les fichiers statiques AVANT Helmet (pour éviter les bloques CORS)
 app.use('/uploads', express.static(path.join(__dirname, '../../uploads'), {
@@ -65,7 +71,6 @@ app.get('/api/test', (req, res) => res.json({ test: 'OK', timestamp: new Date().
 // Routes
 app.use('/api/auth',          authRoutes);
 app.use('/api/users',         usersRoutes);
-app.use('/api/organizations', organizationsRoutes);
 app.use('/api/alerts',        alertsRoutes);
 app.use('/api/contacts',      contactsRoutes);
 app.use('/api/tracks',        tracksRoutes);
@@ -73,12 +78,16 @@ app.use('/api/places',        placesRoutes);
 app.use('/api/sms',           smsRoutes);
 app.use('/api/claude',        claudeRoutes);
 app.use('/api/testimonies',   testimoniesRoutes);
+app.use('/api/articles',      articlesRoutes);
+app.use('/api/photos',        photosRoutes);
+app.use('/api/videos',        videosRoutes);
 app.use('/api/reports',       reportsRoutes);
 app.use('/api/admin',             adminRoutes);
 app.use('/api/emergency-numbers', emergencyNumbersRoutes);
 app.use('/api/locations',     locationsRoutes);
 app.use('/api/fcm',           fcmRoutes);
 app.use('/api/emergency-history', emergencyHistoryRoutes);
+app.use('/api', contentRoutes);
 
 // Santé de l'API
 app.get('/api/health', (req, res) => {

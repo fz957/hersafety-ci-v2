@@ -11,7 +11,7 @@
       "name": "server-dev",
       "runtimeExecutable": "powershell",
       "runtimeArgs": ["-Command", "cd server; npm run dev"],
-      "port": 5000
+      "port": 5001
     }
   ]
 }

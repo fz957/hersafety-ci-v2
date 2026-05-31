@@ -13,6 +13,8 @@ const generateAnonName = () => {
   return `${adj}${noun}${num}`;
 };
 
+// NO HARDCODED CONTENT - LOAD FROM API ONLY
+
 const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) => {
   const [open, setOpen] = useState(item.trigger_warning_level === 'none' || item.trigger_warning_level === 'low');
   const [reported, setReported] = useState(false);
@@ -28,41 +30,35 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState('');
-  const isOwner = item.user_id === user?.id;
+  const myPosts = JSON.parse(localStorage.getItem('lesgirls_my_posts') || '{}');
+  const isOwner = item.user_id === user?.id || myPosts[item.id] === type;
   const isSensitive = item.trigger_warning_level === 'moderate' || item.trigger_warning_level === 'severe';
 
   // Charger les commentaires existants
   useEffect(() => {
     if (showCommentsModal) {
       if (type === 'testimony') {
-        // Charger depuis localStorage EN PRIORITÉ pour testimonies locaux
-        const allComments = JSON.parse(localStorage.getItem('lesgirls_comments') || '{}');
-        const localComms = allComments[item.id] || [];
-
-        if (localComms.length > 0) {
-          // S'il y a des commentaires locaux, les afficher
-          setComments(localComms);
+        api.get(`/api/testimonies/${item.id}/comments`).then(r => {
+          const comms = r.data.data || [];
+          setComments(comms);
           const likedComments = JSON.parse(localStorage.getItem('lesgirls_comment_likes') || '{}');
           const likes = {};
-          localComms.forEach(c => {
+          comms.forEach(c => {
             likes[c.id] = likedComments[c.id] || false;
           });
           setCommentLikes(likes);
-        } else {
-          // Sinon essayer l'API
-          api.get(`/api/testimonies/${item.id}/comments`).then(r => {
-            const comms = r.data.data || [];
-            setComments(comms);
-            const likedComments = JSON.parse(localStorage.getItem('lesgirls_comment_likes') || '{}');
-            const likes = {};
-            comms.forEach(c => {
-              likes[c.id] = likedComments[c.id] || false;
-            });
-            setCommentLikes(likes);
-          }).catch(() => {
-            setComments([]);
+        }).catch(() => setComments([]));
+      } else if (['article', 'photo', 'video'].includes(type)) {
+        api.get(`/api/${type}s/${item.id}/comments`).then(r => {
+          const comms = r.data.data || [];
+          setComments(comms);
+          const likedComments = JSON.parse(localStorage.getItem('lesgirls_comment_likes') || '{}');
+          const likes = {};
+          comms.forEach(c => {
+            likes[c.id] = likedComments[c.id] || false;
           });
-        }
+          setCommentLikes(likes);
+        }).catch(() => setComments([]));
       }
     }
   }, [item.id, type, showCommentsModal]);
@@ -173,7 +169,20 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
 
   const handleCommentLike = (commentId) => {
     const liked = commentLikes[commentId];
+
+    // Mettre à jour l'état des likes (pour l'icône)
     setCommentLikes({ ...commentLikes, [commentId]: !liked });
+
+    // Mettre à jour le compteur dans les commentaires
+    setComments(comments.map(c => {
+      if (c.id === commentId) {
+        return {
+          ...c,
+          likes_count: (c.likes_count || 0) + (liked ? -1 : 1)
+        };
+      }
+      return c;
+    }));
 
     // Sauvegarder dans localStorage
     const likedComments = JSON.parse(localStorage.getItem('lesgirls_comment_likes') || '{}');
@@ -242,15 +251,15 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
         </div>
       </div>
 
-      {type === 'photo' && item.image_url && (
-        <div style={{ marginBottom: 12, borderRadius: 8, overflow: 'hidden', maxHeight: 300, background: HS.surface }}>
-          <img src={item.image_url} alt={item.title} style={{ width: '100%', height: 'auto', display: 'block', maxHeight: 300, objectFit: 'cover' }} />
+      {type === 'photo' && item.url && (
+        <div style={{ marginBottom: 12, borderRadius: 8, overflow: 'hidden', maxHeight: 400, background: HS.surface, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <img src={item.url} alt={item.title || item.description} style={{ width: '100%', height: 'auto', display: 'block', maxHeight: 400, objectFit: 'contain' }} />
         </div>
       )}
 
-      {type === 'video' && item.video_url && (
+      {type === 'video' && item.url && (
         <div style={{ marginBottom: 12, borderRadius: 8, overflow: 'hidden', aspectRatio: '16/9', background: HS.surface }}>
-          <iframe width="100%" height="100%" src={item.video_url} title={item.title} style={{ border: 'none', borderRadius: 8 }} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
+          <iframe width="100%" height="100%" src={item.url} title={item.title || item.description} style={{ border: 'none', borderRadius: 8 }} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
         </div>
       )}
 
@@ -444,45 +453,58 @@ export default function Community() {
   ];
 
   const load = () => {
-    // D'abord charger articles, photos, vidéos depuis localStorage
-    const arts = JSON.parse(localStorage.getItem('lesgirls_articles') || '[]');
-    const phos = JSON.parse(localStorage.getItem('lesgirls_photos') || '[]');
-    const vids = JSON.parse(localStorage.getItem('lesgirls_videos') || '[]');
-    const temps = JSON.parse(localStorage.getItem('lesgirls_testimonies') || '[]');
-
-    // Si aucunes données en localStorage, générer les valeurs par défaut
-    if (arts.length === 0 || temps.length === 0) {
-      generateDefault();
-    } else {
-      setArticles(arts);
-      setPhotos(phos);
-      setVideos(vids);
-      setTestimonies(temps);
-    }
-
-    // Charger les témoignages depuis l'API et combiner avec les locaux
+    // Charger les témoignages depuis l'API
+    console.log('[Community LOAD] Fetching testimonies from API...');
     api.get('/api/testimonies').then((r) => {
       const apiTestimonies = r.data.data || [];
-      const localTestimonies = JSON.parse(localStorage.getItem('lesgirls_testimonies') || '[]');
+      console.log('[Community LOAD] API returned', apiTestimonies.length, 'testimonies');
+      setTestimonies(apiTestimonies);
+    }).catch((err) => {
+      console.error('[Community LOAD] API error:', err.message);
+      setTestimonies([]);
+    });
 
-      // Déduplicater: ne garder que les IDs uniques (API en priorité, puis les locales)
-      const idsSeen = new Set();
-      const combined = [];
-
-      [...apiTestimonies, ...localTestimonies].forEach(t => {
-        if (!idsSeen.has(t.id)) {
-          idsSeen.add(t.id);
-          combined.push(t);
-        }
-      });
-
-      setTestimonies(combined);
-    }).catch(() => {
-      // En cas d'erreur, utiliser seulement les données locales
-      const localTestimonies = JSON.parse(localStorage.getItem('lesgirls_testimonies') || '[]');
-      if (localTestimonies.length > 0) {
-        setTestimonies(localTestimonies);
+    // Charger les articles depuis l'API
+    console.log('[Community LOAD] Fetching articles from API...');
+    api.get('/api/articles').then((r) => {
+      const apiArticles = r.data.data || [];
+      console.log('[Community LOAD] API returned', apiArticles.length, 'articles');
+      setArticles(apiArticles);
+      // Marquer les articles créés par moi dans le localStorage
+      if (user?.id) {
+        const myPosts = JSON.parse(localStorage.getItem('lesgirls_my_posts') || '{}');
+        apiArticles.forEach(article => {
+          if (article.user_id === user.id) {
+            myPosts[article.id] = 'article';
+          }
+        });
+        localStorage.setItem('lesgirls_my_posts', JSON.stringify(myPosts));
       }
+    }).catch((err) => {
+      console.error('[Community LOAD] Articles API error:', err.message);
+      setArticles([]);
+    });
+
+    // Charger les photos depuis l'API
+    console.log('[Community LOAD] Fetching photos from API...');
+    api.get('/api/photos').then((r) => {
+      const apiPhotos = r.data.data || [];
+      console.log('[Community LOAD] API returned', apiPhotos.length, 'photos');
+      setPhotos(apiPhotos);
+    }).catch((err) => {
+      console.error('[Community LOAD] Photos API error:', err.message);
+      setPhotos([]);
+    });
+
+    // Charger les vidéos depuis l'API
+    console.log('[Community LOAD] Fetching videos from API...');
+    api.get('/api/videos').then((r) => {
+      const apiVideos = r.data.data || [];
+      console.log('[Community LOAD] API returned', apiVideos.length, 'videos');
+      setVideos(apiVideos);
+    }).catch((err) => {
+      console.error('[Community LOAD] Videos API error:', err.message);
+      setVideos([]);
     });
   };
 
@@ -675,7 +697,16 @@ export default function Community() {
     localStorage.setItem('lesgirls_comments', JSON.stringify(exampleComments));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    // Vider TOUT le localStorage pour forcer rechargement depuis l'API
+    localStorage.removeItem('lesgirls_photos');
+    localStorage.removeItem('lesgirls_videos');
+    localStorage.removeItem('lesgirls_articles');
+    localStorage.removeItem('lesgirls_comments');
+    localStorage.removeItem('lesgirls_comment_likes');
+    localStorage.removeItem('lesgirls_comment_replies');
+    load();
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -702,22 +733,47 @@ export default function Community() {
         const res = await api.get('/api/testimonies');
         setTestimonies(res.data.data);
         setToast({ message: 'Témoignage publié ✓', type: 'success' });
-      } else {
-        const item = { id: Date.now(), title: form.title, content: form.content, description: form.content, trigger_warning_level: form.trigger_warning_level, user_id: user?.id };
-        if (contentType === 'articles') {
-          const updated = [...articles, item];
-          setArticles(updated);
-          localStorage.setItem('lesgirls_articles', JSON.stringify(updated));
-        } else if (contentType === 'photos') {
-          const updated = [...photos, item];
-          setPhotos(updated);
-          localStorage.setItem('lesgirls_photos', JSON.stringify(updated));
-        } else if (contentType === 'videos') {
-          const updated = [...videos, item];
-          setVideos(updated);
-          localStorage.setItem('lesgirls_videos', JSON.stringify(updated));
-        }
-        setToast({ message: 'Publié ✓', type: 'success' });
+      } else if (contentType === 'articles') {
+        // Sauvegarder article en BD
+        const payload = {
+          title: form.title.trim(),
+          content: form.content.trim(),
+          category: form.category,
+        };
+        const response = await api.post('/api/articles', payload);
+        const newArticle = response.data.data;
+        setArticles([...articles, newArticle]);
+        setToast({ message: 'Article publié ✓', type: 'success' });
+      } else if (contentType === 'photos') {
+        // Sauvegarder photo en BD
+        const payload = {
+          url: form.content.trim(), // L'URL de la photo
+          description: form.title.trim(),
+          category: form.category,
+        };
+        const response = await api.post('/api/photos', payload);
+        const newPhoto = response.data.data;
+        // Marquer comme créé par moi
+        const myPosts = JSON.parse(localStorage.getItem('lesgirls_my_posts') || '{}');
+        myPosts[newPhoto.id] = 'photo';
+        localStorage.setItem('lesgirls_my_posts', JSON.stringify(myPosts));
+        setPhotos([...photos, newPhoto]);
+        setToast({ message: 'Photo publiée ✓', type: 'success' });
+      } else if (contentType === 'videos') {
+        // Sauvegarder vidéo en BD
+        const payload = {
+          url: form.content.trim(), // L'URL de la vidéo
+          description: form.title.trim(),
+          category: form.category,
+        };
+        const response = await api.post('/api/videos', payload);
+        const newVideo = response.data.data;
+        // Marquer comme créé par moi
+        const myPosts = JSON.parse(localStorage.getItem('lesgirls_my_posts') || '{}');
+        myPosts[newVideo.id] = 'video';
+        localStorage.setItem('lesgirls_my_posts', JSON.stringify(myPosts));
+        setVideos([...videos, newVideo]);
+        setToast({ message: 'Vidéo publiée ✓', type: 'success' });
       }
       setForm({ title: '', content: '', category: 'harcelement_verbal', location_label: '', is_anonymous: true, trigger_warning_level: 'none' });
       setTab('feed');
@@ -777,7 +833,7 @@ export default function Community() {
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: `2px solid ${HS.border}`, overflowX: 'auto', paddingBottom: 12 }}>
           {[{ id: 'testimonies', l: '💬 Témoignages' }, { id: 'articles', l: '📖 Articles' }, { id: 'photos', l: '📸 Photos' }, { id: 'videos', l: '🎬 Vidéos' }].map(t => (
-            <button key={t.id} onClick={() => { setContentType(t.id); setTab('feed'); }} style={{
+            <button key={t.id} onClick={() => { console.log('[Tabs] Switching to:', t.id); setContentType(t.id); setTab('feed'); }} style={{
               padding: '8px 0', fontSize: 13, fontWeight: 700, background: 'none', border: 'none', borderBottom: contentType === t.id ? `3px solid ${HS.chocolate}` : 'none',
               color: contentType === t.id ? HS.chocolate : HS.textMute, cursor: 'pointer', fontFamily: HS.font, whiteSpace: 'nowrap'
             }}>{t.l}</button>
@@ -805,17 +861,10 @@ export default function Community() {
             ) : (
               (() => {
                 const reported_items = JSON.parse(localStorage.getItem('lesgirls_reported') || '[]');
-                // Trier: d'abord non-signalés (par interactions), ensuite signalés
-                const sorted = [...items].sort((a, b) => {
-                  const a_reported = reported_items.includes(a.id);
-                  const b_reported = reported_items.includes(b.id);
-                  if (a_reported === b_reported) {
-                    // Même statut, trier par support_count (plus d'interactions en premier)
-                    return (b.support_count || 0) - (a.support_count || 0);
-                  }
-                  // Non-signalés avant signalés
-                  return a_reported ? 1 : -1;
-                });
+                // Séparer items signalés et non-signalés, garder l'ordre original
+                const nonReported = items.filter(item => !reported_items.includes(item.id));
+                const reported = items.filter(item => reported_items.includes(item.id));
+                const sorted = [...nonReported, ...reported];
                 return sorted.map((item) => {
                   const typeMap = { testimonies: 'testimony', articles: 'article', photos: 'photo', videos: 'video' };
                   return <Post key={item.id} item={item} type={typeMap[contentType]} onDelete={handleDelete} onReport={handleReport} user={user} setToast={setToast} CATEGORIES={CATEGORIES} />;
@@ -830,8 +879,22 @@ export default function Community() {
               </div>
 
               <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: HS.textMute, display: 'block', marginBottom: 8, textTransform: 'uppercase' }}>Contenu</label>
-                <textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="Écris..." style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${HS.border}`, fontFamily: HS.font, fontSize: 14, minHeight: 120, boxSizing: 'border-box' }} required />
+                {contentType === 'testimonies' || contentType === 'articles' ? (
+                  <>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: HS.textMute, display: 'block', marginBottom: 8, textTransform: 'uppercase' }}>Contenu</label>
+                    <textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="Écris..." style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${HS.border}`, fontFamily: HS.font, fontSize: 14, minHeight: 120, boxSizing: 'border-box' }} required />
+                  </>
+                ) : contentType === 'photos' ? (
+                  <>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: HS.textMute, display: 'block', marginBottom: 8, textTransform: 'uppercase' }}>URL Photo</label>
+                    <input type="url" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="https://example.com/photo.jpg" style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${HS.border}`, fontFamily: HS.font, fontSize: 14, boxSizing: 'border-box' }} required />
+                  </>
+                ) : contentType === 'videos' ? (
+                  <>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: HS.textMute, display: 'block', marginBottom: 8, textTransform: 'uppercase' }}>URL Vidéo (YouTube embed)</label>
+                    <input type="url" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="https://www.youtube.com/embed/..." style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${HS.border}`, fontFamily: HS.font, fontSize: 14, boxSizing: 'border-box' }} required />
+                  </>
+                ) : null}
               </div>
 
               {contentType === 'testimonies' && (

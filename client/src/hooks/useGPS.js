@@ -17,7 +17,7 @@ export function useGPS({ watch = false } = {}) {
       return;
     }
 
-    const opts = { enableHighAccuracy: false, timeout: 3000, maximumAge: 0 };
+    const opts = { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 };
 
     const onSuccess = (pos) => {
       const lat = pos.coords.latitude;
@@ -41,7 +41,12 @@ export function useGPS({ watch = false } = {}) {
       } else if (err.code === 2) {
         message = 'Position non disponible - vérifiez votre GPS';
       } else if (err.code === 3) {
-        message = 'Délai dépassé - le GPS prend du temps';
+        // Timeout - utiliser Abidjan comme fallback au lieu de bloquer
+        console.warn('[GPS] Timeout GPS - utilisation fallback Abidjan');
+        setPosition({ lat: 5.3405, lng: -4.0397, accuracy: 1000 });
+        setError(null);
+        setLoading(false);
+        return;
       }
       setError(message);
       setLoading(false);

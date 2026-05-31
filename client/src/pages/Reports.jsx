@@ -67,6 +67,8 @@ export default function Reports() {
     description: '',
     place_name: '',
     place_address: '',
+    place_lat: null,
+    place_lng: null,
     is_anonymous: true,
   });
 
@@ -111,12 +113,15 @@ export default function Reports() {
         ...f,
         place_name: 'Ma position',
         place_address: `${position.lat.toFixed(4)}°, ${position.lng.toFixed(4)}°`,
+        place_lat: position.lat,
+        place_lng: position.lng,
       }));
     }
   }, [tab, position, form.report_type]);
 
   const loadCategorizedLocations = async (pos) => {
     try {
+      console.log('[Reports LOAD] Loading from lat:', pos.lat, 'lng:', pos.lng);
       const response = await api.get('/api/reports/categorized-locations', {
         params: {
           lat: pos.lat,
@@ -126,13 +131,16 @@ export default function Reports() {
       });
 
       const data = response.data.data || {};
+      console.log('[Reports LOAD] Response data:', data);
+      console.log('[Reports LOAD] Locations count:', data.locations?.length || 0);
+      console.log('[Reports LOAD] Stats - unsafe:', data.unsafe_count, 'medium:', data.medium_count);
       setDangerZones(data.locations || []);
       setStats({
         unsafe: data.unsafe_count || 0,
         medium: data.medium_count || 0
       });
     } catch (err) {
-      console.error('Error loading locations:', err);
+      console.error('[Reports LOAD] Error loading locations:', err);
     }
   };
 
@@ -170,15 +178,19 @@ export default function Reports() {
     setSearchQuery(location.name);
     setShowSuggestions(false);
 
-    // Auto-fill form with selected location
+    // Auto-fill form with selected location - CAPTURE COORDINATES
     setForm((f) => ({
       ...f,
       place_name: location.name || '',
-      place_address: location.area || ''
+      place_address: location.area || '',
+      place_lat: location.lat || null,
+      place_lng: location.lng || null,
     }));
 
+    console.log('[Reports SEARCH] Selected location:', { name: location.name, lat: location.lat, lng: location.lng });
+
     // Fit bounds to show both user position and selected location
-    if (position && mapRef.current) {
+    if (position && mapRef.current && location.lat && location.lng) {
       const bounds = L.latLngBounds(
         [position.lat, position.lng],
         [location.lat, location.lng]
@@ -215,18 +227,27 @@ export default function Reports() {
     e.preventDefault();
     try {
       const payload = { ...form };
-      if (position && form.report_type === 'lieu') {
-        payload.place_lat = position.lat;
-        payload.place_lng = position.lng;
+      if (form.report_type === 'lieu') {
+        // Use form's place coordinates if available (from search), otherwise use current position
+        if (form.place_lat && form.place_lng) {
+          payload.place_lat = form.place_lat;
+          payload.place_lng = form.place_lng;
+        } else if (position) {
+          payload.place_lat = position.lat;
+          payload.place_lng = position.lng;
+        }
       }
+      console.log('[Reports SUBMIT] Payload:', payload);
+      console.log('[Reports SUBMIT] Coordinates - form:', { place_lat: form.place_lat, place_lng: form.place_lng }, 'position:', position);
       const response = await api.post('/api/reports', payload);
+      console.log('[Reports SUBMIT] Response:', response.data);
       setToast({ message: 'Signalement soumis ✓ — merci pour ta vigilance.', type: 'success' });
 
       // Add new report to map immediately with correct category
-      if (response.data?.data && position) {
+      if (response.data?.data && form.place_lat && form.place_lng) {
         const newLocation = {
-          lat: position.lat,
-          lng: position.lng,
+          lat: form.place_lat,
+          lng: form.place_lng,
           place_name: form.place_name,
           place_address: form.place_address,
           danger_types: [form.danger_type],
@@ -235,10 +256,12 @@ export default function Reports() {
           latest_report: new Date().toISOString()
         };
         setDangerZones(prev => [...prev, newLocation]);
+        // Mettre à jour les stats aussi
+        setStats(prev => ({ ...prev, medium: prev.medium + 1 }));
       }
 
       setForm({ report_type: 'lieu', danger_type: 'harcelement_verbal', description: '',
-        place_name: '', place_address: '', is_anonymous: true });
+        place_name: '', place_address: '', place_lat: null, place_lng: null, is_anonymous: true });
 
       // Auto-refresh map after submission
       if (position) {
@@ -672,7 +695,9 @@ export default function Reports() {
                     setForm((f) => ({
                       ...f,
                       place_name: loc.name || '',
-                      place_address: loc.area || ''
+                      place_address: loc.area || '',
+                      place_lat: loc.lat || null,
+                      place_lng: loc.lng || null,
                     }));
                   }}
                   userPosition={position}

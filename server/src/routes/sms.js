@@ -3,10 +3,13 @@ const Joi     = require('joi');
 
 const knex              = require('../db/knex');
 const { requireAuth }   = require('../middlewares/auth');
-const { requireTenant } = require('../middlewares/tenant');
 const { sendAlertSMS }  = require('../services/sms.service');
 
 const router = express.Router();
+
+// Logger helper - only logs in development mode
+const isDev = process.env.NODE_ENV === 'development';
+const log = (...args) => isDev && log(...args);
 
 const alertSchema = Joi.object({
   level:          Joi.string().valid('1', '2', '3', '4').required(),
@@ -21,8 +24,8 @@ const alertSchema = Joi.object({
  * NOTE: Permet les requêtes authentifiées OR depuis le service worker
  */
 // Apply auth to this specific route
-router.post('/alert', requireAuth, requireTenant, async (req, res) => {
-  console.log('[SMS] Alert request received:', {
+router.post('/alert', requireAuth, async (req, res) => {
+  log('[SMS] Alert request received:', {
     body: req.body,
     userId: req.user?.userId,
     orgId: req.user?.organizationId,
@@ -31,17 +34,17 @@ router.post('/alert', requireAuth, requireTenant, async (req, res) => {
 
   const { error, value } = alertSchema.validate(req.body);
   if (error) {
-    console.log('[SMS] Validation error:', error.details[0].message);
+    log('[SMS] Validation error:', error.details[0].message);
     return res.status(400).json({ success: false, error: error.details[0].message });
   }
 
-  const { userId, organizationId } = req.user;
+  const { userId } = req.user;
   const isSimulated = process.env.APP_MODE !== 'production';
 
   try {
     // Récupère les contacts de confiance de l'utilisatrice
     const contacts = await knex('contacts')
-      .where({ user_id: userId, organization_id: organizationId });
+      .where({ user_id: userId });
 
     if (contacts.length === 0) {
       return res.status(422).json({
@@ -86,7 +89,7 @@ router.post('/alert', requireAuth, requireTenant, async (req, res) => {
 router.get('/logs', async (req, res) => {
   try {
     const logs = await knex('sms_logs')
-      .where({ user_id: req.user.userId, organization_id: req.user.organizationId })
+      .where({ user_id: req.user.userId })
       .orderBy('created_at', 'desc')
       .limit(50);
 

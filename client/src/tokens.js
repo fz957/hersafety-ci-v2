@@ -1,7 +1,8 @@
 // HerSafety CI — design tokens
 // Palette: Dark Chocolate · Aloewood · Milk Tea · Sakura · Misty Rose
 
-export const HS = {
+// Theme clair (défaut)
+const LIGHT = {
   // Backgrounds
   bg:           '#FBF1EA',
   bgSoft:       '#F5E1D5',
@@ -28,15 +29,13 @@ export const HS = {
   accentSoft:   '#F8DDD9',
   accentLight:  '#F2D4CA',
 
-  // Text on cream
+  // Text
   text:         '#2A1A11',
   textDim:      'rgba(42,26,17,0.72)',
   textMute:     'rgba(42,26,17,0.5)',
   textFaint:    'rgba(42,26,17,0.3)',
-
-  // Text on dark (inverted)
-  textOnDark:       '#FBF1EA',
-  textOnDarkDim:    'rgba(251,241,234,0.78)',
+  textOnDark:   '#FBF1EA',
+  textOnDarkDim: 'rgba(251,241,234,0.78)',
 
   // Semantic
   danger:     '#B23A48',
@@ -50,6 +49,70 @@ export const HS = {
   font:  '"Plus Jakarta Sans", -apple-system, system-ui, sans-serif',
   serif: '"DM Serif Display", "Playfair Display", serif',
 };
+
+// Theme sombre — warm espresso (synchronisé avec ThemeContext)
+const DARK = {
+  // Backgrounds - deep warm espresso, pas pur noir
+  bg:           '#1E1512',
+  bgSoft:       '#261B16',
+  surface:      '#2B201A',
+  surface2:     '#352620',
+  surfaceDeep:  '#0F0A07',
+
+  // Borders - subtiles avec sakura
+  border:       'rgba(240,169,170,0.14)',
+  borderStrong: 'rgba(240,169,170,0.34)',
+
+  // Brand - couleurs chaudes et élégantes
+  chocolate:    '#F4E7DC',
+  aloewood:     '#C49A7E',
+  milkTea:      '#D4AE92',
+  sakura:       '#F0A9AA',
+  sakuraDeep:   '#EC9C9D',
+  mistyRose:    '#3C2A28',
+
+  // Aliases
+  primary:      '#F4E7DC',
+  primaryDeep:  '#0F0A07',
+  accent:       '#F0A9AA',
+  accentSoft:   '#3A2826',
+  accentLight:  '#3C2A28',
+
+  // Text - chaud et lisible
+  text:         '#F4E7DC',
+  textDim:      'rgba(244,231,220,0.90)',
+  textMute:     'rgba(244,231,220,0.75)',
+  textFaint:    'rgba(244,231,220,0.55)',
+  textOnDark:   '#2A1E18',
+  textOnDarkDim: 'rgba(42,30,24,0.78)',
+
+  // Semantic - contraste optimal
+  danger:       '#D85D6A',
+  dangerSoft:   '#3A1F22',
+  safe:         '#7AA06A',
+  safeSoft:     '#26331F',
+  warn:         '#D98E4E',
+  warnSoft:     '#3A2A1C',
+
+  // Fonts
+  font:  '"Plus Jakarta Sans", -apple-system, system-ui, sans-serif',
+  serif: '"DM Serif Display", "Playfair Display", serif',
+};
+
+// Exporter une fonction qui retourne le thème actuel
+export function getHS() {
+  const isDark = localStorage.getItem('hersafety_theme') === 'dark';
+  return isDark ? DARK : LIGHT;
+}
+
+// HS = Proxy dynamic qui lis le thème actif depuis localStorage
+export const HS = new Proxy({}, {
+  get: (target, prop) => {
+    const isDark = localStorage.getItem('hersafety_theme') === 'dark';
+    const theme = isDark ? DARK : LIGHT;
+    return theme[prop];
+  }
+});
 
 export const ICONS = {
   shield:  'M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z',
@@ -84,4 +147,5 @@ export const ICONS = {
   stop:    'M6 6h12v12H6z',
   map:     'M20 4l-6 2-6-2-6 2v14l6-2 6 2 6-2 6 2V6l-6-2zM10 6l4-1.5v13L10 19V6zm-6 2.5L8 7v13l-4 1.5V8.5zm12 13V8.5L20 7v13l-4 1.5z',
   flower:  'M12 4a2 2 0 0 0-2 2 4 4 0 0 0-4 4 2 2 0 0 0-2 2 2 2 0 0 0 2 2 4 4 0 0 0 4 4 2 2 0 0 0 2 2 2 2 0 0 0 2-2 4 4 0 0 0 4-4 2 2 0 0 0 2-2 2 2 0 0 0-2-2 4 4 0 0 0-4-4 2 2 0 0 0-2-2zm0 6a2 2 0 1 1 0 4 2 2 0 0 1 0-4z',
+  logout:  'M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z',
 };

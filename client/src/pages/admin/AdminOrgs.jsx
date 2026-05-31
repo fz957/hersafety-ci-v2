@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { HS, ICONS } from '../../tokens';
+import { useTheme } from '../../context/ThemeContext';
 import { Icon, Button, Card, Input, Eyebrow, H2, BackButton, PageShell, ScrollArea, Toast, Spinner } from '../../components/ui/index.jsx';
 
 const TYPE_LABELS = { ong: 'ONG', entreprise: 'Entreprise', universite: 'Université' };
-const TYPE_COLORS = { ong: HS.sakura, entreprise: HS.milkTea, universite: HS.aloewood };
+
+function getTypeColors(theme) {
+  return { ong: theme.sakura, entreprise: theme.milkTea, universite: theme.aloewood };
+}
 
 export default function AdminOrgs() {
+  const { theme, isDark, toggleTheme } = useTheme();
+  const TYPE_COLORS = getTypeColors(theme);
   const [orgs, setOrgs]       = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab]         = useState('list');
@@ -48,7 +54,7 @@ export default function AdminOrgs() {
   return (
     <PageShell>
       <div style={{ padding: '54px 20px 16px', display: 'flex', alignItems: 'center', gap: 14,
-        borderBottom: `1px solid ${HS.border}` }}>
+        borderBottom: `1px solid ${theme.border}` }}>
         <BackButton to="/admin" />
         <div style={{ flex: 1 }}>
           <Eyebrow>Super Admin</Eyebrow>
@@ -61,10 +67,10 @@ export default function AdminOrgs() {
         {[{ id: 'list', l: 'Liste' }, { id: 'new', l: '+ Créer' }].map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
             padding: '8px 18px', borderRadius: 100, fontSize: 13, fontWeight: 700,
-            background: tab === t.id ? HS.chocolate : HS.surface,
-            color: tab === t.id ? HS.textOnDark : HS.textDim,
-            border: tab === t.id ? 'none' : `1px solid ${HS.border}`,
-            fontFamily: HS.font,
+            background: tab === t.id ? theme.chocolate : theme.surface,
+            color: tab === t.id ? theme.textOnDark : theme.textDim,
+            border: tab === t.id ? 'none' : `1px solid ${theme.border}`,
+            fontFamily: theme.font,
           }}>{t.l}</button>
         ))}
       </div>
@@ -84,18 +90,18 @@ export default function AdminOrgs() {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 14, fontWeight: 800, color: HS.chocolate }}>{org.name}</span>
+                          <span style={{ fontSize: 14, fontWeight: 800, color: theme.chocolate }}>{org.name}</span>
                           <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 6,
                             background: TYPE_COLORS[org.type] + '25', color: TYPE_COLORS[org.type] }}>
                             {TYPE_LABELS[org.type]}
                           </span>
                           {!org.is_approved && (
                             <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 6,
-                              background: HS.warnSoft, color: HS.warn }}>En attente</span>
+                              background: theme.warnSoft, color: theme.warn }}>En attente</span>
                           )}
                         </div>
-                        <div style={{ fontSize: 11, color: HS.textMute, marginTop: 3 }}>{org.email}</div>
-                        <div style={{ fontFamily: 'monospace', fontSize: 12, color: HS.aloewood,
+                        <div style={{ fontSize: 11, color: theme.textMute, marginTop: 3 }}>{org.email}</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: 12, color: theme.aloewood,
                           fontWeight: 700, marginTop: 4, letterSpacing: 2 }}>
                           Code : {org.join_code}
                         </div>
@@ -104,15 +110,15 @@ export default function AdminOrgs() {
                     <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
                       {!org.is_approved && (
                         <button onClick={() => approve(org.id)} style={{ flex: 1, padding: '9px',
-                          borderRadius: 10, background: HS.safe, color: '#fff', border: 'none',
-                          fontWeight: 700, fontSize: 12, fontFamily: HS.font }}>
+                          borderRadius: 10, background: theme.safe, color: '#fff', border: 'none',
+                          fontWeight: 700, fontSize: 12, fontFamily: theme.font }}>
                           Approuver
                         </button>
                       )}
                       <button onClick={() => toggleStatus(org)} style={{ flex: 1, padding: '9px',
-                        borderRadius: 10, background: org.is_active ? HS.dangerSoft : HS.safeSoft,
-                        color: org.is_active ? HS.danger : HS.safe, border: 'none',
-                        fontWeight: 700, fontSize: 12, fontFamily: HS.font }}>
+                        borderRadius: 10, background: org.is_active ? theme.dangerSoft : theme.safeSoft,
+                        color: org.is_active ? theme.danger : theme.safe, border: 'none',
+                        fontWeight: 700, fontSize: 12, fontFamily: theme.font }}>
                         {org.is_active ? 'Désactiver' : 'Réactiver'}
                       </button>
                     </div>
@@ -125,16 +131,16 @@ export default function AdminOrgs() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <Input label="Nom de l'organisation" placeholder="ONG Solidarité CI" value={form.name} onChange={setF('name')} required />
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: HS.textDim, marginBottom: 8,
+                    <div style={{ fontSize: 11, fontWeight: 700, color: theme.textDim, marginBottom: 8,
                       letterSpacing: 0.6, textTransform: 'uppercase' }}>Type</div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       {Object.entries(TYPE_LABELS).map(([v, l]) => (
                         <button key={v} type="button" onClick={() => setForm((f) => ({ ...f, type: v }))}
                           style={{ flex: 1, padding: '12px 0', borderRadius: 14, fontSize: 13, fontWeight: 700,
-                            background: form.type === v ? HS.chocolate : HS.surface,
-                            color: form.type === v ? HS.textOnDark : HS.textDim,
-                            border: `1px solid ${form.type === v ? HS.chocolate : HS.border}`,
-                            fontFamily: HS.font }}>
+                            background: form.type === v ? theme.chocolate : theme.surface,
+                            color: form.type === v ? theme.textOnDark : theme.textDim,
+                            border: `1px solid ${form.type === v ? theme.chocolate : theme.border}`,
+                            fontFamily: theme.font }}>
                           {l}
                         </button>
                       ))}
@@ -144,10 +150,10 @@ export default function AdminOrgs() {
                   <Input label="Téléphone" placeholder="+225 …" value={form.phone} onChange={setF('phone')}
                     icon={<Icon d={ICONS.phone} size={18} />} />
                   <Input label="Adresse" placeholder="Abidjan, Plateau" value={form.address} onChange={setF('address')} />
-                  <Button type="submit" icon={<Icon d={ICONS.plus} size={18} color={HS.bg} />}>
+                  <Button type="submit" icon={<Icon d={ICONS.plus} size={18} color={theme.bg} />}>
                     Créer l'organisation
                   </Button>
-                  <div style={{ fontSize: 11, color: HS.textMute, textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: theme.textMute, textAlign: 'center' }}>
                     Un code d'invitation sera généré automatiquement.
                   </div>
                 </div>

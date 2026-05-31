@@ -22,14 +22,7 @@ export default function Login() {
     setLoading(true);
     try {
       const data = await apiLogin(form.email, form.password);
-      // Fusionne les données utilisateur et organisation
-      const user = {
-        ...data.user,
-        organization_id: data.organization.id,
-        organization_name: data.organization.name,
-        organization_type: data.organization.type,
-      };
-      setUser(user);
+      setUser(data.user);
       // Admin et superadmin → tableau de bord admin
       // Utilisatrice normale → app
       const isAdmin = data.user.role === 'admin' || data.user.role === 'superadmin';

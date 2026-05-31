@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useEmergency } from '../hooks/useEmergency';
 import { useGPS } from '../hooks/useGPS';
 import { useCheckInTimer } from '../hooks/useCheckInTimer';
+import { useTheme } from '../context/ThemeContext';
 import { CheckInAssistant } from './CheckInAssistant';
 import { HS, ICONS } from '../tokens';
 import { Icon, Avatar, Eyebrow, TestBanner, BottomNav, PageShell, Toast, Card, Button } from '../components/ui/index.jsx';
@@ -17,6 +18,7 @@ const LEVELS = [
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const { triggerAlert, loading } = useEmergency();
+  const { theme, isDark, toggleTheme } = useTheme();
   // Active le suivi GPS continu si un track est actif
   const { position, error: gpsError } = useGPS({ watch: true });
   const navigate = useNavigate();
@@ -125,28 +127,36 @@ export default function Dashboard() {
       {/* En-tête */}
       <div style={{ padding: '16px 20px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 12, color: HS.textMute }}>Bonsoir 🌸</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: HS.chocolate }}>
-            {firstName} <span style={{ color: HS.sakuraDeep }}>·</span>{' '}
-            <span style={{ color: HS.textDim, fontWeight: 600 }}>{user?.organization_name || ''}</span>
+          <div style={{ fontSize: 12, color: theme.textMute }}>Bonsoir 🌸</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: theme.chocolate }}>
+            {firstName}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {user?.role !== 'user' && (
             <button
               onClick={() => navigate('/admin')}
-              style={{ background: HS.surface, border: `1px solid ${HS.border}`, width: 40, height: 40,
-                borderRadius: 12, color: HS.chocolate, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              style={{ background: theme.surface, border: `1px solid ${theme.border}`, width: 40, height: 40,
+                borderRadius: 12, color: theme.chocolate, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Icon d={ICONS.gear} size={18} />
             </button>
           )}
           <button
-            style={{ background: HS.surface, border: `1px solid ${HS.border}`, width: 40, height: 40,
-              borderRadius: 12, color: HS.chocolate, position: 'relative',
-              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            onClick={toggleTheme}
+            title={isDark ? 'Mode clair' : 'Mode sombre'}
+            style={{ background: theme.surface, border: `1px solid ${theme.border}`, width: 40, height: 40,
+              borderRadius: 12, color: theme.chocolate, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {isDark ? '☀️' : '🌙'}
+          </button>
+          <button
+            onClick={() => navigate('/notifications')}
+            title="Notifications"
+            style={{ background: theme.surface, border: `1px solid ${theme.border}`, width: 40, height: 40,
+              borderRadius: 12, color: theme.chocolate, position: 'relative',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <Icon d={ICONS.bell} size={18} />
             <span style={{ position: 'absolute', top: 8, right: 9, width: 8, height: 8,
-              background: HS.sakuraDeep, borderRadius: 4, border: `2px solid ${HS.bg}` }} />
+              background: theme.sakuraDeep, borderRadius: 4, border: `2px solid ${theme.bg}` }} />
           </button>
           <button onClick={() => navigate('/history')}
             style={{ background: HS.surface, border: `1px solid ${HS.border}`, width: 40, height: 40,

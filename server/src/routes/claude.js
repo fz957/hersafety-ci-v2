@@ -2,11 +2,10 @@ const express = require('express');
 const Joi     = require('joi');
 
 const { requireAuth }     = require('../middlewares/auth');
-const { requireTenant }   = require('../middlewares/tenant');
 const { getAssistMessage } = require('../services/claude.service');
 
 const router = express.Router();
-router.use(requireAuth, requireTenant);
+router.use(requireAuth);
 
 const assistSchema = Joi.object({
   level:                 Joi.string().valid('1', '2', '3', '4').required(),

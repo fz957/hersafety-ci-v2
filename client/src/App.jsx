@@ -1,6 +1,7 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { SideNav, BottomNav, Spinner, HS } from './components/ui/index.jsx';
 import api from './services/api';
 import { setupFCM } from './services/firebase.js';
@@ -32,11 +33,15 @@ import Community  from './pages/Community.jsx';
 import Reports    from './pages/Reports.jsx';
 import Chat       from './pages/Chat.jsx';
 import History    from './pages/History.jsx';
+import Settings   from './pages/Settings.jsx';
+import Notifications from './pages/Notifications.jsx';
 
 // Admin
 import AdminDashboard   from './pages/admin/AdminDashboard.jsx';
+import AdminAlerts      from './pages/admin/AdminAlerts.jsx';
 import AdminUsers       from './pages/admin/AdminUsers.jsx';
 import AdminTestimonies from './pages/admin/AdminTestimonies.jsx';
+import AdminModeration  from './pages/admin/AdminModeration.jsx';
 import AdminReports     from './pages/admin/AdminReports.jsx';
 import SuperAdminOrgs   from './pages/admin/SuperAdminOrgs.jsx';
 
@@ -62,10 +67,11 @@ function LoadingScreen() {
 // ─── AppLayout — layout principal pour les pages authentifiées ────────────────
 function AppLayout({ children }) {
   const { user, logout } = useAuth();
+  const { theme } = useTheme();
   const isDesktop = useIsDesktop();
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: HS.bg }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: theme.bg }}>
 
       {/* ── SIDEBAR — desktop seulement ── */}
       {isDesktop && <SideNav user={user} onLogout={logout} />}
@@ -131,6 +137,8 @@ function ProtectedRoute({ children, adminOnly = false, superAdminOnly = false })
   // Inversement : les admins/superadmins n'ont pas accès aux fonctionnalités clientes
   const isAdmin = user.role === 'admin' || user.role === 'superadmin';
   if (!adminOnly && !superAdminOnly && isAdmin) return <Navigate to="/admin" replace />;
+  // Admin pages have their own layout (AdminSidebar), don't wrap in AppLayout
+  if (adminOnly || superAdminOnly) return children;
   return <AppLayout>{children}</AppLayout>;
 }
 
@@ -187,10 +195,14 @@ function AppRoutes() {
       <Route path="/community"  element={<ProtectedRoute><Community /></ProtectedRoute>} />
       <Route path="/reports"    element={<ProtectedRoute><Reports /></ProtectedRoute>} />
       <Route path="/history"    element={<ProtectedRoute><History /></ProtectedRoute>} />
+      <Route path="/settings"   element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
 
       {/* Admin */}
       <Route path="/admin"             element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
+      <Route path="/admin/alerts"      element={<ProtectedRoute adminOnly><AdminAlerts /></ProtectedRoute>} />
       <Route path="/admin/users"       element={<ProtectedRoute adminOnly><AdminUsers /></ProtectedRoute>} />
+      <Route path="/admin/moderation"  element={<ProtectedRoute adminOnly><AdminModeration /></ProtectedRoute>} />
       <Route path="/admin/testimonies" element={<ProtectedRoute adminOnly><AdminTestimonies /></ProtectedRoute>} />
       <Route path="/admin/reports"     element={<ProtectedRoute adminOnly><AdminReports /></ProtectedRoute>} />
       <Route path="/admin/orgs"        element={<ProtectedRoute superAdminOnly><SuperAdminOrgs /></ProtectedRoute>} />
@@ -203,8 +215,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

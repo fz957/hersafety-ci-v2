@@ -3,11 +3,14 @@ const Joi     = require('joi');
 
 const knex              = require('../db/knex');
 const { requireAuth }   = require('../middlewares/auth');
-const { requireTenant } = require('../middlewares/tenant');
 const { requireAdmin }  = require('../middlewares/admin');
 
 const router = express.Router();
-router.use(requireAuth, requireTenant);
+router.use(requireAuth);
+
+// Logger helper - only logs in development mode
+const isDev = process.env.NODE_ENV === 'development';
+const log = (...args) => isDev && console.log(...args);
 
 const DANGER_TYPES = ['harcelement_verbal', 'agression_physique', 'agression_sexuelle', 'vol', 'suivi', 'detour_force', 'autre'];
 
@@ -35,7 +38,6 @@ router.get('/', async (req, res) => {
   try {
     // Montrer: tous les témoignages approuvés + les témoignages pending de l'utilisateur
     const testimonies = await knex('testimonies')
-      .where({ organization_id: req.user.organizationId })
       .where((builder) => {
         builder
           .where('status', 'approved')
@@ -44,10 +46,10 @@ router.get('/', async (req, res) => {
           });
       })
       .select(
-        'id', 'organization_id', 'is_anonymous', 'display_name',
+        'id', 'is_anonymous', 'display_name',
         'category', 'title', 'content', 'location_label',
         'trigger_warning_level', 'support_count', 'comment_count', 'status', 'created_at',
-        'user_id' // Inclure pour vérifier propriétaire (anonymat préservé via is_anonymous)
+        'user_id', 'flagged' // Inclure pour vérifier propriétaire (anonymat préservé via is_anonymous)
       )
       .orderBy('created_at', 'desc')
       .limit(limit)
@@ -68,7 +70,7 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ success: false, error: error.details[0].message });
   }
 
-  const { userId, organizationId } = req.user;
+  const { userId } = req.user;
 
   try {
     let display_name = null;
@@ -80,7 +82,6 @@ router.post('/', async (req, res) => {
     const [testimony] = await knex('testimonies')
       .insert({
         user_id:              userId,
-        organization_id:      organizationId,
         is_anonymous:         value.is_anonymous,
         display_name,
         category:             value.category,
@@ -91,7 +92,7 @@ router.post('/', async (req, res) => {
         status:               'approved',
       })
       .returning([
-        'id', 'organization_id', 'is_anonymous', 'display_name',
+        'id', 'is_anonymous', 'display_name',
         'category', 'title', 'content', 'location_label', 'trigger_warning_level', 'status', 'created_at',
         'user_id', // Inclure pour client-side ownership check
       ]);
@@ -99,6 +100,78 @@ router.post('/', async (req, res) => {
     return res.status(201).json({ success: true, data: testimony });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Erreur création témoignage' });
+  }
+});
+
+// ─── GET /api/testimonies/notifications — User's notification feed ────────────────
+
+router.get('/notifications', async (req, res) => {
+  const { userId } = req.user;
+
+  try {
+    // 1. Likes on user's testimonies
+    const testimonyLikes = await knex('testimony_reactions')
+      .join('testimonies', 'testimony_reactions.testimony_id', '=', 'testimonies.id')
+      .join('users', 'testimony_reactions.user_id', '=', 'users.id')
+      .where('testimonies.user_id', userId)
+      .where('testimonies.organization_id')
+      .select(
+        'testimony_reactions.id as notification_id',
+        'testimonies.id as testimony_id',
+        'testimonies.title',
+        'users.id as actor_id',
+        'users.full_name as actor_name',
+        'testimony_reactions.created_at',
+        knex.raw(`'testimony_like' as type`)
+      )
+      .orderBy('testimony_reactions.created_at', 'desc');
+
+    // 2. Comments on user's testimonies
+    const testimonyComments = await knex('testimony_comments')
+      .join('testimonies', 'testimony_comments.testimony_id', '=', 'testimonies.id')
+      .join('users', 'testimony_comments.user_id', '=', 'users.id')
+      .where('testimonies.user_id', userId)
+      .where('testimonies.organization_id')
+      .select(
+        'testimony_comments.id as notification_id',
+        'testimonies.id as testimony_id',
+        'testimonies.title',
+        'users.id as actor_id',
+        'users.full_name as actor_name',
+        'testimony_comments.content as comment_content',
+        'testimony_comments.created_at',
+        knex.raw(`'testimony_comment' as type`)
+      )
+      .orderBy('testimony_comments.created_at', 'desc');
+
+    // 3. Likes on user's comments
+    const commentLikes = await knex('comment_likes')
+      .join('testimony_comments', 'comment_likes.comment_id', '=', 'testimony_comments.id')
+      .join('users', 'comment_likes.user_id', '=', 'users.id')
+      .where('testimony_comments.user_id', userId)
+      .where('testimony_comments.organization_id')
+      .select(
+        'comment_likes.id as notification_id',
+        'testimony_comments.testimony_id',
+        knex.raw(`(SELECT title FROM testimonies WHERE id = testimony_comments.testimony_id) as title`),
+        'users.id as actor_id',
+        'users.full_name as actor_name',
+        'comment_likes.created_at',
+        knex.raw(`'comment_like' as type`)
+      )
+      .orderBy('comment_likes.created_at', 'desc');
+
+    // Merge all notifications and sort by date
+    const allNotifications = [
+      ...testimonyLikes,
+      ...testimonyComments,
+      ...commentLikes,
+    ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    return res.json({ success: true, data: allNotifications });
+  } catch (err) {
+    console.error('Notifications fetch error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur récupération notifications' });
   }
 });
 
@@ -112,7 +185,7 @@ router.patch('/:id', requireAdmin, async (req, res) => {
 
   try {
     const [testimony] = await knex('testimonies')
-      .where({ id: req.params.id, organization_id: req.user.organizationId })
+      .where({ id: req.params.id })
       .where('status', 'pending')
       .update({
         status:       value.action === 'approve' ? 'approved' : 'rejected',
@@ -140,12 +213,12 @@ const likeSchema = Joi.object({
 
 router.post('/:testimonyId/like', async (req, res) => {
   const { testimonyId } = req.params;
-  const { userId, organizationId } = req.user;
+  const { userId } = req.user;
 
   try {
     // Vérifier que le témoignage existe dans l'org (approuvé OU pending pour le créateur)
     const testimony = await knex('testimonies')
-      .where({ id: testimonyId, organization_id: organizationId })
+      .where({ id: testimonyId })
       .where((builder) => {
         builder
           .where('status', 'approved')
@@ -216,70 +289,6 @@ router.get('/:testimonyId/like', async (req, res) => {
   }
 });
 
-// ─── GET /api/testimonies/:id/comments — List comments ────────────────────────
-
-const commentListSchema = Joi.object({
-  limit: Joi.number().min(1).max(100).default(10),
-  offset: Joi.number().min(0).default(0),
-});
-
-router.get('/:testimonyId/comments', async (req, res) => {
-  const { error, value } = commentListSchema.validate(req.query);
-  if (error) {
-    return res.status(400).json({ success: false, error: error.details[0].message });
-  }
-
-  const { testimonyId } = req.params;
-  const { userId, organizationId } = req.user;
-
-  try {
-    // Vérifier que le témoignage existe (approuvé OU pending pour le créateur)
-    const testimony = await knex('testimonies')
-      .where({ id: testimonyId, organization_id: organizationId })
-      .where((builder) => {
-        builder
-          .where('status', 'approved')
-          .orWhere((subBuilder) => {
-            subBuilder.where('status', 'pending').where('user_id', userId);
-          });
-      })
-      .first();
-
-    if (!testimony) {
-      return res.status(404).json({ success: false, error: 'Témoignage introuvable' });
-    }
-
-    const comments = await knex('testimony_comments')
-      .where({ testimony_id: testimonyId })
-      .select('id', 'user_id', 'is_anonymous', 'display_name', 'content', 'created_at')
-      .orderBy('created_at', 'asc')
-      .limit(value.limit)
-      .offset(value.offset);
-
-    // Compter les likes pour chaque commentaire
-    const commentsWithCounts = await Promise.all(comments.map(async (c) => {
-      const likesCount = await knex('comment_likes')
-        .where({ comment_id: c.id })
-        .count('* as cnt')
-        .first();
-
-      const userLiked = await knex('comment_likes')
-        .where({ comment_id: c.id, user_id: userId })
-        .first();
-
-      return {
-        ...c,
-        is_owner: c.user_id === userId,
-        likes_count: likesCount?.cnt || 0,
-        liked: !!userLiked,
-      };
-    }));
-
-    return res.json({ success: true, data: commentsWithCounts });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: 'Erreur récupération commentaires' });
-  }
-});
 
 // ─── POST /api/testimonies/:id/comments — Add comment ────────────────────────
 
@@ -295,12 +304,12 @@ router.post('/:testimonyId/comments', async (req, res) => {
   }
 
   const { testimonyId } = req.params;
-  const { userId, organizationId } = req.user;
+  const { userId } = req.user;
 
   try {
     // Vérifier que le témoignage existe (approuvé OU pending pour le créateur)
     const testimony = await knex('testimonies')
-      .where({ id: testimonyId, organization_id: organizationId })
+      .where({ id: testimonyId })
       .where((builder) => {
         builder
           .where('status', 'approved')
@@ -359,7 +368,7 @@ router.post('/:testimonyId/comments', async (req, res) => {
 
 router.delete('/:testimonyId/comments/:commentId', async (req, res) => {
   const { testimonyId, commentId } = req.params;
-  const { userId, organizationId } = req.user;
+  const { userId } = req.user;
 
   try {
     // Vérifier que le commentaire appartient à l'utilisateur
@@ -440,19 +449,19 @@ router.get('/:testimonyId/comments/:commentId/like', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
-  const { userId, organizationId } = req.user;
+  const { userId } = req.user;
 
-  console.log('DELETE /api/testimonies/:id', { id, userId, organizationId });
+  log('DELETE /api/testimonies/:id', { id, userId });
 
   try {
     const testimony = await knex('testimonies')
-      .where({ id, organization_id: organizationId })
+      .where({ id })
       .first();
 
-    console.log('Found testimony:', testimony?.id, 'user_id:', testimony?.user_id, 'userId:', userId);
+    log('Found testimony:', testimony?.id, 'user_id:', testimony?.user_id, 'userId:', userId);
 
     if (!testimony) {
-      console.log('Testimony not found');
+      log('Testimony not found');
       return res.status(404).json({ success: false, error: 'Témoignage introuvable' });
     }
 
@@ -460,10 +469,10 @@ router.delete('/:id', async (req, res) => {
     const isOwner = testimony.user_id === userId;
     const isAdmin = req.user.role === 'admin';
 
-    console.log('isOwner:', isOwner, 'isAdmin:', isAdmin);
+    log('isOwner:', isOwner, 'isAdmin:', isAdmin);
 
     if (!isOwner && !isAdmin) {
-      console.log('Not authorized to delete');
+      log('Not authorized to delete');
       return res.status(403).json({ success: false, error: 'Non autorisé' });
     }
 
@@ -480,6 +489,50 @@ router.delete('/:id', async (req, res) => {
   } catch (err) {
     console.error('Delete testimony error:', err);
     return res.status(500).json({ success: false, error: 'Erreur suppression témoignage' });
+  }
+});
+
+// ─── GET /api/testimonies/:id/comments ─────────────────────────────────────────
+
+router.get('/:id/comments', async (req, res) => {
+  const { id } = req.params;
+  const { organizationId } = req.user;
+
+  try {
+    const comments = await knex('comments')
+      .where({ content_type: 'testimony', content_id: id })
+      .select('id', 'display_name', 'content', 'likes_count', 'created_at')
+      .orderBy('created_at', 'desc');
+
+    return res.json({ success: true, data: comments });
+  } catch (err) {
+    console.error('Get comments error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur récupération commentaires' });
+  }
+});
+
+// ─── POST /api/testimonies/:id/flag — Flag a testimony ──────────────────────
+
+router.post('/:id/flag', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const testimony = await knex('testimonies').where({ id }).first();
+
+    if (!testimony) {
+      return res.status(404).json({ success: false, error: 'Témoignage introuvable' });
+    }
+
+    if (testimony.flagged) {
+      return res.status(400).json({ success: false, error: 'Ce témoignage a déjà été signalé' });
+    }
+
+    await knex('testimonies').where({ id }).update({ flagged: true });
+
+    return res.json({ success: true, data: { flagged: true } });
+  } catch (err) {
+    console.error('Flag testimony error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur signalement témoignage' });
   }
 });
 

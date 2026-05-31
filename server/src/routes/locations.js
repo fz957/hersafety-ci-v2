@@ -2,7 +2,6 @@ const express = require('express');
 const Joi = require('joi');
 const knex = require('../db/knex');
 const { requireAuth } = require('../middlewares/auth');
-const { requireTenant } = require('../middlewares/tenant');
 
 const router = express.Router();
 // Public API - no authentication required for location searches

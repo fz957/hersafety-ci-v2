@@ -17,6 +17,7 @@ if (missing.length > 0) {
 
 const app  = require('./app');
 const knex = require('./db/knex');
+const emailService = require('./services/email.service');
 
 const PORT = parseInt(process.env.PORT || '5000', 10);
 
@@ -26,6 +27,10 @@ async function start() {
     await knex.raw('SELECT 1');
     console.log('[DB] Connexion PostgreSQL établie');
     console.log('[CONFIG] APP_MODE=' + process.env.APP_MODE);
+
+    // Initialiser le service email
+    emailService.initializeTransporter();
+    console.log('[EMAIL] Service email initialisé');
 
     app.listen(PORT, () => {
       console.log(`[SERVER] HerSafety CI démarré sur le port ${PORT}`);

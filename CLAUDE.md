@@ -492,7 +492,31 @@ Emergency Numbers :
 
 
 
-\## 13. Variables d'environnement (.env)
+\## 13. Configuration des Ports (IMPORTANT!)
+
+⚠️ **CRITICAL**: Deux fichiers `.env` doivent rester synchronisés:
+- `root/.env` — configuration globale
+- `server/.env` — override spécifique au serveur
+
+**Port actuel (5001):**
+```
+root/.env: PORT=5001, APP_URL=http://localhost:5001
+server/.env: PORT=5001, APP_URL=http://localhost:5001
+client/.env.development: VITE_API_URL=http://localhost:5001
+```
+
+**Si tu changes le PORT:**
+1. Change `root/.env` → `PORT=XXXX`
+2. Change `server/.env` → `PORT=XXXX` ET `APP_URL=http://localhost:XXXX`
+3. Change `client/.env.development` → `VITE_API_URL=http://localhost:XXXX`
+4. Redémarrer les deux serveurs: `npm run dev` (server) et `npm run dev` (client)
+
+**Script de vérification (optionnel):**
+```bash
+node scripts/verify-ports.js
+```
+
+\## 14. Variables d'environnement (.env)
 
 
 

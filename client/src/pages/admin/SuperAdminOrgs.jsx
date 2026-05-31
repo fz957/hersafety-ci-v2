@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { HS, ICONS } from '../../tokens';
+import { useTheme } from '../../context/ThemeContext';
 import {
   Icon, Button, Card, Input, Eyebrow, H2,
   BackButton, PageShell, ScrollArea, Toast, Spinner,
 } from '../../components/ui/index.jsx';
 
 const TYPE_LABELS = { ong: 'ONG', entreprise: 'Entreprise', universite: 'Université' };
-const TYPE_COLORS = { ong: HS.sakura, entreprise: HS.milkTea, universite: HS.aloewood };
+
+function getTypeColors(theme) {
+  return { ong: theme.sakura, entreprise: theme.milkTea, universite: theme.aloewood };
+}
 
 // ─── Carte organisation ──────────────────────────────────────────────────────
-function OrgCard({ org, onApprove, onToggle }) {
+function OrgCard({ org, onApprove, onToggle, theme }) {
   const [expanded, setExpanded] = useState(false);
+  const TYPE_COLORS = getTypeColors(theme);
 
   return (
     <Card style={{ padding: 14, opacity: org.is_active ? 1 : 0.6 }}>
@@ -26,44 +31,44 @@ function OrgCard({ org, onApprove, onToggle }) {
         {/* Icône type */}
         <div style={{
           width: 44, height: 44, borderRadius: 13, flexShrink: 0,
-          background: (TYPE_COLORS[org.type] || HS.mistyRose) + '28',
+          background: (TYPE_COLORS[org.type] || theme.mistyRose) + '28',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <Icon d={ICONS.shield} size={20} color={TYPE_COLORS[org.type] || HS.sakura} />
+          <Icon d={ICONS.shield} size={20} color={TYPE_COLORS[org.type] || theme.sakura} />
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* Nom + badges */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 14, fontWeight: 800, color: HS.chocolate }}>{org.name}</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: theme.chocolate }}>{org.name}</span>
             <span style={{
               fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 6,
-              background: (TYPE_COLORS[org.type] || HS.mistyRose) + '28',
-              color: TYPE_COLORS[org.type] || HS.sakura,
+              background: (TYPE_COLORS[org.type] || theme.mistyRose) + '28',
+              color: TYPE_COLORS[org.type] || theme.sakura,
             }}>{TYPE_LABELS[org.type] || org.type}</span>
             {!org.is_approved && (
               <span style={{
                 fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 6,
-                background: HS.warnSoft, color: HS.warn,
+                background: theme.warnSoft, color: theme.warn,
               }}>⏳ En attente</span>
             )}
             {!org.is_active && (
               <span style={{
                 fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 6,
-                background: HS.dangerSoft, color: HS.danger,
+                background: theme.dangerSoft, color: theme.danger,
               }}>Suspendue</span>
             )}
           </div>
 
-          <div style={{ fontSize: 11, color: HS.textMute, marginTop: 3 }}>{org.email}</div>
+          <div style={{ fontSize: 11, color: theme.textMute, marginTop: 3 }}>{org.email}</div>
 
           {/* Code invitation */}
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
-            marginTop: 6, background: HS.surface2, borderRadius: 8, padding: '4px 10px',
+            marginTop: 6, background: theme.surface2, borderRadius: 8, padding: '4px 10px',
           }}>
-            <Icon d={ICONS.share} size={12} color={HS.aloewood} />
-            <span style={{ fontFamily: 'monospace', fontSize: 12, color: HS.aloewood, fontWeight: 800, letterSpacing: 2 }}>
+            <Icon d={ICONS.share} size={12} color={theme.aloewood} />
+            <span style={{ fontFamily: 'monospace', fontSize: 12, color: theme.aloewood, fontWeight: 800, letterSpacing: 2 }}>
               {org.join_code}
             </span>
           </div>
@@ -73,7 +78,7 @@ function OrgCard({ org, onApprove, onToggle }) {
         <Icon
           d={ICONS.arrow}
           size={18}
-          color={HS.textMute}
+          color={theme.textMute}
           style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform .2s' }}
         />
       </button>
@@ -81,19 +86,19 @@ function OrgCard({ org, onApprove, onToggle }) {
       {/* Panel d'actions (expandé) */}
       {expanded && (
         <div style={{
-          marginTop: 14, paddingTop: 14, borderTop: `1px dashed ${HS.border}`,
+          marginTop: 14, paddingTop: 14, borderTop: `1px dashed ${theme.border}`,
         }}>
           {org.phone && (
-            <div style={{ fontSize: 12, color: HS.textDim, marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: theme.textDim, marginBottom: 10 }}>
               📞 {org.phone}
             </div>
           )}
           {org.address && (
-            <div style={{ fontSize: 12, color: HS.textDim, marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: theme.textDim, marginBottom: 10 }}>
               📍 {org.address}
             </div>
           )}
-          <div style={{ fontSize: 10, color: HS.textFaint, marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: theme.textFaint, marginBottom: 12 }}>
             Créée le {new Date(org.created_at).toLocaleDateString('fr-FR', {
               day: 'numeric', month: 'long', year: 'numeric',
             })}
@@ -106,8 +111,8 @@ function OrgCard({ org, onApprove, onToggle }) {
                 onClick={() => onApprove(org.id)}
                 style={{
                   flex: 1, padding: '11px', borderRadius: 12,
-                  background: HS.safe, color: '#fff', border: 'none',
-                  fontWeight: 700, fontSize: 13, fontFamily: HS.font,
+                  background: theme.safe, color: '#fff', border: 'none',
+                  fontWeight: 700, fontSize: 13, fontFamily: theme.font,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 }}
               >
@@ -121,9 +126,9 @@ function OrgCard({ org, onApprove, onToggle }) {
               onClick={() => onToggle(org)}
               style={{
                 flex: 1, padding: '11px', borderRadius: 12,
-                background: org.is_active ? HS.dangerSoft : HS.safeSoft,
-                color: org.is_active ? HS.danger : HS.safe,
-                border: 'none', fontWeight: 700, fontSize: 13, fontFamily: HS.font,
+                background: org.is_active ? theme.dangerSoft : theme.safeSoft,
+                color: org.is_active ? theme.danger : theme.safe,
+                border: 'none', fontWeight: 700, fontSize: 13, fontFamily: theme.font,
               }}
             >
               {org.is_active ? 'Suspendre' : 'Réactiver'}
@@ -136,7 +141,7 @@ function OrgCard({ org, onApprove, onToggle }) {
 }
 
 // ─── Formulaire de création ──────────────────────────────────────────────────
-function CreateForm({ onCreated }) {
+function CreateForm({ onCreated, theme }) {
   const [form, setForm] = useState({ name: '', type: 'ong', email: '', phone: '', address: '' });
   const [loading, setLoading] = useState(false);
   const [toast, setToast]     = useState(null);
@@ -174,7 +179,7 @@ function CreateForm({ onCreated }) {
             {/* Type */}
             <div>
               <div style={{
-                fontSize: 11, fontWeight: 700, color: HS.textDim, marginBottom: 8,
+                fontSize: 11, fontWeight: 700, color: theme.textDim, marginBottom: 8,
                 letterSpacing: 0.6, textTransform: 'uppercase',
               }}>Type</div>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -185,10 +190,10 @@ function CreateForm({ onCreated }) {
                     onClick={() => setForm((f) => ({ ...f, type: v }))}
                     style={{
                       flex: 1, padding: '12px 0', borderRadius: 14, fontSize: 12, fontWeight: 700,
-                      background: form.type === v ? TYPE_COLORS[v] : HS.surface,
-                      color: form.type === v ? (v === 'universite' ? '#fff' : HS.chocolate) : HS.textDim,
-                      border: `1.5px solid ${form.type === v ? TYPE_COLORS[v] : HS.border}`,
-                      fontFamily: HS.font,
+                      background: form.type === v ? TYPE_COLORS[v] : theme.surface,
+                      color: form.type === v ? (v === 'universite' ? '#fff' : theme.chocolate) : theme.textDim,
+                      border: `1.5px solid ${form.type === v ? TYPE_COLORS[v] : theme.border}`,
+                      fontFamily: theme.font,
                     }}
                   >{l}</button>
                 ))}
@@ -209,17 +214,17 @@ function CreateForm({ onCreated }) {
             </div>
 
             <Button type="submit" disabled={loading}
-              icon={<Icon d={ICONS.plus} size={18} color={HS.bg} />}>
+              icon={<Icon d={ICONS.plus} size={18} color={theme.bg} />}>
               {loading ? 'Création…' : 'Créer l\'organisation'}
             </Button>
 
             {/* Explication code */}
             <div style={{
-              background: HS.surface2, borderRadius: 12, padding: '12px 14px',
+              background: theme.surface2, borderRadius: 12, padding: '12px 14px',
               display: 'flex', alignItems: 'flex-start', gap: 10,
             }}>
-              <Icon d={ICONS.share} size={16} color={HS.aloewood} style={{ marginTop: 1 }} />
-              <div style={{ fontSize: 12, color: HS.textDim, lineHeight: 1.5 }}>
+              <Icon d={ICONS.share} size={16} color={theme.aloewood} style={{ marginTop: 1 }} />
+              <div style={{ fontSize: 12, color: theme.textDim, lineHeight: 1.5 }}>
                 Un code d'invitation de <b>8 caractères</b> sera généré automatiquement.
                 Partagez-le avec les membres pour qu'ils puissent s'inscrire.
               </div>
@@ -234,6 +239,7 @@ function CreateForm({ onCreated }) {
 
 // ─── Page principale ─────────────────────────────────────────────────────────
 export default function SuperAdminOrgs() {
+  const { theme, isDark, toggleTheme } = useTheme();
   const [orgs, setOrgs]         = useState([]);
   const [loading, setLoading]   = useState(true);
   const [tab, setTab]           = useState('list');
@@ -286,19 +292,35 @@ export default function SuperAdminOrgs() {
     <PageShell>
       {/* Header */}
       <div style={{
-        padding: '54px 20px 0', borderBottom: `1px solid ${HS.border}`,
+        padding: '54px 20px 0', borderBottom: `1px solid ${theme.border}`,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
           <BackButton to="/admin" />
           <div style={{ flex: 1 }}>
             <Eyebrow>Super Administration</Eyebrow>
-            <H2 style={{ marginTop: 2 }}>Organisations</H2>
+            <H2 style={{ marginTop: 2, color: theme.chocolate }}>Organisations</H2>
           </div>
+          <button
+            onClick={toggleTheme}
+            style={{
+              background: theme.surface,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 8,
+              padding: '6px 10px',
+              color: theme.text,
+              cursor: 'pointer',
+              fontSize: 16,
+              display: 'flex',
+              alignItems: 'center'
+            }}
+          >
+            {isDark ? '☀️' : '🌙'}
+          </button>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: HS.serif, fontSize: 26, color: HS.chocolate, lineHeight: 1 }}>
+            <div style={{ fontFamily: theme.serif, fontSize: 26, color: theme.chocolate, lineHeight: 1, fontWeight: 800 }}>
               {orgs.length}
             </div>
-            <div style={{ fontSize: 10, color: HS.textMute }}>tenants</div>
+            <div style={{ fontSize: 10, color: theme.textMute }}>tenants</div>
           </div>
         </div>
 
@@ -307,16 +329,16 @@ export default function SuperAdminOrgs() {
           {[{ id: 'list', l: 'Liste' }, { id: 'new', l: '+ Créer' }].map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               padding: '8px 20px', borderRadius: 100, fontSize: 13, fontWeight: 700,
-              background: tab === t.id ? HS.chocolate : HS.surface,
-              color: tab === t.id ? HS.textOnDark : HS.textDim,
-              border: tab === t.id ? 'none' : `1px solid ${HS.border}`,
-              fontFamily: HS.font,
+              background: tab === t.id ? theme.chocolate : theme.surface,
+              color: tab === t.id ? theme.textOnDark : theme.textDim,
+              border: tab === t.id ? 'none' : `1px solid ${theme.border}`,
+              fontFamily: theme.font,
             }}>{t.l}</button>
           ))}
           {pendingCount > 0 && (
             <span style={{
               marginLeft: 'auto', alignSelf: 'center',
-              background: HS.warn, color: '#fff', borderRadius: 10,
+              background: theme.warn, color: '#fff', borderRadius: 10,
               padding: '4px 10px', fontSize: 11, fontWeight: 800,
             }}>
               {pendingCount} en attente
@@ -329,10 +351,10 @@ export default function SuperAdminOrgs() {
             {/* Recherche */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 10,
-              background: HS.surface, borderRadius: 14, border: `1.5px solid ${HS.border}`,
+              background: theme.surface, borderRadius: 14, border: `1.5px solid ${theme.border}`,
               padding: '0 14px', height: 46, marginBottom: 10,
             }}>
-              <Icon d={ICONS.search} size={18} color={HS.textMute} />
+              <Icon d={ICONS.search} size={18} color={theme.textMute} />
               <input
                 type="text"
                 placeholder="Rechercher une organisation…"
@@ -340,12 +362,12 @@ export default function SuperAdminOrgs() {
                 onChange={(e) => setQuery(e.target.value)}
                 style={{
                   flex: 1, border: 'none', outline: 'none', background: 'transparent',
-                  fontSize: 14, color: HS.text, fontFamily: HS.font,
+                  fontSize: 14, color: theme.text, fontFamily: theme.font,
                 }}
               />
               {query && (
                 <button onClick={() => setQuery('')}
-                  style={{ background: 'none', border: 'none', color: HS.textMute, display: 'flex' }}>
+                  style={{ background: 'none', border: 'none', color: theme.textMute, display: 'flex' }}>
                   <Icon d={ICONS.x} size={16} />
                 </button>
               )}
@@ -361,10 +383,10 @@ export default function SuperAdminOrgs() {
               ].map((f) => (
                 <button key={f.v} onClick={() => setFilterStatus(f.v)} style={{
                   padding: '6px 14px', borderRadius: 100, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
-                  background: filterStatus === f.v ? HS.chocolate : HS.surface,
-                  color: filterStatus === f.v ? HS.textOnDark : HS.textDim,
-                  border: filterStatus === f.v ? 'none' : `1px solid ${HS.border}`,
-                  fontFamily: HS.font,
+                  background: filterStatus === f.v ? theme.chocolate : theme.surface,
+                  color: filterStatus === f.v ? theme.textOnDark : theme.textDim,
+                  border: filterStatus === f.v ? 'none' : `1px solid ${theme.border}`,
+                  fontFamily: theme.font,
                 }}>{f.l}</button>
               ))}
             </div>
@@ -372,14 +394,14 @@ export default function SuperAdminOrgs() {
         )}
       </div>
 
-      <ScrollArea style={{ padding: '12px 16px 40px' }}>
+      <ScrollArea style={{ padding: '12px 16px 40px', background: theme.bg }}>
         {tab === 'list' ? (
           loading ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><Spinner /></div>
           ) : filtered.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40 }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>🏢</div>
-              <div style={{ fontSize: 14, color: HS.textMute }}>
+              <div style={{ fontSize: 14, color: theme.textMute }}>
                 {query ? `Aucun résultat pour « ${query} »` : 'Aucune organisation.'}
               </div>
             </div>
@@ -388,17 +410,17 @@ export default function SuperAdminOrgs() {
               {/* Bannière d'approbation si des orgs attendent */}
               {filtered.some((o) => !o.is_approved) && (
                 <div style={{
-                  background: `linear-gradient(135deg, ${HS.warnSoft}, ${HS.surface})`,
+                  background: `linear-gradient(135deg, ${theme.warnSoft}, ${theme.surface})`,
                   borderRadius: 16, padding: '14px 16px',
                   display: 'flex', alignItems: 'center', gap: 12,
-                  border: `1px solid ${HS.warn}40`,
+                  border: `1px solid ${theme.warn}40`,
                 }}>
-                  <Icon d={ICONS.clock} size={20} color={HS.warn} />
+                  <Icon d={ICONS.clock} size={20} color={theme.warn} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: HS.chocolate }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: theme.chocolate }}>
                       {filtered.filter((o) => !o.is_approved).length} organisation(s) en attente d'approbation
                     </div>
-                    <div style={{ fontSize: 11, color: HS.textMute, marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: theme.textMute, marginTop: 2 }}>
                       Développe une carte pour approuver
                     </div>
                   </div>
@@ -411,12 +433,13 @@ export default function SuperAdminOrgs() {
                   org={org}
                   onApprove={approve}
                   onToggle={toggleStatus}
+                  theme={theme}
                 />
               ))}
             </div>
           )
         ) : (
-          <CreateForm onCreated={(newOrg) => { setOrgs((list) => [newOrg, ...list]); setTab('list'); }} />
+          <CreateForm onCreated={(newOrg) => { setOrgs((list) => [newOrg, ...list]); setTab('list'); }} theme={theme} />
         )}
       </ScrollArea>
 

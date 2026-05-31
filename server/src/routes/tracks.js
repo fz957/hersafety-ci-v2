@@ -4,7 +4,6 @@ const crypto  = require('crypto');
 
 const knex              = require('../db/knex');
 const { requireAuth }   = require('../middlewares/auth');
-const { requireTenant } = require('../middlewares/tenant');
 const { sendTrackNotification } = require('../services/email.service');
 
 const router = express.Router();
@@ -43,17 +42,17 @@ router.get('/share/:token', async (req, res) => {
 });
 
 // Routes authentifiées à partir d'ici
-router.use(requireAuth, requireTenant);
+router.use(requireAuth);
 
 // ─── GET /api/tracks ─────────────────────────────────────────────────────────
 // List all tracks for the current user
 
 router.get('/', async (req, res) => {
-  const { userId, organizationId } = req.user;
+  const { userId } = req.user;
 
   try {
     const tracks = await knex('tracks')
-      .where({ user_id: userId, organization_id: organizationId })
+      .where({ user_id: userId})
       .orderBy('started_at', 'desc');
 
     return res.json({ success: true, data: tracks });
@@ -86,12 +85,12 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ success: false, error: error.details[0].message });
   }
 
-  const { userId, organizationId } = req.user;
+  const { userId } = req.user;
 
   try {
     // Interrompt tout trajet actif existant avant d'en démarrer un nouveau
     await knex('tracks')
-      .where({ user_id: userId, organization_id: organizationId, status: 'active' })
+      .where({ user_id: userId, status: 'active' })
       .update({ status: 'interrupted', ended_at: new Date() });
 
     const initialWaypoints = value.location_lat && value.location_lng
@@ -115,7 +114,7 @@ router.post('/', async (req, res) => {
     // Envoyer les notifications aux contacts
     const user = await knex('users').where({ id: userId }).first();
     const contacts = await knex('contacts')
-      .where({ user_id: userId, organization_id: organizationId });
+      .where({ user_id: userId});
 
     if (contacts.length > 0) {
       const shareLink = `${process.env.FRONTEND_URL}/track/${shareToken}`;
@@ -157,11 +156,11 @@ router.patch('/:id/checkin', async (req, res) => {
 
   console.log('[CHECKIN] ✓ Validation OK:', JSON.stringify(value));
 
-  const { userId, organizationId } = req.user;
+  const { userId } = req.user;
 
   try {
     const track = await knex('tracks')
-      .where({ id: req.params.id, user_id: userId, organization_id: organizationId, status: 'active' })
+      .where({ id: req.params.id, user_id: userId, status: 'active' })
       .first();
 
     if (!track) {
@@ -219,11 +218,11 @@ router.patch('/:id', async (req, res) => {
     return res.status(400).json({ success: false, error: error.details[0].message });
   }
 
-  const { userId, organizationId } = req.user;
+  const { userId } = req.user;
 
   try {
     const track = await knex('tracks')
-      .where({ id: req.params.id, user_id: userId, organization_id: organizationId, status: 'active' })
+      .where({ id: req.params.id, user_id: userId, status: 'active' })
       .first();
 
     if (!track) {
@@ -256,11 +255,11 @@ router.patch('/:id', async (req, res) => {
 // ─── PATCH /api/tracks/:id/end ────────────────────────────────────────────────
 
 router.patch('/:id/end', async (req, res) => {
-  const { userId, organizationId } = req.user;
+  const { userId } = req.user;
 
   try {
     const [track] = await knex('tracks')
-      .where({ id: req.params.id, user_id: userId, organization_id: organizationId, status: 'active' })
+      .where({ id: req.params.id, user_id: userId, status: 'active' })
       .update({ status: 'completed', ended_at: new Date() })
       .returning('*');
 

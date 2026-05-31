@@ -101,11 +101,21 @@ export default function Onboarding() {
                   {c.email && c.phone && <> ({c.phone})</>}
                 </div>
               </div>
-              <button onClick={() => removeContact(c.id)}
-                style={{ background: HS.dangerSoft, border: 'none', borderRadius: 8, padding: 8,
-                  color: HS.danger, display: 'flex' }}>
-                <Icon d={ICONS.trash} size={16} />
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {c.phone && (
+                  <a href={`tel:${c.phone}`} style={{ textDecoration: 'none' }}>
+                    <button style={{ background: HS.sakura, border: 'none', borderRadius: 8, padding: 8,
+                      color: '#fff', display: 'flex', cursor: 'pointer' }}>
+                      <Icon d={ICONS.phone} size={16} />
+                    </button>
+                  </a>
+                )}
+                <button onClick={() => removeContact(c.id)}
+                  style={{ background: HS.dangerSoft, border: 'none', borderRadius: 8, padding: 8,
+                    color: HS.danger, display: 'flex' }}>
+                  <Icon d={ICONS.trash} size={16} />
+                </button>
+              </div>
             </Card>
           ))}
           {loading && <div style={{ textAlign: 'center', color: HS.textMute, padding: 12, fontSize: 13 }}>

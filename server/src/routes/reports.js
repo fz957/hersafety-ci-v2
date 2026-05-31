@@ -2,11 +2,10 @@
 const Joi = require('joi');
 const knex = require('../db/knex');
 const { requireAuth } = require('../middlewares/auth');
-const { requireTenant } = require('../middlewares/tenant');
 const { requireAdmin } = require('../middlewares/admin');
 
 const router = express.Router();
-router.use(requireAuth, requireTenant);
+router.use(requireAuth);
 
 const reportSchema = Joi.object({
   report_type: Joi.string().valid('lieu').required(),
@@ -175,7 +174,7 @@ router.patch('/:id', requireAdmin, async (req, res) => {
 
   try {
     const [report] = await knex('reports')
-      .where({ id, organization_id: organizationId })
+      .where({ id})
       .update({
         status,
         verified_at: new Date(),

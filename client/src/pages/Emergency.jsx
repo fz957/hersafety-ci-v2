@@ -90,6 +90,7 @@ export default function Emergency() {
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
 
   const [emergencyNums, setEmergencyNums] = useState([]);
+  const [urgentContacts, setUrgentContacts] = useState([]);
   const [places, setPlaces]               = useState([]);
   const [selectedPlace, setSelectedPlace] = useState(null); // For routing
   const [messages, setMessages]           = useState([]); // Conversation history
@@ -97,8 +98,12 @@ export default function Emergency() {
   const [loadingAI, setLoadingAI]         = useState(false);
   const [elapsed, setElapsed]             = useState(0);
   const [loadingPOIs, setLoadingPOIs]     = useState(false);
+  const initializedRef = useRef(false); // Éviter l'initialisation double de Lyra
   const timerRef = useRef(null);
   const messagesEndRef = useRef(null);
+
+  // DEBUG: Log on every render
+  console.log('[Emergency RENDER] messages:', messages.length, 'emergencyNums:', emergencyNums.length, 'places:', places.length, 'loadingAI:', loadingAI, 'initialized:', initializedRef.current);
 
   // Charger POIs depuis Overpass - UTILISER POUR LES LIEUX SÛRS
   const { pois, loading: poiLoading } = useOverpassPOIs(position?.lat, position?.lng, 5);
@@ -153,18 +158,25 @@ export default function Emergency() {
   }, []);
 
   // Enregistrement audio automatique en cas d'urgence
+  const recordingHandledRef = useRef(false);
+
   useEffect(() => {
-    console.log('[Emergency] Démarrage enregistrement audio...');
+    console.log('[Emergency AUDIO] Starting audio recording');
     startRecording();
 
     // Arrêter l'enregistrement et sauvegarder en quittant
     return () => {
-      console.log('[Emergency] Arrêt enregistrement audio...');
-      stopRecording().then(audioBlob => {
-        if (audioBlob) {
-          saveEmergencyWithAudio(audioBlob);
-        }
-      });
+      console.log('[Emergency AUDIO] Stopping audio recording on cleanup - handled:', recordingHandledRef.current);
+      // Ne sauvegarder que si pas déjà géré par le bouton "Je suis en sécurité"
+      if (!recordingHandledRef.current) {
+        stopRecording().then(audioBlob => {
+          console.log('[Emergency AUDIO] Audio blob received:', audioBlob ? 'YES' : 'NO');
+          if (audioBlob) {
+            console.log('[Emergency AUDIO] Saving emergency with audio');
+            saveEmergencyWithAudio(audioBlob);
+          }
+        });
+      }
     };
   }, []);
 
@@ -172,7 +184,25 @@ export default function Emergency() {
 
   // Numéros d'urgence
   useEffect(() => {
-    api.get('/api/emergency-numbers').then((r) => setEmergencyNums(r.data.data)).catch(() => {});
+    console.log('[Emergency EFFECT] Fetching emergency numbers...');
+    api.get('/api/emergency-numbers').then((r) => {
+      console.log('[Emergency EFFECT] Emergency numbers loaded:', r.data.data.length);
+      setEmergencyNums(r.data.data);
+    }).catch((err) => {
+      console.error('[Emergency EFFECT] Error fetching emergency numbers:', err);
+    });
+  }, []);
+
+  // Charger contacts d'urgence
+  useEffect(() => {
+    console.log('[Emergency EFFECT] Fetching urgent contacts...');
+    api.get('/api/contacts').then((r) => {
+      console.log('[Emergency EFFECT] Urgent contacts loaded:', r.data.data.length);
+      setUrgentContacts(r.data.data || []);
+    }).catch((err) => {
+      console.error('[Emergency EFFECT] Error fetching contacts:', err);
+      setUrgentContacts([]);
+    });
   }, []);
 
   // Traiter la transcription vocale
@@ -186,7 +216,11 @@ export default function Emergency() {
 
   // Lieux sûrs — Utiliser les POIs d'Overpass directement (tous les lieux OSM)
   useEffect(() => {
-    if (!position || !pois || pois.length === 0) return;
+    console.log('[Emergency EFFECT] Places effect triggered - position:', position ? 'OK' : 'NONE', 'pois:', pois ? pois.length : 0);
+    if (!position || !pois || pois.length === 0) {
+      console.log('[Emergency EFFECT] Skipping places - missing data');
+      return;
+    }
 
     // Calculer distances et trier
     const withDistances = pois.map(p => ({
@@ -202,15 +236,43 @@ export default function Emergency() {
       .sort((a, b) => a.distance - b.distance)
       .slice(0, 10);
 
-    console.log('[Emergency] Lieux sûrs trouvés:', sorted.length);
+    console.log('[Emergency EFFECT] Places found and set:', sorted.length);
     setPlaces(sorted);
   }, [position, pois]);
 
-  // Init: Appel initial à Claude pour commencer la conversation
+  // Init: Appel initial à Claude pour commencer la conversation (UNE SEULE FOIS - GARANTIE)
   useEffect(() => {
-    if (messages.length > 0) return; // Déjà initialisé
+    console.log('========== [Emergency INIT EFFECT] TRIGGERED ==========');
+    console.log('  initialized:', initializedRef.current);
+    console.log('  messages.length:', messages.length);
+    console.log('  emergencyNums.length:', emergencyNums.length);
+    console.log('  places.length:', places.length);
 
+    if (initializedRef.current) {
+      console.log('  → SKIP: Already initialized (ref=true)');
+      return;
+    }
+    if (messages.length > 0) {
+      console.log('  → SKIP: Messages already exist');
+      return;
+    }
+    if (!emergencyNums.length || !places.length) {
+      console.log('  → SKIP: Waiting for data (emergencyNums or places empty)');
+      return;
+    }
+
+    console.log('  ✓ PROCEEDING with initialization');
+    console.log('  Setting initializedRef.current = true');
+    initializedRef.current = true;
+
+    console.log('  Setting loadingAI = true');
     setLoadingAI(true);
+
+    console.log('  Calling /api/claude/assist with:', {
+      level,
+      contextKeys: Object.keys({ position, emergencyNumbers: emergencyNums, nearbyPlaces: places })
+    });
+
     api.post('/api/claude/assist', {
       level,
       conversationHistory: [],
@@ -218,31 +280,66 @@ export default function Emergency() {
         position,
         emergencyNumbers: emergencyNums,
         nearbyPlaces: places,
-        vtcOptions: getVTCLinks(places[0])  // Utiliser le lieu le plus proche comme destination
+        vtcOptions: getVTCLinks(places[0])
       }
     })
       .then((r) => {
+        console.log('  ✓ API response received');
+        console.log('  Response data:', r.data.data);
         const initialMessage = { role: 'assistant', content: r.data.data.message };
+        console.log('  Setting messages with initial message');
         setMessages([initialMessage]);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('  ✗ API ERROR:', err.message);
+        console.error('  Full error:', err);
         const fallback = { role: 'assistant', content: 'Reste calme. Éloigne-toi calmement si possible. Le 110 est disponible.' };
+        console.log('  Setting fallback message');
         setMessages([fallback]);
       })
-      .finally(() => setLoadingAI(false));
-  }, [position, emergencyNums, places]);
+      .finally(() => {
+        console.log('  Setting loadingAI = false');
+        setLoadingAI(false);
+        console.log('========== [Emergency INIT EFFECT] COMPLETED ==========');
+      });
+  }, [emergencyNums, places]);
 
   // Pas de scroll auto - chaque seconde compte en urgence
 
   // Sauvegarder l'urgence avec l'enregistrement audio
-  const saveEmergencyWithAudio = async (audioBlob) => {
+  const saveEmergencyWithAudio = async (audioBlob, finalLocation = null) => {
+    console.log('[Emergency SAVE] saveEmergencyWithAudio called - audioBlob:', audioBlob ? 'YES' : 'NO', 'finalLocation:', finalLocation ? 'YES' : 'NO');
     try {
-      if (!audioBlob) return;
+      if (!audioBlob) {
+        console.log('[Emergency SAVE] No audioBlob, returning');
+        return;
+      }
 
       // Convertir le blob en base64
       const reader = new FileReader();
       reader.onload = async () => {
+        console.log('[Emergency SAVE] FileReader onload triggered');
         const base64Audio = reader.result.split(',')[1]; // Enlever le préfixe "data:..."
+        console.log('[Emergency SAVE] Base64 audio size:', base64Audio ? base64Audio.length : 0, 'bytes');
+
+        // Chercher le lieu le plus proche pour la position finale
+        let finalLocationName = 'Dernière position';
+        if (finalLocation) {
+          console.log('[Emergency SAVE] Looking up final location name from Overpass...');
+          // Utiliser les POIs pour trouver le lieu le plus proche de la position finale
+          try {
+            const response = await fetch(
+              `https://overpass-api.de/api/interpreter?data=[out:json];(node["name"](${finalLocation.lat - 0.01},${finalLocation.lng - 0.01},${finalLocation.lat + 0.01},${finalLocation.lng + 0.01});way["name"](${finalLocation.lat - 0.01},${finalLocation.lng - 0.01},${finalLocation.lat + 0.01},${finalLocation.lng + 0.01}););out center 1;`
+            );
+            const data = await response.json();
+            if (data.elements && data.elements.length > 0) {
+              finalLocationName = data.elements[0].tags?.name || 'Dernière position';
+              console.log('[Emergency SAVE] Final location name:', finalLocationName);
+            }
+          } catch (err) {
+            console.log('[Emergency SAVE] Overpass request failed, using default name:', err.message);
+          }
+        }
 
         // Préparer les données
         const emergencyData = {
@@ -250,33 +347,43 @@ export default function Emergency() {
           trigger_type: 'emergency_page',
           latitude: position?.lat,
           longitude: position?.lng,
-          location_name: places[0]?.name || 'Position actuelle',
+          location_name: 'Position actuelle', // Lieu d'activation = où elle était vraiment
+          // Localisation finale (lieu de refuge ou dernier endroit connu)
+          final_latitude: finalLocation?.lat || position?.lat,
+          final_longitude: finalLocation?.lng || position?.lng,
+          final_location_name: finalLocationName, // Lieu de refuge = où elle s'est arrêtée en dernier
           contacts_alerted: [], // À compléter si nécessaire
           sms_sent: [],
           audio_base64: base64Audio,
           status: 'active',
         };
 
+        console.log('[Emergency SAVE] Posting to /api/emergency-history...');
         // Envoyer à l'API
         try {
           const response = await api.post('/api/emergency-history', emergencyData);
-          console.log('[Emergency] Urgence sauvegardée:', response.data.data);
+          console.log('[Emergency SAVE] ✓ Emergency saved successfully:', response.data.data);
         } catch (err) {
-          console.error('[Emergency] Erreur sauvegarde urgence:', err);
+          console.error('[Emergency SAVE] ✗ Error saving emergency:', err);
         }
       };
 
       reader.readAsDataURL(audioBlob);
     } catch (err) {
-      console.error('[Emergency] Erreur conversion audio:', err);
+      console.error('[Emergency SAVE] ✗ Error in conversion:', err);
     }
   };
 
   // Envoyer message utilisateur et obtenir réponse IA
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!userInput.trim() || loadingAI) return;
+    console.log('[Emergency SEND] Checking conditions - userInput:', !!userInput.trim(), 'loadingAI:', loadingAI);
+    if (!userInput.trim() || loadingAI) {
+      console.log('[Emergency SEND] Skipping - conditions not met');
+      return;
+    }
 
+    console.log('[Emergency SEND] Sending message:', userInput);
     const userMessage = { role: 'user', content: userInput };
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
@@ -284,6 +391,7 @@ export default function Emergency() {
     setLoadingAI(true);
 
     try {
+      console.log('[Emergency SEND] Calling Claude with', updatedMessages.length, 'messages in history');
       const response = await api.post('/api/claude/assist', {
         level,
         conversationHistory: updatedMessages,
@@ -291,12 +399,14 @@ export default function Emergency() {
           position,
           emergencyNumbers: emergencyNums,
           nearbyPlaces: places,
-          vtcOptions: getVTCLinks(places[0])  // Utiliser le lieu le plus proche comme destination
+          vtcOptions: getVTCLinks(places[0])
         }
       });
+      console.log('[Emergency SEND] Claude response received');
       const aiMessage = { role: 'assistant', content: response.data.data.message };
       setMessages([...updatedMessages, aiMessage]);
     } catch (err) {
+      console.error('[Emergency SEND] Error:', err.message);
       const fallback = { role: 'assistant', content: 'Je suis toujours là pour toi. Que puis-je faire ?' };
       setMessages([...updatedMessages, fallback]);
     } finally {
@@ -360,64 +470,71 @@ export default function Emergency() {
 
           {/* Input message */}
           <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input
-              type="text"
-              value={userInput}
-              onChange={(e) => setUserInput(e.target.value)}
-              placeholder={isListening ? '🎤 Écoute...' : 'Comment tu te sens ?'}
-              disabled={loadingAI}
-              style={{
-                flex: 1, padding: '10px 12px', borderRadius: 10, border: `1px solid ${isListening ? HS.chocolate : HS.border}`,
-                background: isListening ? HS.bg + 'cc' : HS.bg, color: HS.chocolate, fontFamily: HS.font, fontSize: 13,
-                transition: 'all 0.2s'
-              }}
-            />
-            {isSupported && (
-              <button
-                type="button"
-                onClick={toggleListening}
+              <input
+                type="text"
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                placeholder={isListening ? '🎤 Écoute...' : 'Comment tu te sens ?'}
                 disabled={loadingAI}
                 style={{
-                  width: 40, height: 40, borderRadius: 10, background: isListening ? HS.chocolate : '#E0E0E0', border: 'none',
-                  color: isListening ? HS.bg : '#666', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: loadingAI ? 'not-allowed' : 'pointer', opacity: loadingAI ? 0.5 : 1,
-                  fontSize: 18, transition: 'all 0.2s'
+                  flex: 1, padding: '10px 12px', borderRadius: 10, border: `1px solid ${isListening ? HS.chocolate : HS.border}`,
+                  background: isListening ? HS.bg + 'cc' : HS.bg, color: HS.chocolate, fontFamily: HS.font, fontSize: 13,
+                  transition: 'all 0.2s'
                 }}
-                title={isListening ? 'Arrêter l\'enregistrement' : 'Parler'}
-              >
-                🎤
+              />
+              {isSupported && (
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  disabled={loadingAI}
+                  style={{
+                    width: 40, height: 40, borderRadius: 10, background: isListening ? HS.chocolate : '#E0E0E0', border: 'none',
+                    color: isListening ? HS.bg : '#666', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: loadingAI ? 'not-allowed' : 'pointer', opacity: loadingAI ? 0.5 : 1,
+                    fontSize: 18, transition: 'all 0.2s'
+                  }}
+                  title={isListening ? 'Arrêter l\'enregistrement' : 'Parler'}
+                >
+                  🎤
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={!userInput.trim() || loadingAI}
+                style={{
+                  width: 40, height: 40, borderRadius: 10, background: HS.chocolate, border: 'none',
+                  color: HS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: !userInput.trim() || loadingAI ? 'not-allowed' : 'pointer', opacity: !userInput.trim() || loadingAI ? 0.5 : 1,
+                }}>
+                <Icon d={ICONS.send} size={16} color={HS.bg} />
               </button>
-            )}
-            <button
-              type="submit"
-              disabled={!userInput.trim() || loadingAI}
-              style={{
-                width: 40, height: 40, borderRadius: 10, background: HS.chocolate, border: 'none',
-                color: HS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: !userInput.trim() || loadingAI ? 'not-allowed' : 'pointer', opacity: !userInput.trim() || loadingAI ? 0.5 : 1,
-              }}>
-              <Icon d={ICONS.send} size={16} color={HS.bg} />
-            </button>
-          </form>
+            </form>
 
           {/* Action buttons */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-            <a href="tel:110" style={{ flex: 1 }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+            <a href="tel:110" style={{ flex: 1, minWidth: 100 }}>
               <button style={{ width: '100%', background: HS.chocolate, border: 'none', color: HS.bg,
                 padding: '12px', borderRadius: 12, fontWeight: 700, fontSize: 13, fontFamily: HS.font }}>
                 Appeler le 110
               </button>
             </a>
             <button onClick={async () => {
-              // Arrêter l'enregistrement et sauvegarder
+              console.log('[Emergency SAFE] "Je suis en sécurité" clicked');
+              // Marquer que on gère la sauvegarde
+              recordingHandledRef.current = true;
+              // Arrêter l'enregistrement et sauvegarder avec la position finale
               const audioBlob = await stopRecording();
+              console.log('[Emergency SAFE] Audio blob:', audioBlob ? 'YES' : 'NO');
               if (audioBlob) {
-                await saveEmergencyWithAudio(audioBlob);
+                // Utiliser la position actuelle comme lieu final (refuge ou dernier endroit connu)
+                console.log('[Emergency SAFE] Saving with final location:', position);
+                await saveEmergencyWithAudio(audioBlob, position);
               }
               // Aller au dashboard
+              console.log('[Emergency SAFE] Navigating to dashboard');
               navigate('/dashboard');
             }}
-              style={{ flex: 1, background: 'transparent', border: `1.5px solid ${HS.chocolate}`,
+              style={{ flex: 1, minWidth: 100, background: 'transparent', border: `1.5px solid ${HS.chocolate}`,
                 color: HS.chocolate, padding: '12px', borderRadius: 12, fontWeight: 700, fontSize: 13,
                 fontFamily: HS.font }}>
               Je suis en sécurité
@@ -445,6 +562,31 @@ export default function Emergency() {
             </button>
           ))}
         </div>
+
+        {/* Mes contacts d'urgence */}
+        {urgentContacts.length > 0 && (
+          <>
+            <Eyebrow style={{ marginBottom: 10 }}>Mes contacts d'urgence</Eyebrow>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+              {urgentContacts.map((contact) => (
+                <button key={contact.id} onClick={() => handleCallClick(contact.phone, contact.name)}
+                  style={{ textDecoration: 'none', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <Card style={{ padding: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, minHeight: 80, justifyContent: 'center', textAlign: 'center' }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 12,
+                      background: HS.sakura,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon d={ICONS.phone} size={20} color="#fff" />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: HS.chocolate, marginBottom: 4 }}>{contact.name}</div>
+                      <div style={{ fontFamily: HS.serif, fontSize: 18, lineHeight: 1, color: HS.sakura }}>{contact.phone}</div>
+                    </div>
+                  </Card>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Lieux sûrs — Carte */}
         <Eyebrow style={{ marginBottom: 10 }}>Lieux sûrs autour de toi</Eyebrow>

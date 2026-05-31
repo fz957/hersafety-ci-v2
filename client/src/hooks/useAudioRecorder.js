@@ -28,10 +28,23 @@ export function useAudioRecorder() {
       streamRef.current = stream;
       audioChunksRef.current = [];
 
-      // Créer le MediaRecorder
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
+      // Créer le MediaRecorder - préférer webm mais fallback sur des formats supportés
+      let mimeType = 'audio/webm;codecs=opus';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/webm';
+      }
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/mp4';
+      }
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = '';  // Laisser le navigateur choisir le format par défaut
+      }
+
+      console.log('[AudioRecorder] Utilisant MIME type:', mimeType);
+
+      const mediaRecorder = new MediaRecorder(stream,
+        mimeType ? { mimeType } : {}
+      );
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -82,9 +95,14 @@ export function useAudioRecorder() {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         audioChunksRef.current = [];
 
-        // Arrêter le stream
+        // Arrêter le stream IMMÉDIATEMENT
         if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop());
+          console.log('[AudioRecorder] Stopping all tracks...');
+          streamRef.current.getTracks().forEach(track => {
+            console.log('[AudioRecorder] Stopping track:', track.kind, track.readyState);
+            track.stop();
+            console.log('[AudioRecorder] Track stopped:', track.readyState);
+          });
           streamRef.current = null;
         }
 
@@ -97,6 +115,15 @@ export function useAudioRecorder() {
 
       console.log('[AudioRecorder] Arrêt en cours...');
       mediaRecorder.stop();
+
+      // Force stop immediately just in case
+      setTimeout(() => {
+        if (streamRef.current) {
+          console.log('[AudioRecorder] Force stopping stream after timeout');
+          streamRef.current.getTracks().forEach(track => track.stop());
+          streamRef.current = null;
+        }
+      }, 100);
     });
   };
 

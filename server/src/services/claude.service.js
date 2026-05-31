@@ -1,5 +1,9 @@
 // Service pour appeler l'API Groq (compatible avec Anthropic messages API)
 
+// Logger helper - only logs in development mode
+const isDev = process.env.NODE_ENV === 'development';
+const log = (...args) => isDev && console.log(...args);
+
 // Messages de fallback garantis
 const FALLBACK = {
   '1': 'Restez vigilante. Faites confiance à votre instinct, restez dans des zones éclairées et fréquentées.',
@@ -148,7 +152,7 @@ async function getAssistMessage({ level, context = {}, conversationHistory = [],
     }
 
     const data = await response.json();
-    console.log('[Groq] Réponse réussie:', data.choices?.[0]?.message?.content?.substring(0, 100));
+    log('[Groq] Réponse réussie:', data.choices?.[0]?.message?.content?.substring(0, 100));
     let responseText = data.choices?.[0]?.message?.content?.trim() || '';
 
     // Pour le mode evaluator, extraire le JSON

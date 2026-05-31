@@ -1,9 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import { HS, ICONS } from '../tokens';
+import { useTheme } from '../context/ThemeContext';
 import { Logo, Petal, Icon, Button, Card, Eyebrow, H1, H2, Avatar, PageShell, ScrollArea } from '../components/ui/index.jsx';
 
 export default function Landing() {
   const navigate = useNavigate();
+  const { theme } = useTheme();
 
   return (
     <PageShell>

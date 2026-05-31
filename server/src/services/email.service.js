@@ -5,6 +5,10 @@
 
 const nodemailer = require('nodemailer');
 
+// Logger helper - only logs in development mode
+const isDev = process.env.NODE_ENV === 'development';
+const log = (...args) => isDev && console.log(...args);
+
 let transporter = null;
 
 /**
@@ -53,7 +57,7 @@ const initializeTransporter = () => {
       });
     }
 
-    console.log(`✓ Email transporter initialized (${process.env.EMAIL_PROVIDER || 'SMTP'})`);
+    log(`✓ Email transporter initialized (${process.env.EMAIL_PROVIDER || 'SMTP'})`);
   } catch (err) {
     console.error('✗ Email transporter init failed:', err.message);
   }
@@ -107,7 +111,7 @@ const sendVerificationEmail = async (email, verificationToken, senderName) => {
       text: `Vérification email HerSafety\n\n${senderName} t'a ajouté(e) comme contact d'urgence.\n\nVérification: ${verificationLink}`,
     });
 
-    console.log(`✓ Verification email sent to ${email}:`, result.messageId);
+    log(`✓ Verification email sent to ${email}:`, result.messageId);
     return { success: true, messageId: result.messageId };
   } catch (err) {
     console.error('✗ Verification email failed:', err.message);
@@ -165,7 +169,7 @@ const sendAlertEmail = async (email, alertData) => {
       text: `ALERTE ${levelLabels[alertLevel]}\n\n${senderName} a déclenché une alerte.\n${locationLabel ? `Localisation: ${locationLabel}` : ''}`,
     });
 
-    console.log(`✓ Alert email sent to ${email}:`, result.messageId);
+    log(`✓ Alert email sent to ${email}:`, result.messageId);
     return { success: true, messageId: result.messageId };
   } catch (err) {
     console.error('✗ Alert email failed:', err.message);
@@ -230,10 +234,255 @@ const sendTrackNotification = async (email, trackData) => {
       text: `${senderName} a démarré un trajet. Voir sa position: ${trackLink}`,
     });
 
-    console.log(`✓ Track notification sent to ${email}:`, result.messageId);
+    log(`✓ Track notification sent to ${email}:`, result.messageId);
     return { success: true, messageId: result.messageId };
   } catch (err) {
     console.error('✗ Track notification failed:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Send profile change confirmation email
+ */
+const sendProfileChangeEmail = async (email, userName, changes) => {
+  try {
+    if (!transporter) initializeTransporter();
+    if (!transporter) {
+      return { success: false, error: 'Email service not configured' };
+    }
+
+    const changesList = Object.entries(changes)
+      .map(([key, value]) => {
+        const labels = {
+          full_name: 'Nom complet',
+          email: 'Email',
+          phone: 'Téléphone',
+        };
+        return `<li><strong>${labels[key] || key}:</strong> ${value}</li>`;
+      })
+      .join('');
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
+        <div style="background: #EC9C9D; color: white; padding: 20px; border-radius: 8px; margin-bottom: 24px;">
+          <h1 style="margin: 0; font-size: 24px;">✏️ Profil mis à jour</h1>
+        </div>
+
+        <p>Salut ${userName},</p>
+        <p>Ton profil a été modifié avec les changements suivants:</p>
+
+        <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 20px 0;">
+          <ul style="color: #666;">${changesList}</ul>
+        </div>
+
+        <p style="color: #666;">
+          Si tu n'as pas effectué ces modifications, <strong>change immédiatement ton mot de passe</strong>.
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+        <p style="font-size: 12px; color: #999;">
+          © HerSafety CI — Sécurité des femmes
+        </p>
+      </div>
+    `;
+
+    const result = await transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@hersafety.ci',
+      to: email,
+      subject: '✏️ Ton profil HerSafety CI a été modifié',
+      html: htmlContent,
+    });
+
+    log(`✓ Profile change email sent to ${email}`);
+    return { success: true, messageId: result.messageId };
+  } catch (err) {
+    console.error('✗ Profile change email failed:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Send account deletion confirmation email
+ */
+const sendAccountDeletionEmail = async (email, userName) => {
+  try {
+    if (!transporter) initializeTransporter();
+    if (!transporter) {
+      return { success: false, error: 'Email service not configured' };
+    }
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
+        <div style="background: #B71C1C; color: white; padding: 20px; border-radius: 8px; margin-bottom: 24px;">
+          <h1 style="margin: 0; font-size: 24px;">⚠️ Compte supprimé</h1>
+        </div>
+
+        <p>Salut ${userName},</p>
+        <p>Ton compte HerSafety CI a été supprimé ainsi que toutes tes données associées.</p>
+
+        <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 20px 0;">
+          <p style="color: #666; margin: 0;">
+            • Tous tes trajets ont été supprimés<br>
+            • Tous tes contacts ont été supprimés<br>
+            • Toutes tes alertes ont été supprimées<br>
+            • Tes données personnelles ont été effacées
+          </p>
+        </div>
+
+        <p style="color: #666;">
+          Si tu as besoin de restaurer ton compte, contacte notre support.
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+        <p style="font-size: 12px; color: #999;">
+          © HerSafety CI — Merci d'avoir utilisé notre service
+        </p>
+      </div>
+    `;
+
+    const result = await transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@hersafety.ci',
+      to: email,
+      subject: '⚠️ Ton compte HerSafety CI a été supprimé',
+      html: htmlContent,
+    });
+
+    log(`✓ Account deletion email sent to ${email}`);
+    return { success: true, messageId: result.messageId };
+  } catch (err) {
+    console.error('✗ Account deletion email failed:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Send alert confirmation email to user
+ */
+const sendAlertConfirmationEmail = async (email, userName, alertLevel, contactsCount, locationLabel) => {
+  try {
+    if (!transporter) initializeTransporter();
+    if (!transporter) {
+      return { success: false, error: 'Email service not configured' };
+    }
+
+    const levelLabels = { '1': 'Vigilance', '2': 'Malaise', '3': 'DANGER', '4': 'SOS' };
+    const levelColors = { '1': '#7B9171', '2': '#F48FB1', '3': '#C97B3B', '4': '#B71C1C' };
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
+        <div style="background: ${levelColors[alertLevel]}; color: white; padding: 20px; border-radius: 8px; margin-bottom: 24px;">
+          <h1 style="margin: 0; font-size: 28px;">✓ Alerte ${levelLabels[alertLevel]} envoyée</h1>
+          <p style="margin: 8px 0 0 0; font-size: 14px;">
+            ${contactsCount} contact(s) a/ont reçu ta notification
+          </p>
+        </div>
+
+        <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin-bottom: 24px;">
+          <p style="margin: 0;"><strong>📍 Localisation:</strong> ${locationLabel || 'Non précisée'}</p>
+          <p style="margin: 8px 0 0 0;"><strong>⏰ Heure:</strong> ${new Date().toLocaleString('fr-FR')}</p>
+          <p style="margin: 8px 0 0 0;"><strong>🆘 Niveau:</strong> ${levelLabels[alertLevel]}</p>
+        </div>
+
+        <div style="background: #f0f0f0; padding: 16px; border-radius: 8px; margin-bottom: 24px; border-left: 4px solid ${levelColors[alertLevel]};">
+          <h3 style="margin-top: 0;">💡 Que faire maintenant?</h3>
+          <ul style="color: #666; margin: 0; padding-left: 20px;">
+            <li>Reste en sécurité et suis tes instincts</li>
+            <li>Tes contacts sont en alerte et peuvent t'aider</li>
+            <li>Appelle les services d'urgence si nécessaire</li>
+            <li>Tu peux escalader le niveau si la situation s'aggrave</li>
+          </ul>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+        <p style="font-size: 12px; color: #999;">
+          © HerSafety CI — Sécurité des femmes
+        </p>
+      </div>
+    `;
+
+    const result = await transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@hersafety.ci',
+      to: email,
+      subject: `✓ Alerte ${levelLabels[alertLevel]} confirmée — ${contactsCount} contact(s) notifié(s)`,
+      html: htmlContent,
+    });
+
+    log(`✓ Alert confirmation email sent to ${email}`);
+    return { success: true, messageId: result.messageId };
+  } catch (err) {
+    console.error('✗ Alert confirmation email failed:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Send weekly report email
+ */
+const sendWeeklyReport = async (email, userName, reportData) => {
+  try {
+    if (!transporter) initializeTransporter();
+    if (!transporter) {
+      return { success: false, error: 'Email service not configured' };
+    }
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
+        <div style="background: #EC9C9D; color: white; padding: 20px; border-radius: 8px; margin-bottom: 24px; text-align: center;">
+          <h1 style="margin: 0; font-size: 28px;">📊 Rapport Hebdomadaire</h1>
+        </div>
+
+        <p>Salut ${userName},</p>
+        <p>Voici un résumé de ton activité cette semaine:</p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0;">
+          <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #5C7F4F;">
+            <h3 style="color: #5C7F4F; margin-top: 0; font-size: 24px;">${reportData.tracksCount || 0}</h3>
+            <p style="color: #666; margin: 0; font-size: 13px;">🚗 Trajets suivis</p>
+          </div>
+
+          <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #EC9C9D;">
+            <h3 style="color: #EC9C9D; margin-top: 0; font-size: 24px;">${reportData.alertsCount || 0}</h3>
+            <p style="color: #666; margin: 0; font-size: 13px;">🚨 Alertes envoyées</p>
+          </div>
+
+          <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #C97B3B;">
+            <h3 style="color: #C97B3B; margin-top: 0; font-size: 24px;">${reportData.checkinsDone || 0}</h3>
+            <p style="color: #666; margin: 0; font-size: 13px;">✅ Check-ins complétés</p>
+          </div>
+
+          <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #5C7F4F;">
+            <h3 style="color: #5C7F4F; margin-top: 0; font-size: 24px;">${reportData.contactsAdded || 0}</h3>
+            <p style="color: #666; margin: 0; font-size: 13px;">👥 Contacts ajoutés</p>
+          </div>
+        </div>
+
+        <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #443025;">
+          <h3 style="color: #443025; margin-top: 0;">💡 Conseil de sécurité</h3>
+          <p style="color: #666; margin: 0;">
+            Partage toujours un trajet avec tes contacts de confiance, surtout en soirée.
+            La sécurité collective est notre priorité. 🛡️
+          </p>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+        <p style="font-size: 12px; color: #999;">
+          © HerSafety CI — Sécurité des femmes
+        </p>
+      </div>
+    `;
+
+    const result = await transporter.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@hersafety.ci',
+      to: email,
+      subject: '📊 Ton rapport hebdomadaire HerSafety CI',
+      html: htmlContent,
+    });
+
+    log(`✓ Weekly report sent to ${email}`);
+    return { success: true, messageId: result.messageId };
+  } catch (err) {
+    console.error('✗ Weekly report email failed:', err.message);
     return { success: false, error: err.message };
   }
 };
@@ -243,4 +492,8 @@ module.exports = {
   sendVerificationEmail,
   sendAlertEmail,
   sendTrackNotification,
+  sendProfileChangeEmail,
+  sendAccountDeletionEmail,
+  sendWeeklyReport,
+  sendAlertConfirmationEmail,
 };

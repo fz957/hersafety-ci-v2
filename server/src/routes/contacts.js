@@ -4,11 +4,10 @@ const crypto  = require('crypto');
 
 const knex            = require('../db/knex');
 const { requireAuth } = require('../middlewares/auth');
-const { requireTenant } = require('../middlewares/tenant');
 const { sendVerificationEmail } = require('../services/email.service');
 
 const router = express.Router();
-router.use(requireAuth, requireTenant);
+router.use(requireAuth);
 
 const contactSchema = Joi.object({
   full_name:  Joi.string().trim().max(255).required(),
@@ -25,7 +24,7 @@ const generateVerificationToken = () => crypto.randomBytes(32).toString('hex');
 router.get('/', async (req, res) => {
   try {
     const contacts = await knex('contacts')
-      .where({ user_id: req.user.userId, organization_id: req.user.organizationId })
+      .where({ user_id: req.user.userId })
       .orderBy('is_primary', 'desc')
       .orderBy('created_at', 'asc');
 
@@ -122,7 +121,7 @@ router.get('/verify-email', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const count = await knex('contacts')
-      .where({ id: req.params.id, user_id: req.user.userId, organization_id: req.user.organizationId })
+      .where({ id: req.params.id, user_id: req.user.userId })
       .delete();
 
     if (!count) {

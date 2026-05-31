@@ -6,6 +6,10 @@
 const admin = require('firebase-admin');
 const path = require('path');
 
+// Logger helper - only logs in development mode
+const isDev = process.env.NODE_ENV === 'development';
+const log = (...args) => isDev && log(...args);
+
 let firebaseInitialized = false;
 
 const initializeFirebase = () => {
@@ -24,7 +28,7 @@ const initializeFirebase = () => {
     });
 
     firebaseInitialized = true;
-    console.log('✓ Firebase Admin SDK initialized');
+    log('✓ Firebase Admin SDK initialized');
   } catch (err) {
     console.error('✗ Firebase init failed:', err.message);
     console.error('Set FIREBASE_SERVICE_ACCOUNT_PATH or place firebase-service-account.json in project root');
@@ -48,7 +52,7 @@ const sendNotificationToUser = async (userId, notification, data = {}) => {
       .select('token');
 
     if (tokens.length === 0) {
-      console.log(`[FCM] No tokens for user ${userId}`);
+      log(`[FCM] No tokens for user ${userId}`);
       return { success: false, error: 'No FCM tokens' };
     }
 
@@ -77,7 +81,7 @@ const sendNotificationToUser = async (userId, notification, data = {}) => {
           token,
         });
         results.push({ token, success: true, response });
-        console.log(`[FCM] Sent to ${userId}:`, response);
+        log(`[FCM] Sent to ${userId}:`, response);
       } catch (err) {
         results.push({ token, success: false, error: err.message });
         console.error(`[FCM] Failed for token:`, err.message);
@@ -152,7 +156,7 @@ const registerFCMToken = async (userId, organizationId, token, deviceType = 'web
       device_type: deviceType,
     });
 
-    console.log(`[FCM] Registered token for user ${userId}`);
+    log(`[FCM] Registered token for user ${userId}`);
     return { success: true, isNew: true };
   } catch (err) {
     console.error('[FCM] Register token error:', err);

@@ -3,14 +3,13 @@ const Joi     = require('joi');
 
 const knex              = require('../db/knex');
 const { requireAuth }   = require('../middlewares/auth');
-const { requireTenant } = require('../middlewares/tenant');
 const { requireAdmin }  = require('../middlewares/admin');
 const { sendAlertSMS }  = require('../services/sms.service');
 const { sendNotificationToUser, notifyContacts } = require('../services/firebase.service');
-const { sendAlertEmail } = require('../services/email.service');
+const { sendAlertEmail, sendAlertConfirmationEmail } = require('../services/email.service');
 
 const router = express.Router();
-router.use(requireAuth, requireTenant);
+router.use(requireAuth);
 
 const alertSchema = Joi.object({
   level:          Joi.string().valid('1', '2', '3', '4').required(),
@@ -33,12 +32,12 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ success: false, error: error.details[0].message });
   }
 
-  const { userId, organizationId } = req.user;
+  const { userId } = req.user;
   const isSimulated = process.env.APP_MODE !== 'production';
 
   try {
     const [alert] = await knex('alerts')
-      .insert({ user_id: userId, organization_id: organizationId, is_simulated: isSimulated, ...value })
+      .insert({ user_id: userId, is_simulated: isSimulated, ...value })
       .returning('*');
 
     let smsLogs = [];
@@ -51,7 +50,7 @@ router.post('/', async (req, res) => {
       : `Alerte ${levelLabels[value.level]}`;
 
     if (['2', '3', '4'].includes(value.level)) {
-      const contacts = await knex('contacts').where({ user_id: userId, organization_id: organizationId });
+      const contacts = await knex('contacts').where({ user_id: userId });
 
       if (contacts.length > 0) {
         const sender = await knex('users').where({ id: userId }).first();
@@ -82,6 +81,11 @@ router.post('/', async (req, res) => {
 
         alert.sms_sent       = emailsSent > 0;
         alert.contacts_count = contacts.length;
+
+        // Envoyer email de confirmation à l'utilisateur
+        if (sender && sender.email) {
+          await sendAlertConfirmationEmail(sender.email, sender.full_name, value.level, contacts.length, value.location_label);
+        }
       }
 
       // Contacts reçoivent des emails (pas de notifications push FCM)
@@ -122,11 +126,10 @@ router.post('/', async (req, res) => {
 // ─── GET /api/alerts ──────────────────────────────────────────────────────────
 
 router.get('/', async (req, res) => {
-  const { role, userId, organizationId } = req.user;
+  const { role, userId } = req.user;
 
   try {
     const query = knex('alerts')
-      .where({ organization_id: organizationId })
       .orderBy('created_at', 'desc')
       .limit(50);
 
@@ -150,7 +153,7 @@ router.patch('/:id/resolve', requireAdmin, async (req, res) => {
 
   try {
     const [alert] = await knex('alerts')
-      .where({ id: req.params.id, organization_id: req.user.organizationId, status: 'active' })
+      .where({ id: req.params.id, status: 'active' })
       .update({ status: value.status, notes: value.notes, resolved_at: new Date() })
       .returning('*');
 

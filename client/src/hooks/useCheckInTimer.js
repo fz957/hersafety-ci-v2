@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../services/api';
 
-const CHECK_IN_INTERVAL = 1 * 60 * 1000; // 1 minute (pour tests - en prod: 10 * 60 * 1000)
-const CHECK_IN_TIMEOUT = 2 * 60 * 1000; // 2 minutes to respond
+const CHECK_IN_INTERVAL = 15 * 1000; // 15 secondes (pour tests - en prod: 10 * 60 * 1000)
+const CHECK_IN_TIMEOUT = 30 * 1000; // 30 secondes to respond (pour tests - en prod: 2 * 60 * 1000)
 
 /**
  * Hook pour gérer les check-ins automatiques pendant le niveau 1 (Vigilance)

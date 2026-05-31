@@ -10,18 +10,13 @@ const LEVEL_INFO = {
   '4': { label: '🆘 SOS', color: '#B71C1C', desc: 'Escalade complète' },
 };
 
-const STATUS_INFO = {
-  active: { label: '🔴 Active', color: HS.danger },
-  resolved: { label: '✓ Résolue', color: HS.safe },
-  false_alarm: { label: '⚠️ Fausse alerte', color: HS.warn },
-};
-
 export default function History() {
   const [emergencies, setEmergencies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [selectedEmergency, setSelectedEmergency] = useState(null);
   const [audioPlaying, setAudioPlaying] = useState(null);
+  const [deleting, setDeleting] = useState(null);
 
   // Charger l'historique au mount
   useEffect(() => {
@@ -70,16 +65,22 @@ export default function History() {
     return `${mins}m${secs}s`;
   };
 
-  const handleStatusUpdate = async (id, newStatus) => {
+  const handleDeleteAudio = async (id) => {
+    if (!window.confirm('Supprimer cet enregistrement audio ?')) return;
+
     try {
-      await api.patch(`/api/emergency-history/${id}`, { status: newStatus });
+      setDeleting(id);
+      await api.delete(`/api/emergency-history/${id}/audio`);
       // Mettre à jour l'état local
       setEmergencies(emergencies.map(e =>
-        e.id === id ? { ...e, status: newStatus } : e
+        e.id === id ? { ...e, audio_file_path: null, audio_duration_seconds: null } : e
       ));
-      setToast({ message: 'Statut mis à jour ✓', type: 'success' });
+      setToast({ message: 'Enregistrement audio supprimé ✓', type: 'success' });
     } catch (err) {
-      setToast({ message: 'Erreur mise à jour', type: 'error' });
+      console.error('[History] Error deleting audio:', err);
+      setToast({ message: 'Erreur suppression audio', type: 'error' });
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -120,53 +121,81 @@ export default function History() {
             {emergencies.map((emergency) => {
               const { day, time } = formatDateTime(emergency.created_at);
               const levelInfo = LEVEL_INFO[emergency.level] || {};
-              const statusInfo = STATUS_INFO[emergency.status] || {};
+              const isExpanded = selectedEmergency?.id === emergency.id;
 
               return (
                 <Card
                   key={emergency.id}
                   style={{
                     padding: 14,
-                    background: selectedEmergency?.id === emergency.id ? 'rgba(194, 24, 91, 0.1)' : 'transparent',
-                    border: `1px solid ${selectedEmergency?.id === emergency.id ? HS.sakura : HS.border}`,
+                    background: isExpanded ? 'rgba(194, 24, 91, 0.1)' : 'transparent',
+                    border: `1px solid ${isExpanded ? HS.sakura : HS.border}`,
                     cursor: 'pointer',
                     transition: 'all 0.2s',
                   }}
-                  onClick={() => setSelectedEmergency(selectedEmergency?.id === emergency.id ? null : emergency)}
+                  onClick={() => setSelectedEmergency(isExpanded ? null : emergency)}
                 >
-                  {/* Header: Niveau + Statut + Heure */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                    <div style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}>
-                      <div style={{ fontSize: 16 }}>{levelInfo.label}</div>
-                      <div style={{ fontSize: 11, color: HS.textMute }}>
-                        {emergency.location_name && `📍 ${emergency.location_name}`}
-                      </div>
+                  {/* Header: Niveau + Location + Time */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <div style={{ fontSize: 16 }}>{levelInfo.label}</div>
+                    <div style={{ flex: 1 }}>
+                      {emergency.location_name && (
+                        <div style={{ fontSize: 11, color: HS.textMute }}>
+                          📍 {emergency.location_name}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ fontSize: 11, color: HS.textDim, fontWeight: 700 }}>
+                    <div style={{ fontSize: 11, color: HS.textDim, fontWeight: 700, minWidth: 45, textAlign: 'right' }}>
                       {time}
                     </div>
                   </div>
 
-                  {/* Date et Statut */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    fontSize: 12,
-                    marginBottom: 8,
-                  }}>
-                    <div style={{ color: HS.textMute }}>{day}</div>
-                    <div style={{ color: statusInfo.color, fontWeight: 700 }}>{statusInfo.label}</div>
+                  {/* Date */}
+                  <div style={{ fontSize: 12, color: HS.textMute, marginBottom: 8 }}>
+                    {day}
                   </div>
 
                   {/* Détails étendus (quand sélectionné) */}
-                  {selectedEmergency?.id === emergency.id && (
+                  {isExpanded && (
                     <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${HS.border}` }}>
+
+                      {/* Lieux d'activation et de refuge */}
+                      <div style={{ marginBottom: 12 }}>
+                        {/* Lieu d'activation */}
+                        {emergency.location_name && (
+                          <div style={{ marginBottom: 8 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: HS.textDim, marginBottom: 3 }}>
+                              📍 Lieu d'activation
+                            </div>
+                            <div style={{ fontSize: 12, color: HS.text, paddingLeft: 12 }}>
+                              {emergency.location_name}
+                            </div>
+                            {emergency.latitude && emergency.longitude && (
+                              <div style={{ fontSize: 10, color: HS.textMute, paddingLeft: 12, marginTop: 2 }}>
+                                {Number(emergency.latitude).toFixed(4)}, {Number(emergency.longitude).toFixed(4)}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Lieu de refuge / Dernier endroit connu */}
+                        {(emergency.final_location_name || emergency.final_latitude) && (
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: HS.textDim, marginBottom: 3 }}>
+                              🛡️ Lieu de refuge
+                            </div>
+                            <div style={{ fontSize: 12, color: HS.text, paddingLeft: 12 }}>
+                              {emergency.final_location_name || 'Position finale'}
+                            </div>
+                            {emergency.final_latitude && emergency.final_longitude && (
+                              <div style={{ fontSize: 10, color: HS.textMute, paddingLeft: 12, marginTop: 2 }}>
+                                {Number(emergency.final_latitude).toFixed(4)}, {Number(emergency.final_longitude).toFixed(4)}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
                       {/* Enregistrement audio */}
                       {emergency.audio_file_path && (
                         <div style={{ marginBottom: 12 }}>
@@ -177,12 +206,19 @@ export default function History() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const url = `${import.meta.env.VITE_API_URL}${emergency.audio_file_path}`;
                                 if (audioPlaying === emergency.id) {
                                   setAudioPlaying(null);
                                 } else {
+                                  // Préférer le base64 de la DB, sinon fallback fichier statique
+                                  let audioUrl;
+                                  if (emergency.audio_base64) {
+                                    audioUrl = `data:audio/webm;base64,${emergency.audio_base64}`;
+                                  } else {
+                                    audioUrl = `${import.meta.env.VITE_API_URL}${emergency.audio_file_path}`;
+                                  }
+
                                   // Créer un audio player
-                                  const audio = new Audio(url);
+                                  const audio = new Audio(audioUrl);
                                   audio.play().catch(err => {
                                     console.error('Erreur lecture audio:', err);
                                     setToast({ message: 'Erreur lecture audio', type: 'error' });
@@ -208,6 +244,28 @@ export default function History() {
                             <div style={{ fontSize: 11, color: HS.textMute }}>
                               {emergency.audio_duration_seconds ? formatDuration(emergency.audio_duration_seconds) : 'Durée inconnue'}
                             </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteAudio(emergency.id);
+                              }}
+                              disabled={deleting === emergency.id}
+                              style={{
+                                background: 'transparent',
+                                border: `1px solid ${HS.danger}`,
+                                color: HS.danger,
+                                padding: '6px 12px',
+                                borderRadius: 8,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: deleting === emergency.id ? 'not-allowed' : 'pointer',
+                                fontFamily: HS.font,
+                                opacity: deleting === emergency.id ? 0.5 : 1,
+                                transition: 'all 0.2s',
+                              }}
+                            >
+                              {deleting === emergency.id ? '⏳...' : '✕ Supprimer'}
+                            </button>
                           </div>
                         </div>
                       )}
@@ -226,6 +284,27 @@ export default function History() {
                         </div>
                       )}
 
+                      {/* Messages Lyra */}
+                      {emergency.lyra_messages && emergency.lyra_messages.length > 0 && (
+                        <div style={{ marginBottom: 12 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: HS.textDim, marginBottom: 6 }}>
+                            💬 Conversation avec Lyra
+                          </div>
+                          <div style={{ fontSize: 11, color: HS.textMute, lineHeight: 1.6 }}>
+                            {emergency.lyra_messages.map((msg, i) => (
+                              <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${HS.border}` }}>
+                                <div style={{ fontWeight: 600, color: msg.role === 'user' ? HS.chocolate : HS.sakura, marginBottom: 2 }}>
+                                  {msg.role === 'user' ? '👤 Toi' : '🎀 Lyra'}:
+                                </div>
+                                <div style={{ fontStyle: 'italic', color: HS.text }}>
+                                  {msg.content}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Notes */}
                       {emergency.notes && (
                         <div style={{ marginBottom: 12 }}>
@@ -238,51 +317,6 @@ export default function History() {
                         </div>
                       )}
 
-                      {/* Statut et Actions */}
-                      {emergency.status !== 'resolved' && (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleStatusUpdate(emergency.id, 'resolved');
-                            }}
-                            style={{
-                              flex: 1,
-                              background: HS.safe,
-                              color: '#fff',
-                              border: 'none',
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              fontSize: 11,
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              fontFamily: HS.font,
-                            }}
-                          >
-                            ✓ Marqué résolue
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleStatusUpdate(emergency.id, 'false_alarm');
-                            }}
-                            style={{
-                              flex: 1,
-                              background: HS.warn,
-                              color: '#fff',
-                              border: 'none',
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              fontSize: 11,
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              fontFamily: HS.font,
-                            }}
-                          >
-                            ⚠️ Fausse alerte
-                          </button>
-                        </div>
-                      )}
                     </div>
                   )}
                 </Card>
