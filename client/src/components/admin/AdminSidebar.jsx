@@ -66,7 +66,7 @@ export default function AdminSidebar({ activeTab, user, stats = {} }) {
             {user?.full_name || 'Admin'}
           </div>
           <div style={{ fontSize: 10, color: HS.textMute }}>
-            {user?.role === 'superadmin' ? 'Super Admin' : 'Admin'}
+            Admin
           </div>
         </div>
       </div>

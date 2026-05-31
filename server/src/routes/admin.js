@@ -7,17 +7,21 @@ const { requireTenant } = require('../middlewares/tenant');
 const { requireAdmin }  = require('../middlewares/admin');
 
 const router = express.Router();
-router.use(requireAuth, requireTenant, requireAdmin);
+// Admin routes: superadmin only, no tenant filtering (global access)
+router.use(requireAuth);
+router.use((req, res, next) => {
+  if (req.user.role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'Accès réservé au super administrateur' });
+  }
+  next();
+});
 
 // ─── GET /api/admin/stats ─────────────────────────────────────────────────────
 
 router.get('/stats', async (req, res) => {
-  const { organizationId } = req.user;
-
   try {
-    const [alertsToday, activeUsers, pendingReports, pendingTestimonies] = await Promise.all([
+    const [alertsToday, activeUsers, verifiedReports, pendingTestimonies] = await Promise.all([
       knex('alerts')
-        .where({ organization_id: organizationId })
         .whereRaw("DATE(created_at AT TIME ZONE 'UTC') = CURRENT_DATE")
         .count('id as total').first(),
 
@@ -26,7 +30,7 @@ router.get('/stats', async (req, res) => {
         .count('id as total').first(),
 
       knex('reports')
-        .where({ status: 'pending' })
+        .where({ status: 'verified' })
         .count('id as total').first(),
 
       knex('testimonies')
@@ -39,12 +43,77 @@ router.get('/stats', async (req, res) => {
       data: {
         alerts_today:         parseInt(alertsToday.total, 10),
         active_users:         parseInt(activeUsers.total, 10),
-        pending_reports:      parseInt(pendingReports.total, 10),
+        verified_reports:     parseInt(verifiedReports.total, 10),
         pending_testimonies:  parseInt(pendingTestimonies.total, 10),
       },
     });
   } catch (err) {
+    console.error('[ADMIN STATS ERROR]', err.message);
     return res.status(500).json({ success: false, error: 'Erreur récupération statistiques' });
+  }
+});
+
+// ─── GET /api/admin/alerts/recent ───────────────────────────────────────────
+router.get('/alerts/recent', async (req, res) => {
+  try {
+    const alerts = await knex('alerts')
+      .leftJoin('users', 'alerts.user_id', 'users.id')
+      .select(
+        'alerts.id',
+        'alerts.user_id',
+        'users.full_name',
+        'users.email',
+        'alerts.level',
+        'alerts.location_lat',
+        'alerts.location_lng',
+        'alerts.location_label',
+        'alerts.status',
+        'alerts.created_at'
+      )
+      .where('alerts.status', '=', 'active')
+      .orderBy('alerts.created_at', 'desc')
+      .limit(20);
+
+    return res.json({ success: true, data: alerts });
+  } catch (err) {
+    console.error('[ADMIN ALERTS RECENT ERROR]', err.message);
+    return res.status(500).json({ success: false, error: 'Erreur récupération alertes récentes' });
+  }
+});
+
+// ─── GET /api/admin/alerts/history ──────────────────────────────────────────
+router.get('/alerts/history', async (req, res) => {
+  const page  = Math.max(1, parseInt(req.query.page  || '1', 10));
+  const limit = Math.min(100, parseInt(req.query.limit || '50', 10));
+
+  try {
+    const alerts = await knex('alerts')
+      .leftJoin('users', 'alerts.user_id', 'users.id')
+      .select(
+        'alerts.id',
+        'alerts.user_id',
+        'users.full_name as user_name',
+        'alerts.level',
+        'alerts.location_lat',
+        'alerts.location_lng',
+        'alerts.location_label',
+        'alerts.status',
+        'alerts.created_at'
+      )
+      .orderBy('alerts.created_at', 'desc')
+      .limit(limit)
+      .offset((page - 1) * limit);
+
+    const total = await knex('alerts').count('alerts.id as count').first();
+
+    return res.json({
+      success: true,
+      data: alerts,
+      pagination: { page, limit, total: total.count }
+    });
+  } catch (err) {
+    console.error('[ADMIN ALERTS HISTORY ERROR]', err.message);
+    return res.status(500).json({ success: false, error: 'Erreur récupération historique alertes' });
   }
 });
 
@@ -56,7 +125,6 @@ router.get('/users', async (req, res) => {
 
   try {
     const users = await knex('users')
-      .where({ organization_id: req.user.organizationId })
       .select('id', 'email', 'full_name', 'phone', 'role', 'is_active', 'onboarding_done', 'created_at')
       .orderBy('created_at', 'desc')
       .limit(limit)
@@ -64,6 +132,69 @@ router.get('/users', async (req, res) => {
 
     return res.json({ success: true, data: users });
   } catch (err) {
+    return res.status(500).json({ success: false, error: 'Erreur récupération utilisateurs' });
+  }
+});
+
+// ─── GET /api/admin/users/list (with search) ────────────────────────────────
+router.get('/users/list', async (req, res) => {
+  const page  = Math.max(1, parseInt(req.query.page  || '1', 10));
+  const limit = Math.min(100, parseInt(req.query.limit || '100', 10));
+  const search = req.query.search?.trim() || '';
+
+  try {
+    let query = knex('users');
+
+    if (search) {
+      query = query.where((qb) => {
+        qb.where('email', 'ilike', `%${search}%`)
+          .orWhere('full_name', 'ilike', `%${search}%`)
+          .orWhere('phone', 'ilike', `%${search}%`);
+      });
+    }
+
+    const users = await query
+      .select('id', 'email', 'full_name', 'phone', 'role', 'is_active', 'onboarding_done', 'created_at')
+      .orderBy('created_at', 'desc')
+      .limit(limit)
+      .offset((page - 1) * limit);
+
+    const countQuery = knex('users');
+    if (search) {
+      countQuery.where((qb) => {
+        qb.where('email', 'ilike', `%${search}%`)
+          .orWhere('full_name', 'ilike', `%${search}%`)
+          .orWhere('phone', 'ilike', `%${search}%`);
+      });
+    }
+    const total = await countQuery.count('id as count').first();
+
+    // Count alerts per user for AdminUsers display
+    const userIds = users.map(u => u.id);
+    let alertCounts = {};
+    if (userIds.length > 0) {
+      const counts = await knex('alerts')
+        .whereIn('user_id', userIds)
+        .select('user_id')
+        .count('id as count')
+        .groupBy('user_id');
+      counts.forEach(c => {
+        alertCounts[c.user_id] = c.count;
+      });
+    }
+
+    const usersWithAlertCount = users.map(u => ({
+      ...u,
+      alert_count: alertCounts[u.id] || 0
+    }));
+
+    return res.json({
+      success: true,
+      data: usersWithAlertCount,
+      pagination: { page, limit, total: total.count }
+    });
+  } catch (err) {
+    console.error('Admin users/list error:', err);
     return res.status(500).json({ success: false, error: 'Erreur récupération utilisateurs' });
   }
 });

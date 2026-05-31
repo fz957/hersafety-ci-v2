@@ -36,14 +36,13 @@ import History    from './pages/History.jsx';
 import Settings   from './pages/Settings.jsx';
 import Notifications from './pages/Notifications.jsx';
 
-// Admin
+// Admin (superadmin only)
 import AdminDashboard   from './pages/admin/AdminDashboard.jsx';
 import AdminAlerts      from './pages/admin/AdminAlerts.jsx';
 import AdminUsers       from './pages/admin/AdminUsers.jsx';
 import AdminTestimonies from './pages/admin/AdminTestimonies.jsx';
 import AdminModeration  from './pages/admin/AdminModeration.jsx';
 import AdminReports     from './pages/admin/AdminReports.jsx';
-import SuperAdminOrgs   from './pages/admin/SuperAdminOrgs.jsx';
 
 // ─── Écran de chargement ──────────────────────────────────────────────────────
 function LoadingScreen() {
@@ -126,19 +125,16 @@ function AccessDenied() {
 }
 
 // ─── Gardes de routes ─────────────────────────────────────────────────────────
-function ProtectedRoute({ children, adminOnly = false, superAdminOnly = false }) {
+function ProtectedRoute({ children, superAdminOnly = false }) {
   const { user, loading } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
   // Super-admin uniquement
   if (superAdminOnly && user.role !== 'superadmin') return <AccessDenied />;
-  // Admin ou superadmin uniquement — les utilisatrices voient une page claire
-  if (adminOnly && user.role === 'user') return <AccessDenied />;
-  // Inversement : les admins/superadmins n'ont pas accès aux fonctionnalités clientes
-  const isAdmin = user.role === 'admin' || user.role === 'superadmin';
-  if (!adminOnly && !superAdminOnly && isAdmin) return <Navigate to="/admin" replace />;
+  // Inversement : les superadmins n'ont pas accès aux fonctionnalités clientes
+  if (!superAdminOnly && user.role === 'superadmin') return <Navigate to="/admin" replace />;
   // Admin pages have their own layout (AdminSidebar), don't wrap in AppLayout
-  if (adminOnly || superAdminOnly) return children;
+  if (superAdminOnly) return children;
   return <AppLayout>{children}</AppLayout>;
 }
 
@@ -146,9 +142,8 @@ function GuestRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!user) return children;
-  // Déjà connecté → admin va sur /admin, utilisatrice sur /dashboard
-  const isAdmin = user.role === 'admin' || user.role === 'superadmin';
-  return <Navigate to={isAdmin ? '/admin' : '/dashboard'} replace />;
+  // Déjà connecté → superadmin va sur /admin, utilisatrice sur /dashboard
+  return <Navigate to={user.role === 'superadmin' ? '/admin' : '/dashboard'} replace />;
 }
 
 // ─── Firebase Initializer ─────────────────────────────────────────────────────
@@ -198,14 +193,13 @@ function AppRoutes() {
       <Route path="/settings"   element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
 
-      {/* Admin */}
-      <Route path="/admin"             element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
-      <Route path="/admin/alerts"      element={<ProtectedRoute adminOnly><AdminAlerts /></ProtectedRoute>} />
-      <Route path="/admin/users"       element={<ProtectedRoute adminOnly><AdminUsers /></ProtectedRoute>} />
-      <Route path="/admin/moderation"  element={<ProtectedRoute adminOnly><AdminModeration /></ProtectedRoute>} />
-      <Route path="/admin/testimonies" element={<ProtectedRoute adminOnly><AdminTestimonies /></ProtectedRoute>} />
-      <Route path="/admin/reports"     element={<ProtectedRoute adminOnly><AdminReports /></ProtectedRoute>} />
-      <Route path="/admin/orgs"        element={<ProtectedRoute superAdminOnly><SuperAdminOrgs /></ProtectedRoute>} />
+      {/* Admin (superadmin only - no tenant admins) */}
+      <Route path="/admin"             element={<ProtectedRoute superAdminOnly><AdminDashboard /></ProtectedRoute>} />
+      <Route path="/admin/alerts"      element={<ProtectedRoute superAdminOnly><AdminAlerts /></ProtectedRoute>} />
+      <Route path="/admin/users"       element={<ProtectedRoute superAdminOnly><AdminUsers /></ProtectedRoute>} />
+      <Route path="/admin/moderation"  element={<ProtectedRoute superAdminOnly><AdminModeration /></ProtectedRoute>} />
+      <Route path="/admin/testimonies" element={<ProtectedRoute superAdminOnly><AdminTestimonies /></ProtectedRoute>} />
+      <Route path="/admin/reports"     element={<ProtectedRoute superAdminOnly><AdminReports /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -23,10 +23,9 @@ export default function Login() {
     try {
       const data = await apiLogin(form.email, form.password);
       setUser(data.user);
-      // Admin et superadmin → tableau de bord admin
+      // Superadmin → tableau de bord admin
       // Utilisatrice normale → app
-      const isAdmin = data.user.role === 'admin' || data.user.role === 'superadmin';
-      if (isAdmin) {
+      if (data.user.role === 'superadmin') {
         navigate('/admin');
       } else {
         navigate(data.user.onboarding_done ? '/dashboard' : '/onboarding-emergency');

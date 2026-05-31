@@ -110,18 +110,8 @@ export default function Notifications() {
 
               <div className="notification-content">
                 <p className="notification-message">
-                  {getNotificationMessage(notif)}
+                  {notif.display_message || getNotificationMessage(notif)}
                 </p>
-                <p className="notification-testimony">
-                  {notif.title}
-                </p>
-                {notif.comment_content && (
-                  <p className="notification-comment">
-                    « {notif.comment_content.substring(0, 100)}
-                    {notif.comment_content.length > 100 ? '...' : ''}
-                    »
-                  </p>
-                )}
                 <p className="notification-date">
                   {formatDate(notif.created_at)}
                 </p>

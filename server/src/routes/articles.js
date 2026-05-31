@@ -5,24 +5,32 @@ const { requireAuth } = require('../middlewares/auth');
 const router = express.Router();
 
 // GET /api/articles - NO ORG FILTER
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
+  const { userId } = req.user || {};
+
   try {
     const articles = await knex('articles')
       .where({ status: 'approved' })
       .select('id', 'title', 'content', 'category', 'created_at', 'support_count', 'flagged', 'user_id')
       .orderBy('created_at', 'desc');
 
-    // Ajouter le nombre de commentaires pour chaque article
+    // Ajouter le nombre de commentaires et user_liked pour chaque article
     const articlesWithComments = await Promise.all(
       articles.map(async (a) => {
-        const commentCount = await knex('comments')
-          .where({ content_type: 'article', content_id: a.id })
-          .count('id as cnt')
-          .first();
+        // Compter dans content_comments (nouvelle table)
+        const allComments = await knex('content_comments')
+          .where({ content_type: 'article', content_id: a.id });
+
+        // Vérifier si l'utilisateur a aimé cet article
+        const userLiked = userId ? await knex('reactions')
+          .where({ content_type: 'article', content_id: a.id, user_id: userId })
+          .first() : null;
+
         return {
           ...a,
-          comment_count: parseInt(commentCount?.cnt || 0, 10),
-          support_count: a.support_count || 0
+          comment_count: allComments.length,
+          support_count: a.support_count || 0,
+          user_liked: !!userLiked
         };
       })
     );
@@ -34,22 +42,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/articles/:id/comments - NO ORG FILTER
-router.get('/:id/comments', async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const comments = await knex('comments')
-      .where({ content_type: 'article', content_id: id })
-      .select('id', 'display_name', 'content', 'likes_count', 'created_at')
-      .orderBy('created_at', 'desc');
-
-    return res.json({ success: true, data: comments });
-  } catch (err) {
-    console.error('Get article comments error:', err);
-    return res.status(500).json({ success: false, error: 'Erreur récupération commentaires' });
-  }
-});
+// NOTE: Comments are now managed via /api/comments endpoint (works for all content types)
+// This old endpoint has been removed to avoid confusion with obsolete comments table
 
 // POST /api/articles - Create article
 router.post('/', requireAuth, async (req, res) => {
@@ -151,12 +145,14 @@ router.post('/:id/like', requireAuth, async (req, res) => {
         .where({ content_type: 'article', content_id: id, user_id: userId })
         .del();
 
-      const newCount = Math.max(0, article.support_count - 1);
-      await knex('articles').where({ id }).update({ support_count: newCount });
+      // Utiliser decrement() atomique pour éviter les race conditions
+      await knex('articles').where({ id }).decrement('support_count', 1);
 
+      // Récupérer la nouvelle valeur
+      const updated = await knex('articles').where({ id }).first();
       return res.json({
         success: true,
-        data: { article_id: id, liked: false, support_count: newCount },
+        data: { article_id: id, liked: false, support_count: Math.max(0, updated.support_count) },
       });
     } else {
       // Ajouter un like
@@ -167,12 +163,14 @@ router.post('/:id/like', requireAuth, async (req, res) => {
         reaction: 'support',
       });
 
-      const newCount = article.support_count + 1;
-      await knex('articles').where({ id }).update({ support_count: newCount });
+      // Utiliser increment() atomique pour éviter les race conditions
+      await knex('articles').where({ id }).increment('support_count', 1);
 
+      // Récupérer la nouvelle valeur
+      const updated = await knex('articles').where({ id }).first();
       return res.json({
         success: true,
-        data: { article_id: id, liked: true, support_count: newCount },
+        data: { article_id: id, liked: true, support_count: updated.support_count },
       });
     }
   } catch (err) {

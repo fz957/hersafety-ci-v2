@@ -145,24 +145,49 @@ router.get('/', async (req, res) => {
 
 // ─── PATCH /api/alerts/:id/resolve ────────────────────────────────────────────
 
-router.patch('/:id/resolve', requireAdmin, async (req, res) => {
+router.patch('/:id/resolve', async (req, res) => {
   const { error, value } = resolveSchema.validate(req.body);
   if (error) {
     return res.status(400).json({ success: false, error: error.details[0].message });
   }
 
+  const { userId, role } = req.user;
+
   try {
-    const [alert] = await knex('alerts')
-      .where({ id: req.params.id, status: 'active' })
-      .update({ status: value.status, notes: value.notes, resolved_at: new Date() })
-      .returning('*');
+    // Récupérer l'alerte
+    const alert = await knex('alerts').where({ id: req.params.id }).first();
 
     if (!alert) {
+      return res.status(404).json({ success: false, error: 'Alerte introuvable' });
+    }
+
+    // Vérifier les permissions:
+    // - L'utilisatrice peut résoudre sa propre alerte
+    // - Les admins peuvent résoudre n'importe quelle alerte
+    const isOwner = alert.user_id === userId;
+    const isAdmin = role === 'superadmin';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, error: 'Vous ne pouvez pas résoudre cette alerte' });
+    }
+
+    // Résoudre l'alerte
+    const [updated] = await knex('alerts')
+      .where({ id: req.params.id, status: 'active' })
+      .update({
+        status: value.status,
+        notes: value.notes,
+        resolved_at: new Date()
+      })
+      .returning('*');
+
+    if (!updated) {
       return res.status(404).json({ success: false, error: 'Alerte introuvable ou déjà résolue' });
     }
 
-    return res.json({ success: true, data: alert });
+    return res.json({ success: true, data: updated });
   } catch (err) {
+    console.error('Alert resolve error:', err);
     return res.status(500).json({ success: false, error: 'Erreur résolution alerte' });
   }
 });

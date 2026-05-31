@@ -17,6 +17,7 @@ export default function History() {
   const [selectedEmergency, setSelectedEmergency] = useState(null);
   const [audioPlaying, setAudioPlaying] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [audioRef, setAudioRef] = useState(null); // Store audio element to stop it on delete
 
   // Charger l'historique au mount
   useEffect(() => {
@@ -71,10 +72,13 @@ export default function History() {
     try {
       setDeleting(id);
 
-      // Arrêter la lecture si c'est cet enregistrement qui joue
-      if (audioPlaying === id) {
-        setAudioPlaying(null);
+      // STOP and cleanup audio element if it's playing
+      if (audioPlaying === id && audioRef) {
+        audioRef.pause();
+        audioRef.currentTime = 0;
+        setAudioRef(null);
       }
+      setAudioPlaying(null);
 
       await api.delete(`/api/emergency-history/${id}/audio`);
       // Mettre à jour l'état local
@@ -213,7 +217,13 @@ export default function History() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (audioPlaying === emergency.id) {
+                                  // Stop audio
+                                  if (audioRef) {
+                                    audioRef.pause();
+                                    audioRef.currentTime = 0;
+                                  }
                                   setAudioPlaying(null);
+                                  setAudioRef(null);
                                 } else {
                                   // Préférer le base64 de la DB, sinon fallback fichier statique
                                   let audioUrl;
@@ -230,7 +240,11 @@ export default function History() {
                                     setToast({ message: 'Erreur lecture audio', type: 'error' });
                                   });
                                   setAudioPlaying(emergency.id);
-                                  audio.onended = () => setAudioPlaying(null);
+                                  setAudioRef(audio); // STORE the audio element
+                                  audio.onended = () => {
+                                    setAudioPlaying(null);
+                                    setAudioRef(null);
+                                  };
                                 }
                               }}
                               style={{

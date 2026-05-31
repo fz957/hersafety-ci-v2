@@ -10,8 +10,7 @@ import {
 function getRoleStyle(theme) {
   return {
     user:       { bg: theme.mistyRose, color: theme.sakuraDeep, label: 'Utilisatrice' },
-    admin:      { bg: theme.safeSoft,  color: theme.safe,        label: 'Admin' },
-    superadmin: { bg: theme.chocolate, color: theme.textOnDark,  label: 'Super Admin' },
+    superadmin: { bg: theme.chocolate, color: theme.textOnDark,  label: 'Admin' },
   };
 }
 
@@ -200,8 +199,7 @@ export default function AdminUsers() {
           {[
             { v: 'all',       l: 'Toutes' },
             { v: 'user',      l: 'Utilisatrices' },
-            { v: 'admin',     l: 'Admins' },
-            { v: 'superadmin',l: 'Super Admins' },
+            { v: 'superadmin',l: 'Admin' },
           ].map((f) => (
             <button key={f.v} onClick={() => setFilterRole(f.v)} style={{
               padding: '6px 14px', borderRadius: 100, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',

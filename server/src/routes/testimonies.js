@@ -207,7 +207,7 @@ router.get('/notifications', async (req, res) => {
       .orderBy('reactions.created_at', 'desc');
 
     // 7. Comments on user's articles
-    const articleComments = await knex('content_comments')
+    const articleCommentsRaw = await knex('content_comments')
       .join('articles', 'content_comments.content_id', '=', 'articles.id')
       .join('users', 'content_comments.user_id', '=', 'users.id')
       .where({ 'content_comments.content_type': 'article', 'articles.user_id': userId })
@@ -216,14 +216,21 @@ router.get('/notifications', async (req, res) => {
         'content_comments.content_id as testimony_id',
         'content_comments.comment_text as title',
         'users.id as actor_id',
-        'users.full_name as actor_name',
+        'users.full_name as user_full_name',
+        'content_comments.is_anonymous',
+        'content_comments.display_name',
         'content_comments.created_at',
         knex.raw(`'content_comment' as type`)
       )
       .orderBy('content_comments.created_at', 'desc');
 
+    const articleComments = articleCommentsRaw.map(c => ({
+      ...c,
+      actor_name: c.is_anonymous ? c.display_name : c.user_full_name
+    }));
+
     // Comments on user's photos
-    const photoComments = await knex('content_comments')
+    const photoCommentsRaw = await knex('content_comments')
       .join('photos', 'content_comments.content_id', '=', 'photos.id')
       .join('users', 'content_comments.user_id', '=', 'users.id')
       .where({ 'content_comments.content_type': 'photo', 'photos.user_id': userId })
@@ -232,14 +239,21 @@ router.get('/notifications', async (req, res) => {
         'content_comments.content_id as testimony_id',
         'content_comments.comment_text as title',
         'users.id as actor_id',
-        'users.full_name as actor_name',
+        'users.full_name as user_full_name',
+        'content_comments.is_anonymous',
+        'content_comments.display_name',
         'content_comments.created_at',
         knex.raw(`'content_comment' as type`)
       )
       .orderBy('content_comments.created_at', 'desc');
 
+    const photoComments = photoCommentsRaw.map(c => ({
+      ...c,
+      actor_name: c.is_anonymous ? c.display_name : c.user_full_name
+    }));
+
     // Comments on user's videos
-    const videoComments = await knex('content_comments')
+    const videoCommentsRaw = await knex('content_comments')
       .join('videos', 'content_comments.content_id', '=', 'videos.id')
       .join('users', 'content_comments.user_id', '=', 'users.id')
       .where({ 'content_comments.content_type': 'video', 'videos.user_id': userId })
@@ -248,11 +262,18 @@ router.get('/notifications', async (req, res) => {
         'content_comments.content_id as testimony_id',
         'content_comments.comment_text as title',
         'users.id as actor_id',
-        'users.full_name as actor_name',
+        'users.full_name as user_full_name',
+        'content_comments.is_anonymous',
+        'content_comments.display_name',
         'content_comments.created_at',
         knex.raw(`'content_comment' as type`)
       )
       .orderBy('content_comments.created_at', 'desc');
+
+    const videoComments = videoCommentsRaw.map(c => ({
+      ...c,
+      actor_name: c.is_anonymous ? c.display_name : c.user_full_name
+    }));
 
     // 8. Likes on user's comments (on articles, photos, videos)
     const contentCommentLikes = await knex('content_comment_likes')
@@ -270,6 +291,38 @@ router.get('/notifications', async (req, res) => {
       )
       .orderBy('content_comment_likes.created_at', 'desc');
 
+    // 9. Replies on user's comments
+    const commentReplies = await knex('comment_replies')
+      .join('content_comments', 'comment_replies.comment_id', '=', 'content_comments.id')
+      .join('users', 'comment_replies.user_id', '=', 'users.id')
+      .where('content_comments.user_id', userId)
+      .select(
+        'comment_replies.id as notification_id',
+        'content_comments.content_id as testimony_id',
+        'comment_replies.reply_text as title',
+        'users.id as actor_id',
+        'users.full_name as actor_name',
+        'comment_replies.created_at',
+        knex.raw(`'comment_reply' as type`)
+      )
+      .orderBy('comment_replies.created_at', 'desc');
+
+    // 10. Likes on user's replies
+    const replyLikes = await knex('comment_reply_likes')
+      .join('comment_replies', 'comment_reply_likes.reply_id', '=', 'comment_replies.id')
+      .join('users', 'comment_reply_likes.user_id', '=', 'users.id')
+      .where('comment_replies.user_id', userId)
+      .select(
+        'comment_reply_likes.id as notification_id',
+        knex.raw(`(SELECT content_id FROM content_comments WHERE id = comment_replies.comment_id) as testimony_id`),
+        'comment_replies.reply_text as title',
+        'users.id as actor_id',
+        'users.full_name as actor_name',
+        'comment_reply_likes.created_at',
+        knex.raw(`'comment_reply_like' as type`)
+      )
+      .orderBy('comment_reply_likes.created_at', 'desc');
+
     // Merge all notifications and sort by date
     const allNotifications = [
       ...testimonyLikes,
@@ -282,25 +335,35 @@ router.get('/notifications', async (req, res) => {
       ...photoComments,
       ...videoComments,
       ...contentCommentLikes,
+      ...commentReplies,
+      ...replyLikes,
     ]
       .map(notif => {
         // Format the display message based on type
         let displayMessage = '';
+        const textPreview = notif.title ? `"${notif.title.substring(0, 50)}${notif.title.length > 50 ? '...' : ''}"` : '';
+
         switch (notif.type) {
           case 'testimony_like':
             displayMessage = `${notif.actor_name} a aimé votre témoignage`;
             break;
           case 'testimony_comment':
-            displayMessage = `${notif.actor_name} a commenté votre témoignage`;
+            displayMessage = `${notif.actor_name} a commenté votre témoignage avec: ${textPreview}`;
             break;
           case 'comment_like':
             displayMessage = `${notif.actor_name} a aimé votre commentaire`;
             break;
           case 'content_comment':
-            displayMessage = `${notif.actor_name} a commenté votre ${notif.title ? 'publication' : 'contenu'}`;
+            displayMessage = `${notif.actor_name} a commenté votre publication avec: ${textPreview}`;
             break;
           case 'content_comment_like':
             displayMessage = `${notif.actor_name} a aimé votre commentaire`;
+            break;
+          case 'comment_reply':
+            displayMessage = `${notif.actor_name} a répondu à votre commentaire avec: ${textPreview}`;
+            break;
+          case 'comment_reply_like':
+            displayMessage = `${notif.actor_name} a aimé votre réponse`;
             break;
           default:
             displayMessage = `${notif.actor_name} a interagi avec votre contenu`;
@@ -635,17 +698,37 @@ router.delete('/:id', async (req, res) => {
 
 // ─── GET /api/testimonies/:id/comments ─────────────────────────────────────────
 
-router.get('/:id/comments', async (req, res) => {
+router.get('/:id/comments', requireAuth, async (req, res) => {
   const { id } = req.params;
-  const { organizationId } = req.user;
+  const { userId } = req.user;
 
   try {
-    const comments = await knex('comments')
-      .where({ content_type: 'testimony', content_id: id })
-      .select('id', 'display_name', 'content', 'likes_count', 'created_at')
-      .orderBy('created_at', 'desc');
+    // FIXED: Read from testimony_comments (not old comments table)
+    const comments = await knex('testimony_comments')
+      .where({ testimony_id: id })
+      .select('id', 'display_name', 'content', 'is_anonymous', 'user_id', 'created_at')
+      .orderBy('created_at', 'asc');
 
-    return res.json({ success: true, data: comments });
+    // Add like_count and user_liked for each comment
+    const commentsWithLikes = await Promise.all(
+      comments.map(async (c) => {
+        const likes = await knex('comment_likes')
+          .where({ comment_id: c.id });
+        const userLiked = userId ? likes.some(l => l.user_id === userId) : false;
+
+        return {
+          ...c,
+          comment_text: c.content, // Normalize field name
+          like_count: likes.length,
+          user_liked: userLiked,
+          author_id: c.user_id,
+          user_name: c.is_anonymous ? c.display_name : (await knex('users').where({ id: c.user_id }).first())?.full_name || 'Anonyme',
+          replies: [] // testimonies don't have nested replies yet
+        };
+      })
+    );
+
+    return res.json({ success: true, data: commentsWithLikes });
   } catch (err) {
     console.error('Get comments error:', err);
     return res.status(500).json({ success: false, error: 'Erreur récupération commentaires' });

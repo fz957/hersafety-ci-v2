@@ -252,13 +252,11 @@ export function SideNav({ user, onLogout }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { theme } = useTheme();
-  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
-  const isSuper = user?.role === 'superadmin';
+  const isAdmin = user?.role === 'superadmin';
 
   const active = pathname.startsWith('/admin/users')       ? 'admin-users'
     : pathname.startsWith('/admin/testimonies')            ? 'admin-test'
     : pathname.startsWith('/admin/reports')                ? 'admin-rep'
-    : pathname.startsWith('/admin/orgs')                   ? 'admin-orgs'
     : pathname.startsWith('/admin')                        ? 'admin'
     : pathname.startsWith('/community')                    ? 'comm'
     : pathname.startsWith('/tracking')                     ? 'map'
@@ -271,7 +269,6 @@ export function SideNav({ user, onLogout }) {
         { id: 'admin-users', label: 'Utilisatrices',   path: '/admin/users',       icon: ICONS.user },
         { id: 'admin-test',  label: 'Témoignages',     path: '/admin/testimonies', icon: ICONS.heart },
         { id: 'admin-rep',   label: 'Signalements',    path: '/admin/reports',     icon: ICONS.flag },
-        ...(isSuper ? [{ id: 'admin-orgs', label: 'Organisations', path: '/admin/orgs', icon: ICONS.pin }] : []),
       ]
     : [
         { id: 'home',    label: 'Accueil',   path: '/dashboard',  icon: 'M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V11z' },
@@ -377,7 +374,7 @@ export function SideNav({ user, onLogout }) {
 export function BottomNav({ user } = {}) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+  const isAdmin = user?.role === 'superadmin';
 
   const active = pathname.startsWith('/admin/users')       ? 'admin-users'
     : pathname.startsWith('/admin/testimonies')            ? 'admin-test'

@@ -18,7 +18,7 @@ const generateAnonName = () => {
 const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) => {
   const [open, setOpen] = useState(item.trigger_warning_level === 'none' || item.trigger_warning_level === 'low');
   const [reported, setReported] = useState(false);
-  const [liked, setLiked] = useState(false);
+  const [liked, setLiked] = useState(item.user_liked || false);
   const [supportCount, setSupportCount] = useState(item.support_count || 0);
   const [commentCount, setCommentCount] = useState(item.comment_count || 0);
   const [comment, setComment] = useState('');
@@ -30,6 +30,7 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState('');
+  const [replyLikes, setReplyLikes] = useState({});
   const myPosts = JSON.parse(localStorage.getItem('lesgirls_my_posts') || '{}');
   const isOwner = item.user_id === user?.id || myPosts[item.id] === type;
   const isSensitive = item.trigger_warning_level === 'moderate' || item.trigger_warning_level === 'severe';
@@ -41,6 +42,7 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
         api.get(`/api/testimonies/${item.id}/comments`).then(r => {
           const comms = r.data.data || [];
           setComments(comms);
+          setCommentCount(comms.length);
           const likedComments = JSON.parse(localStorage.getItem('lesgirls_comment_likes') || '{}');
           const likes = {};
           comms.forEach(c => {
@@ -53,11 +55,19 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
         api.get(`/api/comments?content_type=${type}&content_id=${item.id}`).then(r => {
           const comms = r.data.data || [];
           setComments(comms);
+          setCommentCount(comms.length);
           const likes = {};
+          const replyLikesMap = {};
           comms.forEach(c => {
-            likes[c.id] = false; // Start with no likes, API will provide like_count
+            likes[c.id] = c.user_liked || false; // Utiliser user_liked de l'API
+            if (c.replies) {
+              c.replies.forEach(reply => {
+                replyLikesMap[reply.id] = reply.user_liked || false;
+              });
+            }
           });
           setCommentLikes(likes);
+          setReplyLikes(replyLikesMap);
         }).catch(err => {
           console.error('Error loading comments:', err);
           setComments([]);
@@ -136,16 +146,21 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
 
     try {
       if (type === 'testimony') {
-        await api.post(`/api/testimonies/${item.id}/comments`, {
+        const res = await api.post(`/api/testimonies/${item.id}/comments`, {
           content: comment.trim(),
-          is_anonymous: true,
+          is_anonymous: false, // User is NOT anonymous by default
         });
+        // Reload comments from API
+        const commentsRes = await api.get(`/api/testimonies/${item.id}/comments`);
+        setComments(commentsRes.data.data || []);
+        setCommentCount((commentsRes.data.data || []).length);
       } else if (['article', 'photo', 'video'].includes(type)) {
         // Appeler le nouvel endpoint /api/comments
         const res = await api.post('/api/comments', {
           content_type: type,
           content_id: item.id,
           comment_text: comment.trim(),
+          is_anonymous: false,
         });
 
         // Ajouter le commentaire à la liste
@@ -166,13 +181,13 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
     const liked = commentLikes[commentId];
 
     try {
-      // Appeler l'API pour liker/unliker
+      // Appeler d'ABORD l'API pour liker/unliker
       await api.post(`/api/comments/${commentId}/like`);
 
-      // Mettre à jour l'état des likes (pour l'icône)
+      // PUIS mettre à jour l'UI seulement si l'API réussit
       setCommentLikes({ ...commentLikes, [commentId]: !liked });
 
-      // Mettre à jour le compteur dans les commentaires
+      // Mettre à jour le like_count directement
       setComments(comments.map(c => {
         if (c.id === commentId) {
           return {
@@ -188,32 +203,33 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
     }
   };
 
-  const handleAddReply = () => {
+  const handleAddReply = async () => {
     if (!replyText.trim() || !replyingTo) return;
 
-    const allReplies = JSON.parse(localStorage.getItem('lesgirls_comment_replies') || '{}');
-    const reply = {
-      id: `reply_${Date.now()}`,
-      content: replyText.trim(),
-      display_name: 'Anonyme',
-      is_owner: true,
-      created_at: new Date().toISOString(),
-      likes_count: 0,
-    };
-    if (!allReplies[replyingTo]) allReplies[replyingTo] = [];
-    allReplies[replyingTo].push(reply);
-    localStorage.setItem('lesgirls_comment_replies', JSON.stringify(allReplies));
+    try {
+      // Appeler l'API pour ajouter la réponse
+      const res = await api.post(`/api/comments/${replyingTo}/replies`, {
+        reply_text: replyText.trim(),
+      });
 
-    // Mettre à jour les commentaires pour afficher les réponses
-    const updatedComments = comments.map(c => {
-      if (c.id === replyingTo) {
-        return { ...c, replies: (allReplies[replyingTo] || []) };
-      }
-      return c;
-    });
-    setComments(updatedComments);
-    setReplyingTo(null);
-    setReplyText('');
+      const newReply = res.data.data;
+
+      // Mettre à jour les commentaires pour afficher la nouvelle réponse
+      const updatedComments = comments.map(c => {
+        if (c.id === replyingTo) {
+          const replies = c.replies || [];
+          return { ...c, replies: [...replies, { ...newReply, user_name: newReply.user?.full_name }] };
+        }
+        return c;
+      });
+      setComments(updatedComments);
+      setReplyingTo(null);
+      setReplyText('');
+      setToast({ message: 'Réponse ajoutée ✓', type: 'success' });
+    } catch (err) {
+      console.error('Error adding reply:', err);
+      setToast({ message: 'Erreur ajout réponse', type: 'error' });
+    }
   };
 
   return (
@@ -298,27 +314,27 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
                 </div>
               ) : (
                 comments.map(c => {
-                  const replies = JSON.parse(localStorage.getItem('lesgirls_comment_replies') || '{}')[c.id] || [];
+                  const replies = c.replies || [];
                   return (
                     <div key={c.id} style={{ paddingBottom: 12, borderBottom: `1px solid ${HS.border}` }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                         <div>
-                          <div style={{ fontWeight: 600, color: HS.chocolate, fontSize: 13 }}>{c.display_name || 'Anonyme'}</div>
+                          <div style={{ fontWeight: 600, color: HS.chocolate, fontSize: 13 }}>{c.user_name || 'Anonyme'}</div>
                           <div style={{ fontSize: 11, color: HS.textMute }}>
                             {new Date(c.created_at).toLocaleDateString('fr-FR')}
                           </div>
                         </div>
-                        {c.is_owner && (
+                        {c.author_id === user?.id && (
                           <button onClick={async () => {
                             try {
-                              await api.delete(`/api/testimonies/${item.id}/comments/${c.id}`);
+                              await api.delete(`/api/comments/${c.id}`);
                               setComments(comments.filter(x => x.id !== c.id));
                               setCommentCount(Math.max(0, commentCount - 1));
                             } catch (err) { console.error(err); }
                           }} style={{ background: 'none', border: 'none', color: HS.danger, fontSize: 12, cursor: 'pointer', padding: 0 }}>✕</button>
                         )}
                       </div>
-                      <div style={{ color: HS.textDim, fontSize: 13, lineHeight: 1.5, marginBottom: 8 }}>{c.content}</div>
+                      <div style={{ color: HS.textDim, fontSize: 13, lineHeight: 1.5, marginBottom: 8 }}>{c.comment_text}</div>
                       <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
                         <button onClick={() => handleCommentLike(c.id)} style={{ background: 'none', border: 'none', color: commentLikes[c.id] ? HS.danger : HS.textMute, fontSize: 12, fontWeight: 600, fontFamily: HS.font, padding: 0, cursor: 'pointer' }}>
                           {commentLikes[c.id] ? '❤️' : '🤍'} {c.like_count || 0}
@@ -332,11 +348,58 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
                         <div style={{ marginTop: 12, paddingLeft: 16, borderLeft: `2px solid ${HS.border}` }}>
                           {replies.map(r => (
                             <div key={r.id} style={{ paddingBottom: 8, marginBottom: 8 }}>
-                              <div style={{ fontWeight: 600, color: HS.chocolate, fontSize: 12 }}>{r.display_name || 'Anonyme'}</div>
-                              <div style={{ fontSize: 11, color: HS.textMute, marginBottom: 4 }}>
-                                {new Date(r.created_at).toLocaleDateString('fr-FR')}
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <div>
+                                  <div style={{ fontWeight: 600, color: HS.chocolate, fontSize: 12 }}>{r.user_name || 'Anonyme'}</div>
+                                  <div style={{ fontSize: 11, color: HS.textMute, marginBottom: 4 }}>
+                                    {new Date(r.created_at).toLocaleDateString('fr-FR')}
+                                  </div>
+                                </div>
+                                {r.author_id === user?.id && (
+                                  <button onClick={async () => {
+                                    try {
+                                      await api.delete(`/api/comments/replies/${r.id}`);
+                                      const updatedComments = comments.map(cmt => {
+                                        if (cmt.id === c.id) {
+                                          return { ...cmt, replies: (cmt.replies || []).filter(reply => reply.id !== r.id) };
+                                        }
+                                        return cmt;
+                                      });
+                                      setComments(updatedComments);
+                                    } catch (err) { console.error(err); }
+                                  }} style={{ background: 'none', border: 'none', color: HS.danger, fontSize: 10, cursor: 'pointer', padding: 0 }}>✕</button>
+                                )}
                               </div>
-                              <div style={{ color: HS.textDim, fontSize: 12, lineHeight: 1.5, marginBottom: 6 }}>{r.content}</div>
+                              <div style={{ color: HS.textDim, fontSize: 12, lineHeight: 1.5, marginBottom: 6 }}>{r.reply_text}</div>
+                              <div style={{ display: 'flex', gap: 12, fontSize: 11 }}>
+                                <button onClick={async () => {
+                                  try {
+                                    await api.post(`/api/comments/replies/${r.id}/like`);
+                                    const isLiked = replyLikes[r.id];
+                                    setReplyLikes({ ...replyLikes, [r.id]: !isLiked });
+                                    const updatedComments = comments.map(cmt => {
+                                      if (cmt.id === c.id) {
+                                        return {
+                                          ...cmt,
+                                          replies: (cmt.replies || []).map(reply => {
+                                            if (reply.id === r.id) {
+                                              return {
+                                                ...reply,
+                                                like_count: (reply.like_count || 0) + (isLiked ? -1 : 1)
+                                              };
+                                            }
+                                            return reply;
+                                          })
+                                        };
+                                      }
+                                      return cmt;
+                                    });
+                                    setComments(updatedComments);
+                                  } catch (err) { console.error(err); }
+                                }} style={{ background: 'none', border: 'none', color: replyLikes[r.id] ? HS.danger : HS.textMute, fontSize: 11, fontWeight: 600, fontFamily: HS.font, padding: 0, cursor: 'pointer' }}>
+                                  {replyLikes[r.id] ? '❤️' : '🤍'} {r.like_count || 0}
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>

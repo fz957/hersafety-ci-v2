@@ -5,24 +5,32 @@ const { requireAuth } = require('../middlewares/auth');
 const router = express.Router();
 
 // GET /api/photos - NO ORG FILTER
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
+  const { userId } = req.user || {};
+
   try {
     const photos = await knex('photos')
       .where({ status: 'approved' })
       .select('id', 'url', 'description', 'category', 'created_at', 'support_count', 'flagged', 'user_id')
       .orderBy('created_at', 'desc');
 
-    // Ajouter le nombre de commentaires pour chaque photo
+    // Ajouter le nombre de commentaires et user_liked pour chaque photo
     const photosWithComments = await Promise.all(
       photos.map(async (p) => {
-        const commentCount = await knex('comments')
-          .where({ content_type: 'photo', content_id: p.id })
-          .count('id as cnt')
-          .first();
+        // Compter dans content_comments (nouvelle table)
+        const allComments = await knex('content_comments')
+          .where({ content_type: 'photo', content_id: p.id });
+
+        // Vérifier si l'utilisateur a aimé cette photo
+        const userLiked = userId ? await knex('reactions')
+          .where({ content_type: 'photo', content_id: p.id, user_id: userId })
+          .first() : null;
+
         return {
           ...p,
-          comment_count: parseInt(commentCount?.cnt || 0, 10),
-          support_count: p.support_count || 0
+          comment_count: allComments.length,
+          support_count: p.support_count || 0,
+          user_liked: !!userLiked
         };
       })
     );
@@ -34,22 +42,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/photos/:id/comments - NO ORG FILTER
-router.get('/:id/comments', async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const comments = await knex('comments')
-      .where({ content_type: 'photo', content_id: id })
-      .select('id', 'display_name', 'content', 'likes_count', 'created_at')
-      .orderBy('created_at', 'desc');
-
-    return res.json({ success: true, data: comments });
-  } catch (err) {
-    console.error('Get photo comments error:', err);
-    return res.status(500).json({ success: false, error: 'Erreur récupération commentaires' });
-  }
-});
+// NOTE: Comments are now managed via /api/comments endpoint (works for all content types)
+// This old endpoint has been removed to avoid confusion with obsolete comments table
 
 // POST /api/photos - Create photo
 router.post('/', requireAuth, async (req, res) => {
@@ -152,12 +146,13 @@ router.post('/:id/like', requireAuth, async (req, res) => {
         .where({ content_type: 'photo', content_id: id, user_id: userId })
         .del();
 
-      const newCount = Math.max(0, photo.support_count - 1);
-      await knex('photos').where({ id }).update({ support_count: newCount });
+      // Utiliser decrement() atomique
+      await knex('photos').where({ id }).decrement('support_count', 1);
 
+      const updated = await knex('photos').where({ id }).first();
       return res.json({
         success: true,
-        data: { photo_id: id, liked: false, support_count: newCount },
+        data: { photo_id: id, liked: false, support_count: Math.max(0, updated.support_count) },
       });
     } else {
       // Ajouter un like
@@ -168,12 +163,13 @@ router.post('/:id/like', requireAuth, async (req, res) => {
         reaction: 'support',
       });
 
-      const newCount = photo.support_count + 1;
-      await knex('photos').where({ id }).update({ support_count: newCount });
+      // Utiliser increment() atomique
+      await knex('photos').where({ id }).increment('support_count', 1);
 
+      const updated = await knex('photos').where({ id }).first();
       return res.json({
         success: true,
-        data: { photo_id: id, liked: true, support_count: newCount },
+        data: { photo_id: id, liked: true, support_count: updated.support_count },
       });
     }
   } catch (err) {

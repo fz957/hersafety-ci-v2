@@ -5,24 +5,32 @@ const { requireAuth } = require('../middlewares/auth');
 const router = express.Router();
 
 // GET /api/videos - NO ORG FILTER
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
+  const { userId } = req.user || {};
+
   try {
     const videos = await knex('videos')
       .where({ status: 'approved' })
       .select('id', 'url', 'description', 'category', 'created_at', 'support_count', 'flagged', 'user_id')
       .orderBy('created_at', 'desc');
 
-    // Ajouter le nombre de commentaires pour chaque vidéo
+    // Ajouter le nombre de commentaires et user_liked pour chaque vidéo
     const videosWithComments = await Promise.all(
       videos.map(async (v) => {
-        const commentCount = await knex('comments')
-          .where({ content_type: 'video', content_id: v.id })
-          .count('id as cnt')
-          .first();
+        // Compter dans content_comments (nouvelle table)
+        const allComments = await knex('content_comments')
+          .where({ content_type: 'video', content_id: v.id });
+
+        // Vérifier si l'utilisateur a aimé cette vidéo
+        const userLiked = userId ? await knex('reactions')
+          .where({ content_type: 'video', content_id: v.id, user_id: userId })
+          .first() : null;
+
         return {
           ...v,
-          comment_count: parseInt(commentCount?.cnt || 0, 10),
-          support_count: v.support_count || 0
+          comment_count: allComments.length,
+          support_count: v.support_count || 0,
+          user_liked: !!userLiked
         };
       })
     );
@@ -34,22 +42,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/videos/:id/comments - NO ORG FILTER
-router.get('/:id/comments', async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const comments = await knex('comments')
-      .where({ content_type: 'video', content_id: id })
-      .select('id', 'display_name', 'content', 'likes_count', 'created_at')
-      .orderBy('created_at', 'desc');
-
-    return res.json({ success: true, data: comments });
-  } catch (err) {
-    console.error('Get video comments error:', err);
-    return res.status(500).json({ success: false, error: 'Erreur récupération commentaires' });
-  }
-});
+// NOTE: Comments are now managed via /api/comments endpoint (works for all content types)
+// This old endpoint has been removed to avoid confusion with obsolete comments table
 
 // POST /api/videos - Create video
 router.post('/', requireAuth, async (req, res) => {
@@ -152,12 +146,13 @@ router.post('/:id/like', requireAuth, async (req, res) => {
         .where({ content_type: 'video', content_id: id, user_id: userId })
         .del();
 
-      const newCount = Math.max(0, video.support_count - 1);
-      await knex('videos').where({ id }).update({ support_count: newCount });
+      // Utiliser decrement() atomique
+      await knex('videos').where({ id }).decrement('support_count', 1);
 
+      const updated = await knex('videos').where({ id }).first();
       return res.json({
         success: true,
-        data: { video_id: id, liked: false, support_count: newCount },
+        data: { video_id: id, liked: false, support_count: Math.max(0, updated.support_count) },
       });
     } else {
       // Ajouter un like
@@ -168,12 +163,13 @@ router.post('/:id/like', requireAuth, async (req, res) => {
         reaction: 'support',
       });
 
-      const newCount = video.support_count + 1;
-      await knex('videos').where({ id }).update({ support_count: newCount });
+      // Utiliser increment() atomique
+      await knex('videos').where({ id }).increment('support_count', 1);
 
+      const updated = await knex('videos').where({ id }).first();
       return res.json({
         success: true,
-        data: { video_id: id, liked: true, support_count: newCount },
+        data: { video_id: id, liked: true, support_count: updated.support_count },
       });
     }
   } catch (err) {
