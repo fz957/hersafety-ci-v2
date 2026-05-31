@@ -49,16 +49,19 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
           setCommentLikes(likes);
         }).catch(() => setComments([]));
       } else if (['article', 'photo', 'video'].includes(type)) {
-        api.get(`/api/${type}s/${item.id}/comments`).then(r => {
+        // Utiliser le nouvel endpoint /api/comments
+        api.get(`/api/comments?content_type=${type}&content_id=${item.id}`).then(r => {
           const comms = r.data.data || [];
           setComments(comms);
-          const likedComments = JSON.parse(localStorage.getItem('lesgirls_comment_likes') || '{}');
           const likes = {};
           comms.forEach(c => {
-            likes[c.id] = likedComments[c.id] || false;
+            likes[c.id] = false; // Start with no likes, API will provide like_count
           });
           setCommentLikes(likes);
-        }).catch(() => setComments([]));
+        }).catch(err => {
+          console.error('Error loading comments:', err);
+          setComments([]);
+        });
       }
     }
   }, [item.id, type, showCommentsModal]);
@@ -131,62 +134,58 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
   const handleAddComment = async () => {
     if (!comment.trim()) return;
 
-    const localComment = {
-      id: `local_${Date.now()}`,
-      content: comment.trim(),
-      display_name: generateAnonName(),
-      is_owner: true,
-      created_at: new Date().toISOString(),
-      likes_count: 0,
-    };
-
-    const allComments = JSON.parse(localStorage.getItem('lesgirls_comments') || '{}');
-    const key = String(item.id);
-    if (!allComments[key]) allComments[key] = [];
-    allComments[key].push(localComment);
-    localStorage.setItem('lesgirls_comments', JSON.stringify(allComments));
-
-    setComments([...comments, localComment]);
-    setCommentCount(comments.length + 1);
-    setComment('');
-
-    if (type === 'testimony') {
-      try {
+    try {
+      if (type === 'testimony') {
         await api.post(`/api/testimonies/${item.id}/comments`, {
           content: comment.trim(),
           is_anonymous: true,
         });
-      } catch (err) {
-        console.error('API failed:', err);
+      } else if (['article', 'photo', 'video'].includes(type)) {
+        // Appeler le nouvel endpoint /api/comments
+        const res = await api.post('/api/comments', {
+          content_type: type,
+          content_id: item.id,
+          comment_text: comment.trim(),
+        });
+
+        // Ajouter le commentaire à la liste
+        const newComment = res.data.data;
+        setComments([...comments, newComment]);
+        setCommentCount(comments.length + 1);
       }
+
+      setComment('');
+      setToast({ message: 'Commentaire ajouté ✓', type: 'success' });
+    } catch (err) {
+      console.error('Error adding comment:', err);
+      setToast({ message: 'Erreur ajout commentaire', type: 'error' });
     }
   };
 
-  const handleCommentLike = (commentId) => {
+  const handleCommentLike = async (commentId) => {
     const liked = commentLikes[commentId];
 
-    // Mettre à jour l'état des likes (pour l'icône)
-    setCommentLikes({ ...commentLikes, [commentId]: !liked });
+    try {
+      // Appeler l'API pour liker/unliker
+      await api.post(`/api/comments/${commentId}/like`);
 
-    // Mettre à jour le compteur dans les commentaires
-    setComments(comments.map(c => {
-      if (c.id === commentId) {
-        return {
-          ...c,
-          likes_count: (c.likes_count || 0) + (liked ? -1 : 1)
-        };
-      }
-      return c;
-    }));
+      // Mettre à jour l'état des likes (pour l'icône)
+      setCommentLikes({ ...commentLikes, [commentId]: !liked });
 
-    // Sauvegarder dans localStorage
-    const likedComments = JSON.parse(localStorage.getItem('lesgirls_comment_likes') || '{}');
-    if (liked) {
-      delete likedComments[commentId];
-    } else {
-      likedComments[commentId] = true;
+      // Mettre à jour le compteur dans les commentaires
+      setComments(comments.map(c => {
+        if (c.id === commentId) {
+          return {
+            ...c,
+            like_count: (c.like_count || 0) + (liked ? -1 : 1)
+          };
+        }
+        return c;
+      }));
+    } catch (err) {
+      console.error('Error liking comment:', err);
+      setToast({ message: 'Erreur like commentaire', type: 'error' });
     }
-    localStorage.setItem('lesgirls_comment_likes', JSON.stringify(likedComments));
   };
 
   const handleAddReply = () => {
