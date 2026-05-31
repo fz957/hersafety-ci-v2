@@ -103,7 +103,6 @@ router.post('/', async (req, res) => {
     const [track] = await knex('tracks')
       .insert({
         user_id:              userId,
-        organization_id:      organizationId,
         destination_label:    value.destination_label,
         checkin_interval_min: value.checkin_interval_min,
         waypoints:            knex.raw('?::jsonb', [initialWaypoints]),
@@ -173,7 +172,6 @@ router.patch('/:id/checkin', async (req, res) => {
       .insert({
         track_id:        track.id,
         user_id:         userId,
-        organization_id: organizationId,
         response:        value.response,
         responded_at:    new Date(),
         location_lat:    value.location_lat,
