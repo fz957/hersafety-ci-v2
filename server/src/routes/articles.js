@@ -128,4 +128,57 @@ router.post('/:id/flag', async (req, res) => {
   }
 });
 
+// POST /api/articles/:id/like — Toggle like
+router.post('/:id/like', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const { userId } = req.user;
+
+  try {
+    const article = await knex('articles').where({ id }).first();
+
+    if (!article) {
+      return res.status(404).json({ success: false, error: 'Article introuvable' });
+    }
+
+    // Vérifier si l'utilisateur a déjà liké
+    const existingReaction = await knex('reactions')
+      .where({ content_type: 'article', content_id: id, user_id: userId })
+      .first();
+
+    if (existingReaction) {
+      // Supprimer le like (unlike)
+      await knex('reactions')
+        .where({ content_type: 'article', content_id: id, user_id: userId })
+        .del();
+
+      const newCount = Math.max(0, article.support_count - 1);
+      await knex('articles').where({ id }).update({ support_count: newCount });
+
+      return res.json({
+        success: true,
+        data: { article_id: id, liked: false, support_count: newCount },
+      });
+    } else {
+      // Ajouter un like
+      await knex('reactions').insert({
+        content_type: 'article',
+        content_id: id,
+        user_id: userId,
+        reaction: 'support',
+      });
+
+      const newCount = article.support_count + 1;
+      await knex('articles').where({ id }).update({ support_count: newCount });
+
+      return res.json({
+        success: true,
+        data: { article_id: id, liked: true, support_count: newCount },
+      });
+    }
+  } catch (err) {
+    console.error('Like article error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur like' });
+  }
+});
+
 module.exports = router;

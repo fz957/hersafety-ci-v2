@@ -114,7 +114,6 @@ router.get('/notifications', async (req, res) => {
       .join('testimonies', 'testimony_reactions.testimony_id', '=', 'testimonies.id')
       .join('users', 'testimony_reactions.user_id', '=', 'users.id')
       .where('testimonies.user_id', userId)
-      .where('testimonies.organization_id')
       .select(
         'testimony_reactions.id as notification_id',
         'testimonies.id as testimony_id',
@@ -131,7 +130,6 @@ router.get('/notifications', async (req, res) => {
       .join('testimonies', 'testimony_comments.testimony_id', '=', 'testimonies.id')
       .join('users', 'testimony_comments.user_id', '=', 'users.id')
       .where('testimonies.user_id', userId)
-      .where('testimonies.organization_id')
       .select(
         'testimony_comments.id as notification_id',
         'testimonies.id as testimony_id',
@@ -149,7 +147,6 @@ router.get('/notifications', async (req, res) => {
       .join('testimony_comments', 'comment_likes.comment_id', '=', 'testimony_comments.id')
       .join('users', 'comment_likes.user_id', '=', 'users.id')
       .where('testimony_comments.user_id', userId)
-      .where('testimony_comments.organization_id')
       .select(
         'comment_likes.id as notification_id',
         'testimony_comments.testimony_id',
@@ -161,11 +158,62 @@ router.get('/notifications', async (req, res) => {
       )
       .orderBy('comment_likes.created_at', 'desc');
 
+    // 4. Likes on user's articles
+    const articleLikes = await knex('reactions')
+      .join('articles', 'reactions.content_id', '=', 'articles.id')
+      .join('users', 'reactions.user_id', '=', 'users.id')
+      .where({ 'reactions.content_type': 'article', 'articles.user_id': userId })
+      .select(
+        'reactions.id as notification_id',
+        knex.raw(`articles.id as testimony_id`),
+        'articles.title',
+        'users.id as actor_id',
+        'users.full_name as actor_name',
+        'reactions.created_at',
+        knex.raw(`'testimony_like' as type`)
+      )
+      .orderBy('reactions.created_at', 'desc');
+
+    // 5. Likes on user's photos
+    const photoLikes = await knex('reactions')
+      .join('photos', 'reactions.content_id', '=', 'photos.id')
+      .join('users', 'reactions.user_id', '=', 'users.id')
+      .where({ 'reactions.content_type': 'photo', 'photos.user_id': userId })
+      .select(
+        'reactions.id as notification_id',
+        knex.raw(`photos.id as testimony_id`),
+        'photos.description as title',
+        'users.id as actor_id',
+        'users.full_name as actor_name',
+        'reactions.created_at',
+        knex.raw(`'testimony_like' as type`)
+      )
+      .orderBy('reactions.created_at', 'desc');
+
+    // 6. Likes on user's videos
+    const videoLikes = await knex('reactions')
+      .join('videos', 'reactions.content_id', '=', 'videos.id')
+      .join('users', 'reactions.user_id', '=', 'users.id')
+      .where({ 'reactions.content_type': 'video', 'videos.user_id': userId })
+      .select(
+        'reactions.id as notification_id',
+        knex.raw(`videos.id as testimony_id`),
+        'videos.description as title',
+        'users.id as actor_id',
+        'users.full_name as actor_name',
+        'reactions.created_at',
+        knex.raw(`'testimony_like' as type`)
+      )
+      .orderBy('reactions.created_at', 'desc');
+
     // Merge all notifications and sort by date
     const allNotifications = [
       ...testimonyLikes,
       ...testimonyComments,
       ...commentLikes,
+      ...articleLikes,
+      ...photoLikes,
+      ...videoLikes,
     ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     return res.json({ success: true, data: allNotifications });

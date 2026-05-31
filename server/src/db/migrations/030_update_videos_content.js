@@ -15,7 +15,6 @@ exports.up = async (knex) => {
         status: 'approved',
         flagged: false,
         support_count: 142,
-        comment_count: 0,
       },
       {
         id: crypto.randomUUID(),
@@ -25,7 +24,6 @@ exports.up = async (knex) => {
         status: 'approved',
         flagged: false,
         support_count: 95,
-        comment_count: 0,
       },
       {
         id: crypto.randomUUID(),
@@ -35,7 +33,6 @@ exports.up = async (knex) => {
         status: 'approved',
         flagged: false,
         support_count: 128,
-        comment_count: 0,
       },
       {
         id: crypto.randomUUID(),
@@ -45,7 +42,6 @@ exports.up = async (knex) => {
         status: 'approved',
         flagged: false,
         support_count: 110,
-        comment_count: 0,
       },
     ];
 

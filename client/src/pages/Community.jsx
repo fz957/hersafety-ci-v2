@@ -114,22 +114,17 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
   };
 
   const handleLike = async () => {
-    if (type === 'testimony') {
-      try {
-        await api.post(`/api/testimonies/${item.id}/like`);
-        setLiked(!liked);
-        setSupportCount(liked ? supportCount - 1 : supportCount + 1);
-      } catch (err) {
-        console.error('Like error:', err);
-      }
-    } else {
-      if (liked) {
-        setLiked(false);
-        setSupportCount(supportCount - 1);
-      } else {
-        setLiked(true);
-        setSupportCount(supportCount + 1);
-      }
+    try {
+      const endpoint = type === 'testimony'
+        ? `/api/testimonies/${item.id}/like`
+        : `/api/${type}s/${item.id}/like`;
+
+      await api.post(endpoint);
+      setLiked(!liked);
+      setSupportCount(liked ? supportCount - 1 : supportCount + 1);
+    } catch (err) {
+      console.error('Like error:', err);
+      setToast({ message: 'Erreur like', type: 'error' });
     }
   };
 
