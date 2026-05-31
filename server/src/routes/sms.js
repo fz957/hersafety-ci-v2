@@ -78,7 +78,9 @@ router.post('/alert', requireAuth, async (req, res) => {
       },
     });
   } catch (err) {
-    return res.status(500).json({ success: false, error: 'Erreur envoi SMS' });
+    console.error('[SMS ROUTE ERROR]', err.message);
+    console.error('[SMS ROUTE STACK]', err.stack);
+    return res.status(500).json({ success: false, error: 'Erreur envoi SMS: ' + err.message });
   }
 });
 
