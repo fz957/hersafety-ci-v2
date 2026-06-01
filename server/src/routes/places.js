@@ -473,7 +473,16 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    // Try Foursquare first (with timeout)
+    // PRODUCTION FIX: Skip external APIs and use FALLBACK_PLACES directly (real data)
+    // They're verified emergency locations in Abidjan with actual phone numbers
+    const hasApiKeys = !!process.env.FOURSQUARE_API_KEY;
+
+    if (!hasApiKeys) {
+      log(`[Places] No external API keys configured, using FALLBACK_PLACES (real emergency locations)`);
+      throw new Error('Using fallback');
+    }
+
+    // Try Foursquare first (with timeout) - only if API key exists
     log(`[Places] Fetching from Foursquare...`);
     const foursquareResults = await Promise.race([
       fetchFoursquare(userLat, userLng, radiusMeters),
@@ -507,48 +516,29 @@ router.get('/', async (req, res) => {
     throw new Error('No Foursquare results');
 
   } catch (err) {
-    log(`[Places] Foursquare failed (${err.message}), trying Overpass...`);
+    log(`[Places] External APIs failed (${err.message}), using FALLBACK_PLACES only...`);
 
-    // Try Overpass as fallback (OSM data is reliable for Abidjan)
-    try {
-      const overpassResults = await Promise.race([
-        fetchOverpass(userLat, userLng, radiusMeters),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
-      ]);
+    // Use only FALLBACK_PLACES - these are verified real emergency locations
+    // Don't mix with SAFE_PLACES which are generic districts
+    const withDistance = FALLBACK_PLACES.map(p => ({
+      ...p,
+      distance: getDistance(userLat, userLng, p.lat, p.lng)
+    }));
 
-      if (overpassResults && overpassResults.length > 0) {
-        log(`[Places] Got ${overpassResults.length} results from Overpass`);
-        const nearest = overpassResults.slice(0, 5);
-        setCachedPlaces(cacheKey, nearest);
-        return res.json({ success: true, data: nearest });
-      }
+    const nearest = withDistance
+      .filter(p => p.distance <= radiusKm)
+      .sort((a, b) => {
+        const aPriority = typePriority[a.type] !== undefined ? typePriority[a.type] : 99;
+        const bPriority = typePriority[b.type] !== undefined ? typePriority[b.type] : 99;
+        if (aPriority !== bPriority) return aPriority - bPriority;
+        return a.distance - b.distance;
+      })
+      .slice(0, 5)
+      .map(({ distance, ...p }) => p);
 
-      throw new Error('No Overpass results');
-    } catch (overpassErr) {
-      log(`[Places] Overpass also failed (${overpassErr.message}), using fallback list...`);
-
-      // Final fallback: use SAFE_PLACES + FALLBACK_PLACES
-      const allPlaces = [...SAFE_PLACES, ...FALLBACK_PLACES];
-      const withDistance = allPlaces.map(p => ({
-        ...p,
-        distance: getDistance(userLat, userLng, p.lat, p.lng)
-      }));
-
-      const nearest = withDistance
-        .filter(p => p.distance <= radiusKm)
-        .sort((a, b) => {
-          const aPriority = typePriority[a.type] !== undefined ? typePriority[a.type] : 99;
-          const bPriority = typePriority[b.type] !== undefined ? typePriority[b.type] : 99;
-          if (aPriority !== bPriority) return aPriority - bPriority;
-          return a.distance - b.distance;
-        })
-        .slice(0, 5)
-        .map(({ distance, ...p }) => p);
-
-      log(`[Places] Returning ${nearest.length} from fallback list`);
-      setCachedPlaces(cacheKey, nearest);
-      return res.json({ success: true, data: nearest });
-    }
+    log(`[Places] Returning ${nearest.length} from FALLBACK_PLACES (real emergency locations)`);
+    setCachedPlaces(cacheKey, nearest);
+    return res.json({ success: true, data: nearest });
   }
 });
 
