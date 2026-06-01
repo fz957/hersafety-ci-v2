@@ -30,6 +30,9 @@ const { apiLimiter } = require('./middlewares/rateLimit');
 
 const app = express();
 
+// Trust proxy — Railway uses a reverse proxy with X-Forwarded-For headers
+app.set('trust proxy', 1);
+
 // Servir les images statiques
 app.use('/images', express.static(path.join(__dirname, '../public/images')));
 
