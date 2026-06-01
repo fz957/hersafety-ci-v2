@@ -9,23 +9,7 @@
     "healthcheckTimeout": 60,
     "restartPolicyType": "always",
     "restartPolicyMaxRetries": 5
-  },
-  "envs": {
-    "DATABASE_URL": {
-      "description": "PostgreSQL connection string"
-    },
-    "JWT_SECRET": {
-      "description": "JWT signing secret",
-      "isPrivate": true
-    },
-    "JWT_REFRESH_SECRET": {
-      "description": "JWT refresh token secret",
-      "isPrivate": true
-    },
-    "APP_MODE": {
-      "description": "Application mode",
-      "default": "production"
-    }
   }
 }
+
 

@@ -1,9 +1,10 @@
 require('dotenv').config();
 
 // RATE LIMITER DISABLED FOR DEVELOPMENT - 2026-05-24
-// Variables obligatoires au démarrage — l'app ne démarre pas sans elles
+// Variables obligatoires au démarrage
+// DATABASE_URL peut être vide au démarrage (sera configurée plus tard)
+// Mais JWT secrets sont obligatoires
 const REQUIRED_ENV = [
-  'DATABASE_URL',
   'JWT_SECRET',
   'JWT_REFRESH_SECRET',
   'APP_MODE',
@@ -13,6 +14,13 @@ const missing = REQUIRED_ENV.filter((key) => !process.env[key]);
 if (missing.length > 0) {
   console.error(`[FATAL] Variables d'environnement manquantes : ${missing.join(', ')}`);
   process.exit(1);
+}
+
+// DATABASE_URL est optionnel au démarrage (peut être configurée par Railway)
+if (!process.env.DATABASE_URL) {
+  console.warn('[WARN] DATABASE_URL non configurée - la base de données ne sera pas accessible');
+  console.warn('[WARN] Configurer DATABASE_URL dans Railway pour activer la DB');
+  process.env.DATABASE_URL = 'postgresql://localhost/hersafety'; // Fallback dummy
 }
 
 const app  = require('./app');
