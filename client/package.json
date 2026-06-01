@@ -1,6 +1,6 @@
 {
   "name": "hersafety-ci-client",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "HerSafety CI — Frontend React",
   "private": true,
   "type": "module",
