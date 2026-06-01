@@ -6,6 +6,23 @@ import { SideNav, BottomNav, Spinner, HS } from './components/ui/index.jsx';
 import api from './services/api';
 import { setupFCM } from './services/firebase.js';
 
+// ─── Global error handler — Empêche les erreurs non-gérées de bloquer le rendu ──
+window.addEventListener('error', (event) => {
+  // Log l'erreur mais ne la relance pas
+  if (event.message && event.message.includes('WebSocket')) {
+    console.warn('[Global Error Handler] WebSocket error caught and ignored:', event.message);
+    event.preventDefault();
+  }
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  // Log mais ne crash pas
+  if (event.reason && event.reason.message && event.reason.message.includes('WebSocket')) {
+    console.warn('[Global Error Handler] WebSocket rejection caught:', event.reason.message);
+    event.preventDefault();
+  }
+});
+
 // Hook : détecte si on est sur desktop (>= 768px) — recalculé au resize
 function useIsDesktop() {
   const [ok, setOk] = useState(() => window.innerWidth >= 768);
