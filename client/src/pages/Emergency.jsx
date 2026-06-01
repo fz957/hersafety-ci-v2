@@ -269,8 +269,9 @@ export default function Emergency() {
       console.log('  → SKIP: Messages already exist');
       return;
     }
-    if (!emergencyNums.length || !places.length) {
-      console.log('  → SKIP: Waiting for data (emergencyNums or places empty)');
+    // Only wait for emergencyNums - places can be empty (will load independently)
+    if (!emergencyNums.length) {
+      console.log('  → SKIP: Waiting for emergencyNums...');
       return;
     }
 
