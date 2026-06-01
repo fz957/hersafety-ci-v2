@@ -343,7 +343,6 @@ export default function Dashboard() {
                   cursor: isEscalating ? 'not-allowed' : 'pointer',
                   opacity: isEscalating ? 0.6 : 1,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  fontSize: 12,
                 }}>
                 Ne me demande plus
               </button>
