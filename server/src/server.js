@@ -57,6 +57,10 @@ async function start() {
       await knex.raw('SELECT 1');
       console.log('[DB] Connexion PostgreSQL établie');
 
+      // Lancer les migrations pour créer les tables
+      const migrations = await knex.migrate.latest();
+      console.log(`[DB] ${migrations[1].length} migrations exécutées`);
+
       // Créer la table email_verifications si elle n'existe pas
       const hasTable = await knex.schema.hasTable('email_verifications');
       if (!hasTable) {
