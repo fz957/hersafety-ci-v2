@@ -50,7 +50,6 @@ import OnboardingEmergency from './pages/OnboardingEmergency.jsx';
 import OnboardingPhone from './pages/OnboardingPhone.jsx';
 import Onboarding from './pages/Onboarding.jsx';
 import Emergency  from './pages/Emergency.jsx';
-import Tracking   from './pages/Tracking.jsx';
 import Community  from './pages/Community.jsx';
 import Reports    from './pages/Reports.jsx';
 import Chat       from './pages/Chat.jsx';
@@ -212,8 +211,6 @@ function AppRoutes() {
       <Route path="/onboarding-phone" element={<ProtectedRoute><OnboardingPhone /></ProtectedRoute>} />
       <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
       <Route path="/emergency"  element={<ProtectedRoute><Emergency /></ProtectedRoute>} />
-      <Route path="/tracking"   element={<ProtectedRoute><Tracking /></ProtectedRoute>} />
-      <Route path="/track/:token" element={<Tracking />} /> {/* Public track sharing - no auth required */}
       <Route path="/chat"       element={<ProtectedRoute><Chat /></ProtectedRoute>} />
       <Route path="/community"  element={<ProtectedRoute><Community /></ProtectedRoute>} />
       <Route path="/reports"    element={<ProtectedRoute><Reports /></ProtectedRoute>} />
