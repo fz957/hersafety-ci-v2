@@ -8,18 +8,21 @@ import { setupFCM } from './services/firebase.js';
 
 // ─── Global error handler — Empêche les erreurs non-gérées de bloquer le rendu ──
 window.addEventListener('error', (event) => {
-  // Log l'erreur mais ne la relance pas
   if (event.message && event.message.includes('WebSocket')) {
-    console.warn('[Global Error Handler] WebSocket error caught and ignored:', event.message);
+    console.warn('[Global Error Handler] WebSocket error caught:', event.message);
     event.preventDefault();
   }
 });
 
 window.addEventListener('unhandledrejection', (event) => {
-  // Log mais ne crash pas
-  if (event.reason && event.reason.message && event.reason.message.includes('WebSocket')) {
-    console.warn('[Global Error Handler] WebSocket rejection caught:', event.reason.message);
+  const reason = event.reason;
+  const message = reason?.message || String(reason);
+
+  // Catch WebSocket errors and other security errors that shouldn't crash the app
+  if (message.includes('WebSocket') || message.includes('SecurityError')) {
+    console.warn('[Global Error Handler] Unhandled rejection caught:', message);
     event.preventDefault();
+    return;
   }
 });
 
