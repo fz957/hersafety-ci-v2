@@ -55,11 +55,11 @@ app.use(helmet({
 }));
 
 // CORS — uniquement le frontend autorisé, avec cookies
-// Accept dev (localhost), Vercel deployments, and custom frontend URL
+// Accept dev (localhost) et déploiement Netlify spécifique
 const allowedOrigins = [
-  'http://localhost:5173',           // Dev local
+  'http://localhost:5173',           // Dev local frontend
   'http://localhost:3000',           // Dev local (alt port)
-  'https://hersafety-ci-v2-kkol.vercel.app', // Old Vercel deployment
+  'https://hersafety-ci.netlify.app', // Production Netlify
   process.env.FRONTEND_URL,           // Custom frontend URL if set
 ].filter(Boolean);
 
@@ -71,19 +71,13 @@ app.use(cors({
       return;
     }
 
-    // Allow specific whitelisted origins
+    // Allow specific whitelisted origins only - NO wildcards
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
       return;
     }
 
-    // Allow any vercel.app or netlify.app domain (frontend deployment platforms)
-    if (origin.includes('vercel.app') || origin.includes('netlify.app')) {
-      callback(null, true);
-      return;
-    }
-
-    // Reject everything else
+    // Reject everything else (including vercel.app, netlify.app wildcard attempts)
     console.warn(`[CORS] Rejected origin: ${origin}`);
     callback(new Error('CORS not allowed'));
   },
@@ -102,6 +96,11 @@ app.use('/api', apiLimiter);
 
 // Test route to verify code is loaded
 app.get('/api/test', (req, res) => res.json({ test: 'OK', timestamp: new Date().toISOString(), rateLimit: 'DISABLED' }));
+
+// Health check endpoint (required for Docker health checks)
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Debug route to check database
 app.get('/api/debug/db', async (req, res) => {

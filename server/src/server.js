@@ -50,86 +50,25 @@ async function start() {
   // ===== DATABASE INITIALIZATION (BLOCKING) =====
   console.log('[DB] Vérification de la base de données...');
   try {
+    // Test connection
     await knex.raw('SELECT 1');
-    console.log('[DB] Connexion établie');
+    console.log('[DB] ✓ Connexion établie');
 
-    const usersTableExists = await knex.schema.hasTable('users');
-    if (!usersTableExists) {
-      console.warn('[DB] ⚠️  Table users manquante! Création des tables...');
-
-      // Créer l'ENUM user_role
-      await knex.raw(`
-        DO $$ BEGIN
-          CREATE TYPE user_role AS ENUM ('user', 'admin', 'superadmin');
-        EXCEPTION WHEN duplicate_object THEN NULL;
-        END $$
-      `);
-
-      // Créer la table users
-      await knex.schema.createTable('users', (t) => {
-        t.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
-        t.uuid('organization_id').nullable();
-        t.text('email').notNullable().unique();
-        t.text('password_hash').notNullable();
-        t.text('phone').nullable();
-        t.text('full_name').nullable();
-        t.specificType('role', 'user_role').notNullable().defaultTo('user');
-        t.boolean('is_active').notNullable().defaultTo(true);
-        t.boolean('onboarding_done').notNullable().defaultTo(false);
-        t.boolean('is_demo').notNullable().defaultTo(false);
-        t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
-        t.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
-      });
-
-      await knex.schema.createTable('login_attempts', (t) => {
-        t.increments('id').primary();
-        t.string('email').notNullable().index();
-        t.string('ip_address').nullable();
-        t.boolean('success').defaultTo(false);
-        t.timestamp('attempted_at').defaultTo(knex.fn.now()).index();
-      });
-
-      await knex.schema.createTable('refresh_tokens', (t) => {
-        t.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
-        t.uuid('user_id').notNullable();
-        t.text('token_hash').notNullable().unique();
-        t.timestamp('expires_at', { useTz: true }).notNullable();
-        t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
-      });
-
-      console.log('[DB] ✓ Tables créées avec succès');
-    } else {
-      console.log('[DB] ✓ Tables existantes confirmées');
-    }
-
-    // Créer email_verifications si elle n'existe pas
-    const hasEmailVerifications = await knex.schema.hasTable('email_verifications');
-    if (!hasEmailVerifications) {
-      await knex.schema.createTable('email_verifications', (table) => {
-        table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
-        table.string('email').notNullable().unique();
-        table.string('token').notNullable().unique();
-        table.string('full_name').nullable();
-        table.string('phone').nullable();
-        table.string('password_hash').notNullable();
-        table.timestamp('created_at').defaultTo(knex.fn.now());
-        table.timestamp('expires_at').notNullable();
-      });
-      console.log('[DB] ✓ Table email_verifications créée');
-    }
-
-    // Lancer les migrations
+    // Run migrations only - they handle all table creation
+    // IMPORTANT: Migrations must run in correct order
     try {
       const migrations = await knex.migrate.latest();
-      if (migrations[1].length > 0) {
+      if (migrations[1] && migrations[1].length > 0) {
         console.log(`[DB] ✓ ${migrations[1].length} migrations exécutées`);
+      } else {
+        console.log('[DB] ✓ Migrations à jour (aucune nouvelle à exécuter)');
       }
     } catch (migErr) {
-      console.warn('[DB] Migration warning (non-critical):', migErr.message);
+      console.error('[DB] ❌ Migration error:', migErr.message);
+      throw migErr;
     }
   } catch (dbErr) {
     console.error('[DB] ❌ ERREUR CRITIQUE:', dbErr.message);
-    console.error('[DB] Les tables n\'ont pas pu être créées!');
     process.exit(1);
   }
   // ===== END DATABASE INITIALIZATION =====
