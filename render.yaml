@@ -8,7 +8,7 @@ services:
   - type: web
     name: hersafety-backend
     runtime: node
-    plan: free
+    plan: starter
     rootDir: server
     buildCommand: npm install && npm run migrate
     startCommand: npm start
@@ -37,7 +37,7 @@ services:
   - type: web
     name: hersafety-frontend
     runtime: static
-    plan: free
+    plan: starter
     rootDir: client
     buildCommand: npm install && npm run build
     staticPublishPath: dist
