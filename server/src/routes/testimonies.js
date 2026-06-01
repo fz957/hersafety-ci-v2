@@ -563,7 +563,6 @@ router.post('/:testimonyId/comments', async (req, res) => {
       .insert({
         testimony_id: testimonyId,
         user_id: userId,
-        organization_id: organizationId,
         content: value.content,
         is_anonymous: value.is_anonymous,
         display_name,
@@ -606,7 +605,6 @@ router.delete('/:testimonyId/comments/:commentId', async (req, res) => {
         id: commentId,
         testimony_id: testimonyId,
         user_id: userId,
-        organization_id: organizationId,
       })
       .first();
 
