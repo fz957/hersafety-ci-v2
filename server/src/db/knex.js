@@ -3,7 +3,10 @@ const knexLib = require('knex');
 
 const config = {
   client: 'pg',
-  connection: process.env.DATABASE_URL,
+  connection: {
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  },
   pool: {
     min: 2,
     max: 10,
