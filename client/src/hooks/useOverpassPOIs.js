@@ -5,6 +5,7 @@ import api from '../services/api';
  * Hook pour récupérer les POIs (Points of Interest) depuis le backend
  * Le backend utilise Foursquare ou fallback à des lieux sûrs statiques
  * RAISON: Overpass API doesn't allow CORS from browser, so we proxy through backend
+ * NOTE: Fixed to use backend API instead of direct Overpass calls (CORS compatible)
  * Cherche: pharmacies, police, gendarmerie, hôpitaux, pompiers, restaurants
  */
 export function useOverpassPOIs(lat, lng, radiusKm = 10) {
