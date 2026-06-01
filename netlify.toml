@@ -1,12 +1,10 @@
 # Netlify configuration for HerSafety CI
 
 [build]
-  # Build command - build the React app with Vite
-  command = "cd client && npm run build"
+  # Build command - install client deps THEN build with Vite
+  command = "cd client && npm ci && npm run build"
   # Where Netlify publishes the built site
   publish = "client/dist"
-  # Install devDependencies (Vite, ESLint, etc.)
-  environment = { NPM_FLAGS = "--include=dev" }
 
 # SPA routing - all routes go to index.html for React Router
 [[redirects]]
