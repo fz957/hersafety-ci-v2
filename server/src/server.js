@@ -38,13 +38,14 @@ async function start() {
   emailService.initializeTransporter();
   console.log('[EMAIL] Service email initialisé');
 
-  // Initialiser Firebase Admin SDK
-  try {
-    firebaseService.initializeFirebase();
-    console.log('[Firebase] Admin SDK initialisé');
-  } catch (err) {
-    console.warn('[Firebase] Initialization error (notifications may not work):', err.message);
-  }
+  // Initialiser Firebase Admin SDK (DISABLED - causes 502 on Render)
+  // TODO: Debug Firebase initialization without blocking server startup
+  // try {
+  //   firebaseService.initializeFirebase();
+  //   console.log('[Firebase] Admin SDK initialisé');
+  // } catch (err) {
+  //   console.warn('[Firebase] Initialization error (notifications may not work):', err.message);
+  // }
 
   // ===== DATABASE INITIALIZATION (BLOCKING) =====
   console.log('[DB] Vérification de la base de données...');
