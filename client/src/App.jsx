@@ -4,7 +4,8 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { SideNav, BottomNav, Spinner, HS } from './components/ui/index.jsx';
 import api from './services/api';
-import { setupFCM } from './services/firebase.js';
+// Firebase disabled - using Gmail for notifications instead
+// import { setupFCM } from './services/firebase.js';
 
 // ─── Global error handler — Empêche les erreurs non-gérées de bloquer le rendu ──
 window.addEventListener('error', (event) => {
@@ -171,31 +172,33 @@ function GuestRoute({ children }) {
 }
 
 // ─── Firebase Initializer ─────────────────────────────────────────────────────
-function FirebaseInitializer() {
-  const { user } = useAuth();
-
-  useEffect(() => {
-    if (user) {
-      setupFCM(api)
-        .then(result => {
-          if (result.success) {
-            console.log('✓ FCM setup complete');
-          } else {
-            console.warn('⚠ FCM setup incomplete:', result.error);
-          }
-        })
-        .catch(err => console.error('FCM setup error:', err));
-    }
-  }, [user]);
-
-  return null;
-}
+// DISABLED - Firebase removed, using Gmail notifications instead
+// function FirebaseInitializer() {
+//   const { user } = useAuth();
+//
+//   useEffect(() => {
+//     if (user) {
+//       setupFCM(api)
+//         .then(result => {
+//           if (result.success) {
+//             console.log('✓ FCM setup complete');
+//           } else {
+//             console.warn('⚠ FCM setup incomplete:', result.error);
+//           }
+//         })
+//         .catch(err => console.error('FCM setup error:', err));
+//     }
+//   }, [user]);
+//
+//   return null;
+// }
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 function AppRoutes() {
   return (
     <>
-      <FirebaseInitializer />
+      {/* Firebase Initializer disabled */}
+      {/* <FirebaseInitializer /> */}
       <Routes>
       {/* Publiques */}
       <Route path="/"         element={<Landing />} />
