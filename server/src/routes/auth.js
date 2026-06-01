@@ -48,7 +48,7 @@ function setAuthCookies(res, accessToken, refreshToken) {
   res.cookie('token', accessToken, {
     httpOnly: true,
     secure:   isProd,
-    sameSite: 'lax', // Allow cross-domain requests from Vercel → Render
+    sameSite: isProd ? 'none' : 'lax', // 'none' for cross-domain (requires Secure)
     maxAge:   24 * 60 * 60 * 1000, // 24h
     path:     '/',  // Important: envoi à tous les endpoints
   });
@@ -56,7 +56,7 @@ function setAuthCookies(res, accessToken, refreshToken) {
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
     secure:   isProd,
-    sameSite: 'lax', // Allow cross-domain requests from Vercel → Render
+    sameSite: isProd ? 'none' : 'lax', // 'none' for cross-domain (requires Secure)
     maxAge:   7 * 24 * 60 * 60 * 1000, // 7j
     path:     '/api/auth/refresh',
   });
