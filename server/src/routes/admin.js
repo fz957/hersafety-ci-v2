@@ -248,7 +248,9 @@ router.get('/moderation', async (req, res) => {
         'testimonies.id',
         'testimonies.user_id',
         'testimonies.display_name',
+        'testimonies.is_anonymous',
         'users.email',
+        'users.full_name as user_name',
         'testimonies.title',
         'testimonies.content',
         'testimonies.category',
@@ -279,9 +281,21 @@ router.get('/moderation', async (req, res) => {
 router.get('/testimonies/pending', async (req, res) => {
   try {
     const testimonies = await knex('testimonies')
-      .where({ status: 'pending' })
-      .select('id', 'user_id', 'is_anonymous', 'display_name', 'category', 'title', 'content', 'location_label', 'created_at')
-      .orderBy('created_at', 'asc')
+      .leftJoin('users', 'testimonies.user_id', 'users.id')
+      .where({ 'testimonies.status': 'pending' })
+      .select(
+        'testimonies.id',
+        'testimonies.user_id',
+        'testimonies.is_anonymous',
+        'testimonies.display_name',
+        'testimonies.category',
+        'testimonies.title',
+        'testimonies.content',
+        'testimonies.location_label',
+        'testimonies.created_at',
+        'users.full_name as user_name'
+      )
+      .orderBy('testimonies.created_at', 'asc')
       .limit(50);
 
     return res.json({ success: true, data: testimonies });
