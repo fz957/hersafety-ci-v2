@@ -507,29 +507,48 @@ router.get('/', async (req, res) => {
     throw new Error('No Foursquare results');
 
   } catch (err) {
-    log(`[Places] Foursquare failed (${err.message}), using fallback list...`);
+    log(`[Places] Foursquare failed (${err.message}), trying Overpass...`);
 
-    // Fallback: use SAFE_PLACES + FALLBACK_PLACES
-    const allPlaces = [...SAFE_PLACES, ...FALLBACK_PLACES];
-    const withDistance = allPlaces.map(p => ({
-      ...p,
-      distance: getDistance(userLat, userLng, p.lat, p.lng)
-    }));
+    // Try Overpass as fallback (OSM data is reliable for Abidjan)
+    try {
+      const overpassResults = await Promise.race([
+        fetchOverpass(userLat, userLng, radiusMeters),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+      ]);
 
-    const nearest = withDistance
-      .filter(p => p.distance <= radiusKm)
-      .sort((a, b) => {
-        const aPriority = typePriority[a.type] !== undefined ? typePriority[a.type] : 99;
-        const bPriority = typePriority[b.type] !== undefined ? typePriority[b.type] : 99;
-        if (aPriority !== bPriority) return aPriority - bPriority;
-        return a.distance - b.distance;
-      })
-      .slice(0, 5)
-      .map(({ distance, ...p }) => p);
+      if (overpassResults && overpassResults.length > 0) {
+        log(`[Places] Got ${overpassResults.length} results from Overpass`);
+        const nearest = overpassResults.slice(0, 5);
+        setCachedPlaces(cacheKey, nearest);
+        return res.json({ success: true, data: nearest });
+      }
 
-    log(`[Places] Returning ${nearest.length} from fallback list`);
-    setCachedPlaces(cacheKey, nearest);
-    return res.json({ success: true, data: nearest });
+      throw new Error('No Overpass results');
+    } catch (overpassErr) {
+      log(`[Places] Overpass also failed (${overpassErr.message}), using fallback list...`);
+
+      // Final fallback: use SAFE_PLACES + FALLBACK_PLACES
+      const allPlaces = [...SAFE_PLACES, ...FALLBACK_PLACES];
+      const withDistance = allPlaces.map(p => ({
+        ...p,
+        distance: getDistance(userLat, userLng, p.lat, p.lng)
+      }));
+
+      const nearest = withDistance
+        .filter(p => p.distance <= radiusKm)
+        .sort((a, b) => {
+          const aPriority = typePriority[a.type] !== undefined ? typePriority[a.type] : 99;
+          const bPriority = typePriority[b.type] !== undefined ? typePriority[b.type] : 99;
+          if (aPriority !== bPriority) return aPriority - bPriority;
+          return a.distance - b.distance;
+        })
+        .slice(0, 5)
+        .map(({ distance, ...p }) => p);
+
+      log(`[Places] Returning ${nearest.length} from fallback list`);
+      setCachedPlaces(cacheKey, nearest);
+      return res.json({ success: true, data: nearest });
+    }
   }
 });
 
