@@ -1,70 +1,49 @@
-services:
-  # PostgreSQL Database
-  - type: pserv
-    name: hersafety-postgres
-    ipAllowList: [] # Allow all
-    plan: starter
-    postgresVersion: 15
-    initialOpeningCommand: npm run migrate
-    preDeployCommand: npm run migrate
+databases:
+  - name: hersafety-postgres
+    plan: free
+    databaseName: hersafety
+    user: hersafety
 
-  # Backend API
+services:
   - type: web
     name: hersafety-backend
     runtime: node
-    plan: starter
-    buildCommand: npm install
+    plan: free
+    rootDir: server
+    buildCommand: npm install && npm run migrate
     startCommand: npm start
-    workingDirectory: ./server
     envVars:
       - key: DATABASE_URL
-        scope: service
+        fromDatabase:
+          name: hersafety-postgres
+          property: connectionString
       - key: JWT_SECRET
-        scope: service
+        generateValue: true
       - key: JWT_REFRESH_SECRET
-        scope: service
+        generateValue: true
       - key: NODE_ENV
         value: production
       - key: APP_MODE
         value: production
-      - key: APP_URL
-        fromService:
-          name: hersafety-backend
-          property: url
-      - key: FRONTEND_URL
-        fromService:
-          name: hersafety-frontend
-          property: url
-      - key: ANTHROPIC_API_KEY
-        scope: service
-      - key: AFRICASTALKING_API_KEY
-        scope: service
-      - key: AFRICASTALKING_USERNAME
-        scope: service
       - key: PORT
         value: 10000
-    healthCheckPath: /api/health
-    depends:
-      - name: hersafety-postgres
-        type: pserv
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AFRICASTALKING_API_KEY
+        sync: false
+      - key: AFRICASTALKING_USERNAME
+        sync: false
 
-  # Frontend SPA
   - type: web
     name: hersafety-frontend
-    runtime: node
-    plan: starter
+    runtime: static
+    plan: free
+    rootDir: client
     buildCommand: npm install && npm run build
-    startCommand: npm run preview
-    workingDirectory: ./client
-    publishPath: dist
+    staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
         fromService:
           name: hersafety-backend
-          property: url
-          path: /api
-    depends:
-      - name: hersafety-backend
-        type: web
-
-env: production
+          type: web
+          property: host
