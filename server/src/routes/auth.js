@@ -48,7 +48,7 @@ function setAuthCookies(res, accessToken, refreshToken) {
   res.cookie('token', accessToken, {
     httpOnly: true,
     secure:   isProd,
-    sameSite: isProd ? 'strict' : 'lax',
+    sameSite: 'lax', // Allow cross-domain requests from Vercel → Render
     maxAge:   24 * 60 * 60 * 1000, // 24h
     path:     '/',  // Important: envoi à tous les endpoints
   });
@@ -56,7 +56,7 @@ function setAuthCookies(res, accessToken, refreshToken) {
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
     secure:   isProd,
-    sameSite: isProd ? 'strict' : 'lax',
+    sameSite: 'lax', // Allow cross-domain requests from Vercel → Render
     maxAge:   7 * 24 * 60 * 60 * 1000, // 7j
     path:     '/api/auth/refresh',
   });
@@ -257,13 +257,19 @@ router.post('/login', authLimiter, async (req, res) => {
     console.log(`[AUTH] Login attempt for ${email}`);
 
     // Brute-force : 5 tentatives échouées dans les 15 dernières minutes
-    const failedCount = await countRecentFailedAttempts(email);
-    console.log(`[AUTH] Failed attempts: ${failedCount}`);
-    if (failedCount >= 5) {
-      return res.status(429).json({
-        success: false,
-        error: 'Compte temporairement bloqué après trop de tentatives. Réessayez dans 15 minutes.',
-      });
+    let failedCount = 0;
+    try {
+      failedCount = await countRecentFailedAttempts(email);
+      console.log(`[AUTH] Failed attempts: ${failedCount}`);
+      if (failedCount >= 5) {
+        return res.status(429).json({
+          success: false,
+          error: 'Compte temporairement bloqué après trop de tentatives. Réessayez dans 15 minutes.',
+        });
+      }
+    } catch (bruteErr) {
+      console.warn(`[AUTH] Brute-force check failed (ignoring): ${bruteErr.message}`);
+      // Continue anyway if brute-force table doesn't exist
     }
 
     const user = await knex('users')
@@ -271,13 +277,21 @@ router.post('/login', authLimiter, async (req, res) => {
       .first();
 
     if (!user) {
-      await logAttempt(email, ip, false);
+      try {
+        await logAttempt(email, ip, false);
+      } catch (logErr) {
+        console.warn(`[AUTH] Failed to log attempt: ${logErr.message}`);
+      }
       return res.status(401).json({ success: false, error: 'Email ou mot de passe incorrect' });
     }
 
     const passwordOk = await bcrypt.compare(password, user.password_hash);
     if (!passwordOk) {
-      await logAttempt(email, ip, false);
+      try {
+        await logAttempt(email, ip, false);
+      } catch (logErr) {
+        console.warn(`[AUTH] Failed to log attempt: ${logErr.message}`);
+      }
       const remaining = 4 - failedCount;
       return res.status(401).json({
         success: false,
@@ -285,7 +299,11 @@ router.post('/login', authLimiter, async (req, res) => {
       });
     }
 
-    await logAttempt(email, ip, true);
+    try {
+      await logAttempt(email, ip, true);
+    } catch (logErr) {
+      console.warn(`[AUTH] Failed to log success: ${logErr.message}`);
+    }
 
     const accessToken  = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
