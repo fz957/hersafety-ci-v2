@@ -2,13 +2,13 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Copy package files
-COPY server/package*.json ./
+COPY package*.json ./
 
 # Install dependencies
 RUN npm ci --omit=dev
 
 # Copy application code
-COPY server . .
+COPY . .
 
 # Make entrypoint executable
 RUN chmod +x ./entrypoint.sh
