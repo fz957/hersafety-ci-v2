@@ -1,17 +1,22 @@
 FROM node:20-alpine
 WORKDIR /app
 
-# Copy and install dependencies
+# Copy package files
 COPY server/package*.json ./
-RUN npm install --production
+
+# Install dependencies
+RUN npm ci --omit=dev
 
 # Copy application code
 COPY server . .
 
+# Make entrypoint executable
+RUN chmod +x ./entrypoint.sh
+
 # Expose port
 EXPOSE 10000
 
-# Set default environment variables (will be overridden by Railway)
+# Set default environment variables
 ENV DATABASE_URL=postgresql://localhost/hersafety
 ENV JWT_SECRET=default_jwt_secret_change_in_production
 ENV JWT_REFRESH_SECRET=default_refresh_secret_change_in_production
@@ -19,5 +24,5 @@ ENV APP_MODE=production
 ENV PORT=10000
 ENV NODE_ENV=production
 
-# Start the app directly with npm
-CMD ["npm", "start"]
+# Use entrypoint script for logging and startup
+ENTRYPOINT ["./entrypoint.sh"]
