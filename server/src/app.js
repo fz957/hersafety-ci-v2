@@ -39,7 +39,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../../uploads'), {
   maxAge: 7 * 24 * 60 * 60 * 1000,
   // Permettre le CORS pour les fichiers statiques
   setHeaders: (res) => {
-    res.set('Access-Control-Allow-Origin', process.env.FRONTEND_URL || 'http://localhost:5173');
+    res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.set('Cross-Origin-Resource-Policy', 'cross-origin');
   }
@@ -52,8 +52,23 @@ app.use(helmet({
 }));
 
 // CORS — uniquement le frontend autorisé, avec cookies
+// Accept dev (localhost:5173) and production (Vercel) origins
+const allowedOrigins = [
+  'http://localhost:5173',           // Dev local
+  'https://hersafety-ci-v2-kkol.vercel.app', // Vercel production
+  process.env.FRONTEND_URL,           // Custom frontend URL if set
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests without origin (like mobile apps or curl)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS] Rejected origin: ${origin}`);
+      callback(new Error('CORS not allowed'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
