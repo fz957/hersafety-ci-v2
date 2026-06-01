@@ -55,22 +55,37 @@ app.use(helmet({
 }));
 
 // CORS — uniquement le frontend autorisé, avec cookies
-// Accept dev (localhost:5173) and production (Vercel) origins
+// Accept dev (localhost), Vercel deployments, and custom frontend URL
 const allowedOrigins = [
   'http://localhost:5173',           // Dev local
-  'https://hersafety-ci-v2-kkol.vercel.app', // Vercel production
+  'http://localhost:3000',           // Dev local (alt port)
+  'https://hersafety-ci-v2-kkol.vercel.app', // Old Vercel deployment
   process.env.FRONTEND_URL,           // Custom frontend URL if set
 ].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests without origin (like mobile apps or curl)
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin) {
       callback(null, true);
-    } else {
-      console.warn(`[CORS] Rejected origin: ${origin}`);
-      callback(new Error('CORS not allowed'));
+      return;
     }
+
+    // Allow specific whitelisted origins
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    // Allow any vercel.app domain (new Vercel deployments generate different URLs)
+    if (origin.includes('vercel.app')) {
+      callback(null, true);
+      return;
+    }
+
+    // Reject everything else
+    console.warn(`[CORS] Rejected origin: ${origin}`);
+    callback(new Error('CORS not allowed'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
