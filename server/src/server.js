@@ -58,8 +58,13 @@ async function start() {
       console.log('[DB] Connexion PostgreSQL établie');
 
       // Lancer les migrations pour créer les tables
-      const migrations = await knex.migrate.latest();
-      console.log(`[DB] ${migrations[1].length} migrations exécutées`);
+      try {
+        const migrations = await knex.migrate.latest();
+        console.log(`[DB] ${migrations[1].length} migrations exécutées (batch #${migrations[0]})`);
+        migrations[1].forEach(m => console.log(`  ✓ ${m}`));
+      } catch (migErr) {
+        console.warn('[DB] Erreur lors des migrations:', migErr.message);
+      }
 
       // Créer la table email_verifications si elle n'existe pas
       const hasTable = await knex.schema.hasTable('email_verifications');

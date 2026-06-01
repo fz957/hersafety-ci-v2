@@ -254,8 +254,11 @@ router.post('/login', authLimiter, async (req, res) => {
   const ip = req.ip;
 
   try {
+    console.log(`[AUTH] Login attempt for ${email}`);
+
     // Brute-force : 5 tentatives échouées dans les 15 dernières minutes
     const failedCount = await countRecentFailedAttempts(email);
+    console.log(`[AUTH] Failed attempts: ${failedCount}`);
     if (failedCount >= 5) {
       return res.status(429).json({
         success: false,
@@ -303,6 +306,8 @@ router.post('/login', authLimiter, async (req, res) => {
       },
     });
   } catch (err) {
+    console.error('[AUTH] Login error:', err.message);
+    console.error('[AUTH] Stack:', err.stack);
     return res.status(500).json({ success: false, error: 'Erreur lors de la connexion' });
   }
 });
