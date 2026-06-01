@@ -23,18 +23,24 @@ export default defineConfig({
     },
   },
 
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    minify: 'terser',
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
+  },
+
   server: {
     port: 5173,
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:5001',
         changeOrigin: true,
-      },
-      '/images': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-        rewrite: (path) => path,
       },
     },
   },
