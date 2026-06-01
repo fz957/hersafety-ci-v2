@@ -68,38 +68,45 @@ router.post('/', async (req, res) => {
       const contacts = await knex('contacts').where({ user_id: userId });
 
       if (contacts.length > 0) {
-        let emailsSent = 0;
-
-        // Envoyer emails aux contacts
-        for (const contact of contacts) {
-          if (contact.email) {
-            const emailResult = await sendAlertEmail(contact.email, {
-              senderName: sender.full_name,
-              alertLevel: value.level,
-              locationLabel: value.location_label,
-              createdAt: alert.created_at,
-            });
-
-            if (emailResult.success) {
-              emailsSent++;
-            }
-          }
-        }
-
-        // Mettre à jour l'alerte
+        // Mettre à jour l'alerte IMMÉDIATEMENT
         await knex('alerts').where({ id: alert.id }).update({
-          sms_sent:       emailsSent > 0, // Utiliser sms_sent pour tracker les notifications
-          sms_sent_at:    emailsSent > 0 ? new Date() : null,
+          sms_sent:       true, // Mark as sent
+          sms_sent_at:    new Date(),
           contacts_count: contacts.length,
         });
 
-        alert.sms_sent       = emailsSent > 0;
+        alert.sms_sent       = true;
         alert.contacts_count = contacts.length;
 
-        // Envoyer email de confirmation à l'utilisateur
-        if (sender && sender.email) {
-          await sendAlertConfirmationEmail(sender.email, sender.full_name, value.level, contacts.length, value.location_label);
-        }
+        // SEND EMAILS IN BACKGROUND (don't block the alert creation response)
+        // Envoyer emails aux contacts
+        (async () => {
+          let emailsSent = 0;
+          for (const contact of contacts) {
+            if (contact.email) {
+              try {
+                const emailResult = await sendAlertEmail(contact.email, {
+                  senderName: sender.full_name,
+                  alertLevel: value.level,
+                  locationLabel: value.location_label,
+                  createdAt: alert.created_at,
+                });
+                if (emailResult.success) emailsSent++;
+              } catch (err) {
+                console.error('[Alert Email] Error sending to contact:', err.message);
+              }
+            }
+          }
+
+          // Envoyer email de confirmation à l'utilisateur
+          if (sender && sender.email) {
+            try {
+              await sendAlertConfirmationEmail(sender.email, sender.full_name, value.level, contacts.length, value.location_label);
+            } catch (err) {
+              console.error('[Alert Email] Error sending confirmation:', err.message);
+            }
+          }
+        })();
       }
 
       // Contacts reçoivent des emails (pas de notifications push FCM)

@@ -75,7 +75,7 @@ router.patch('/me', async (req, res) => {
       .update({ ...value, updated_at: new Date() })
       .returning(['id', 'email', 'full_name', 'phone', 'role', 'onboarding_done', 'email_notifications_enabled', 'updated_at']);
 
-    // Envoyer email de confirmation si changements profil
+    // Envoyer email de confirmation si changements profil (EN BACKGROUND - ne pas bloquer la réponse)
     if (value.full_name || value.email || value.phone) {
       const emailService = require('../services/email.service');
       const changes = {};
@@ -83,7 +83,9 @@ router.patch('/me', async (req, res) => {
       if (value.email) changes['Email'] = value.email;
       if (value.phone) changes['Téléphone'] = value.phone;
 
-      await emailService.sendProfileChangeEmail(user.email, user.full_name || 'Utilisateur', changes);
+      // Send email in background without awaiting (don't block API response)
+      emailService.sendProfileChangeEmail(user.email, user.full_name || 'Utilisateur', changes)
+        .catch(err => console.error('[Email] Error sending profile change email:', err.message));
     }
 
     return res.json({ success: true, data: user });
@@ -133,9 +135,10 @@ router.delete('/me', async (req, res) => {
         .del();
     });
 
-    // Envoyer email de confirmation suppression
+    // Envoyer email de confirmation suppression (EN BACKGROUND)
     if (user && user.email) {
-      await emailService.sendAccountDeletionEmail(user.email, user.full_name || 'Utilisateur');
+      emailService.sendAccountDeletionEmail(user.email, user.full_name || 'Utilisateur')
+        .catch(err => console.error('[Email] Error sending account deletion email:', err.message));
     }
 
     return res.json({ success: true, message: 'Compte supprimé avec succès' });
