@@ -57,13 +57,45 @@ async function start() {
       await knex.raw('SELECT 1');
       console.log('[DB] Connexion PostgreSQL établie');
 
-      // Lancer les migrations pour créer les tables
+      // Vérifier la table users - si elle n'existe pas, forcer les migrations
+      const usersTableExists = await knex.schema.hasTable('users');
+      if (!usersTableExists) {
+        console.warn('[DB] Table users manquante! Lancement des migrations...');
+
+        try {
+          // Supprimer la table knex_migrations_lock si elle bloque
+          const migrationsTableExists = await knex.schema.hasTable('knex_migrations');
+          if (migrationsTableExists) {
+            await knex('knex_migrations').del();
+            console.log('[DB] Nettoyage de la table knex_migrations');
+          }
+        } catch (cleanErr) {
+          console.warn('[DB] Impossible de nettoyer knex_migrations:', cleanErr.message);
+        }
+
+        try {
+          const migrations = await knex.migrate.latest();
+          console.log(`[DB] ✓ ${migrations[1].length} migrations exécutées (batch #${migrations[0]})`);
+          migrations[1].forEach(m => console.log(`  ✓ ${m}`));
+        } catch (migErr) {
+          console.error('[DB] Erreur migrations:', migErr.message);
+          console.error('[DB] Stack:', migErr.stack);
+        }
+      } else {
+        console.log('[DB] Table users existe ✓');
+      }
+
+      // Lancer les migrations standard aussi
       try {
         const migrations = await knex.migrate.latest();
-        console.log(`[DB] ${migrations[1].length} migrations exécutées (batch #${migrations[0]})`);
-        migrations[1].forEach(m => console.log(`  ✓ ${m}`));
+        if (migrations[1].length > 0) {
+          console.log(`[DB] ${migrations[1].length} migrations exécutées`);
+          migrations[1].forEach(m => console.log(`  ✓ ${m}`));
+        } else {
+          console.log('[DB] Toutes les migrations sont à jour');
+        }
       } catch (migErr) {
-        console.warn('[DB] Erreur lors des migrations:', migErr.message);
+        console.warn('[DB] Migration error:', migErr.message);
       }
 
       // Créer la table email_verifications si elle n'existe pas
