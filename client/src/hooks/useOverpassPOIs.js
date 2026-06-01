@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
+import api from '../services/api';
 
 /**
- * Hook pour récupérer les POIs (Points of Interest) depuis Overpass API
+ * Hook pour récupérer les POIs (Points of Interest) depuis le backend
+ * Le backend utilise Foursquare ou fallback à des lieux sûrs statiques
+ * RAISON: Overpass API doesn't allow CORS from browser, so we proxy through backend
  * Cherche: pharmacies, police, gendarmerie, hôpitaux, pompiers, restaurants
  */
 export function useOverpassPOIs(lat, lng, radiusKm = 10) {
@@ -12,107 +15,45 @@ export function useOverpassPOIs(lat, lng, radiusKm = 10) {
   useEffect(() => {
     if (!lat || !lng) return;
 
-    const controller = new AbortController();
     let isMounted = true;
-
     setLoading(true);
     setError(null);
 
-    // Overpass QL query pour chercher les POIs utiles en cas d'urgence
-    const radiusDegrees = radiusKm / 111; // Approximation: 1 degree ≈ 111km
-    const bbox = `${lat - radiusDegrees},${lng - radiusDegrees},${lat + radiusDegrees},${lng + radiusDegrees}`;
+    console.log('[Places API] Récupérant POIs autour de', lat.toFixed(4), lng.toFixed(4));
 
-    const overpassQuery = `[bbox:${bbox}];
-(
-  node["amenity"="pharmacy"];
-  node["amenity"="police"];
-  node["amenity"="gendarmerie"];
-  node["amenity"="hospital"];
-  node["amenity"="clinic"];
-  node["amenity"="fire_station"];
-  node["amenity"="restaurant"];
-  node["amenity"="cafe"];
-  way["amenity"="pharmacy"];
-  way["amenity"="police"];
-  way["amenity"="hospital"];
-  way["amenity"="fire_station"];
-);
-out center;`;
-
-    console.log('[Overpass] Cherchant POIs autour de', lat.toFixed(4), lng.toFixed(4));
-
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-    fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      body: overpassQuery,
-      signal: controller.signal
+    // Call backend /api/places instead of Overpass (no CORS issues)
+    api.get('/api/places', {
+      params: {
+        lat: lat.toFixed(6),
+        lng: lng.toFixed(6),
+        radius: Math.round(radiusKm * 1000) // Convert km to meters
+      }
     })
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.text();
-      })
-      .then(xml => {
+      .then(response => {
         if (!isMounted) return;
 
-        // Parse OSM XML response
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(xml, 'text/xml');
+        const places = response.data.data || [];
+        console.log(`[Places API] Trouvé ${places.length} lieux sûrs`);
 
-        if (doc.getElementsByTagName('parsererror').length > 0) {
-          throw new Error('Erreur parsing OSM XML');
-        }
+        // Transform to match expected format
+        const pois = places.map(place => ({
+          id: place.id,
+          type: place.type,
+          name: place.name,
+          lat: place.lat,
+          lng: place.lng,
+          address: place.address || place.description,
+          phone: place.phone
+        }));
 
-        const elements = [];
-
-        // Parse nodes
-        doc.querySelectorAll('node').forEach(node => {
-          const lat = parseFloat(node.getAttribute('lat'));
-          const lng = parseFloat(node.getAttribute('lon'));
-          const name = node.querySelector('tag[k="name"]')?.getAttribute('v') || 'POI sans nom';
-          const amenity = node.querySelector('tag[k="amenity"]')?.getAttribute('v') || 'autre';
-
-          if (lat && lng && name) {
-            elements.push({
-              id: `node-${node.getAttribute('id')}`,
-              type: getTypeFromAmenity(amenity),
-              name,
-              lat,
-              lng,
-              amenity
-            });
-          }
-        });
-
-        // Parse ways (centers)
-        doc.querySelectorAll('way').forEach(way => {
-          const centerNode = way.querySelector('center');
-          if (centerNode) {
-            const lat = parseFloat(centerNode.getAttribute('lat'));
-            const lng = parseFloat(centerNode.getAttribute('lon'));
-            const name = way.querySelector('tag[k="name"]')?.getAttribute('v') || 'POI sans nom';
-            const amenity = way.querySelector('tag[k="amenity"]')?.getAttribute('v') || 'autre';
-
-            if (lat && lng && name) {
-              elements.push({
-                id: `way-${way.getAttribute('id')}`,
-                type: getTypeFromAmenity(amenity),
-                name,
-                lat,
-                lng,
-                amenity
-              });
-            }
-          }
-        });
-
-        console.log(`[Overpass] Trouvé ${elements.length} POIs`);
-        if (isMounted) setPois(elements);
+        setPois(pois);
       })
       .catch(err => {
-        if (isMounted && err.name !== 'AbortError') {
-          console.error('[Overpass] Erreur:', err.message);
+        if (isMounted) {
+          console.error('[Places API] Erreur:', err.message);
           setError(err.message);
+          // Still set empty array so map doesn't break
+          setPois([]);
         }
       })
       .finally(() => {
@@ -121,27 +62,8 @@ out center;`;
 
     return () => {
       isMounted = false;
-      clearTimeout(timeoutId);
-      controller.abort();
     };
   }, [lat, lng, radiusKm]);
 
   return { pois, loading, error };
-}
-
-/**
- * Convertir amenity OSM en type HerSafety
- */
-function getTypeFromAmenity(amenity) {
-  const mapping = {
-    pharmacy: 'pharmacie',
-    police: 'police',
-    gendarmerie: 'gendarmerie',
-    hospital: 'hopital',
-    clinic: 'hopital',
-    fire_station: 'pompiers',
-    restaurant: 'restaurant',
-    cafe: 'restaurant'
-  };
-  return mapping[amenity] || 'autre';
 }

@@ -338,19 +338,23 @@ export default function Emergency() {
         // Chercher le lieu le plus proche pour la position finale
         let finalLocationName = 'Dernière position';
         if (finalLocation) {
-          console.log('[Emergency SAVE] Looking up final location name from Overpass...');
-          // Utiliser les POIs pour trouver le lieu le plus proche de la position finale
+          console.log('[Emergency SAVE] Looking up final location name from backend...');
+          // Use backend API to get nearby safe places (will return location context)
           try {
-            const response = await fetch(
-              `https://overpass-api.de/api/interpreter?data=[out:json];(node["name"](${finalLocation.lat - 0.01},${finalLocation.lng - 0.01},${finalLocation.lat + 0.01},${finalLocation.lng + 0.01});way["name"](${finalLocation.lat - 0.01},${finalLocation.lng - 0.01},${finalLocation.lat + 0.01},${finalLocation.lng + 0.01}););out center 1;`
-            );
-            const data = await response.json();
-            if (data.elements && data.elements.length > 0) {
-              finalLocationName = data.elements[0].tags?.name || 'Dernière position';
+            const response = await api.get('/api/places', {
+              params: {
+                lat: finalLocation.lat,
+                lng: finalLocation.lng,
+                radius: 500 // 500m radius to find nearby places
+              }
+            });
+            const places = response.data.data || [];
+            if (places.length > 0) {
+              finalLocationName = places[0].name || 'Dernière position';
               console.log('[Emergency SAVE] Final location name:', finalLocationName);
             }
           } catch (err) {
-            console.log('[Emergency SAVE] Overpass request failed, using default name:', err.message);
+            console.log('[Emergency SAVE] Places API request failed, using default name:', err.message);
           }
         }
 
