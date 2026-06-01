@@ -515,10 +515,10 @@ export default function Community() {
     api.get('/api/testimonies').then((r) => {
       const apiTestimonies = r.data.data || [];
       console.log('[Community LOAD] API returned', apiTestimonies.length, 'testimonies');
-      setTestimonies(apiTestimonies);
+      if (apiTestimonies.length > 0) setTestimonies(apiTestimonies);
     }).catch((err) => {
       console.error('[Community LOAD] API error:', err.message);
-      setTestimonies([]);
+      // GARDER les données hardcodées au lieu de vider
     });
 
     // Charger les articles depuis l'API
@@ -526,20 +526,22 @@ export default function Community() {
     api.get('/api/articles').then((r) => {
       const apiArticles = r.data.data || [];
       console.log('[Community LOAD] API returned', apiArticles.length, 'articles');
-      setArticles(apiArticles);
-      // Marquer les articles créés par moi dans le localStorage
-      if (user?.id) {
-        const myPosts = JSON.parse(localStorage.getItem('lesgirls_my_posts') || '{}');
-        apiArticles.forEach(article => {
-          if (article.user_id === user.id) {
-            myPosts[article.id] = 'article';
-          }
-        });
-        localStorage.setItem('lesgirls_my_posts', JSON.stringify(myPosts));
+      if (apiArticles.length > 0) {
+        setArticles(apiArticles);
+        // Marquer les articles créés par moi dans le localStorage
+        if (user?.id) {
+          const myPosts = JSON.parse(localStorage.getItem('lesgirls_my_posts') || '{}');
+          apiArticles.forEach(article => {
+            if (article.user_id === user.id) {
+              myPosts[article.id] = 'article';
+            }
+          });
+          localStorage.setItem('lesgirls_my_posts', JSON.stringify(myPosts));
+        }
       }
     }).catch((err) => {
       console.error('[Community LOAD] Articles API error:', err.message);
-      setArticles([]);
+      // GARDER les données hardcodées au lieu de vider
     });
 
     // Charger les photos depuis l'API
@@ -547,10 +549,10 @@ export default function Community() {
     api.get('/api/photos').then((r) => {
       const apiPhotos = r.data.data || [];
       console.log('[Community LOAD] API returned', apiPhotos.length, 'photos');
-      setPhotos(apiPhotos);
+      if (apiPhotos.length > 0) setPhotos(apiPhotos);
     }).catch((err) => {
       console.error('[Community LOAD] Photos API error:', err.message);
-      setPhotos([]);
+      // GARDER les données hardcodées au lieu de vider
     });
 
     // Charger les vidéos depuis l'API
@@ -558,14 +560,19 @@ export default function Community() {
     api.get('/api/videos').then((r) => {
       const apiVideos = r.data.data || [];
       console.log('[Community LOAD] API returned', apiVideos.length, 'videos');
-      setVideos(apiVideos);
+      // Vérifier que les vidéos ont des URLs avant de les utiliser
+      const videosWithUrls = apiVideos.filter(v => v.url || v.video_url);
+      console.log('[Community LOAD] Videos with URLs:', videosWithUrls.length);
+      if (videosWithUrls.length > 0) setVideos(videosWithUrls);
+      // Sinon garder les hardcodées
     }).catch((err) => {
       console.error('[Community LOAD] Videos API error:', err.message);
-      setVideos([]);
+      // GARDER les données hardcodées au lieu de vider
     });
   };
 
   const generateDefault = () => {
+    console.log('[CRITICAL] generateDefault() APPELÉE - chargeant données hardcodées...');
     const generateExampleComments = () => {
       const allComments = {};
 
@@ -677,26 +684,32 @@ export default function Community() {
         ],
       };
 
-      // Example comments for videos
+      // Example comments for videos - 6 vidéos avec commentaires
       const videoComments = {
-        300: [ // Témoignage: Ma guérison
-          { id: 'vc_300_1', content: 'J\'ai pleuré en regardant. C\'est tellement inspirant.', display_name: 'ForteEtoile234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 5 },
-          { id: 'vc_300_2', content: 'Voir quelqu\'un guérir ça fait tellement du bien. Merci de partager.', display_name: 'BraveAurore456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 4 },
-          { id: 'vc_300_3', content: 'Son histoire est aussi mon histoire. Je me sens moins seule.', display_name: 'SageLotus789', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 3 },
-          { id: 'vc_300_4', content: 'C\'est un parcours long mais possible. Merci pour l\'espoir.', display_name: 'LumiereVoix234', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 2 },
-          { id: 'vc_300_5', content: 'Je reviens regarder ça quand j\'ai besoin de croire que je peux guérir.', display_name: 'CourageusePhoenix456', created_at: new Date(Date.now() - 36000000).toISOString(), likes_count: 3 },
+        300: [
+          { id: 'vc_300_1', content: 'Très utile et informatif! 👍', display_name: 'ForteFemme123', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 2 },
+          { id: 'vc_300_2', content: 'Merci pour ce contenu important.', display_name: 'BraveCourage456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 1 },
+          { id: 'vc_300_3', content: 'Je partage avec mes amies!', display_name: 'SageAide789', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 0 },
         ],
-        302: [ // Comprendre le trauma
-          { id: 'vc_302_1', content: 'Finalement c\'est NORMAL ce que je vis. Pas folle. Merci.', display_name: 'BraveLotus234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 4 },
-          { id: 'vc_302_2', content: 'Expert clairement explique. Je comprends pourquoi j\'ai peur des bruits maintenant.', display_name: 'VoixJustice456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 3 },
-          { id: 'vc_302_3', content: 'Cauchemars et flashbacks ne veut pas dire que je suis cassée. ça aide vraiment.', display_name: 'SageEtoile789', created_at: new Date(Date.now() - 60000000).toISOString(), likes_count: 2 },
-          { id: 'vc_302_4', content: 'On devrait faire passer ça dans les écoles. Les gens ne comprennent pas le trauma.', display_name: 'ForteCouleur123', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 1 },
+        301: [
+          { id: 'vc_301_1', content: 'Excellente ressource! 💪', display_name: 'FortePhoenix234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 3 },
+          { id: 'vc_301_2', content: 'Très bien expliqué.', display_name: 'BraveLotus567', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 1 },
         ],
-        303: [ // Vos droits légaux
-          { id: 'vc_303_1', content: 'Je ne savais PAS que je pouvais faire ça! Vais porter plainte demain.', display_name: 'CourageuseAurore234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 3 },
-          { id: 'vc_303_2', content: 'Les droits légaux c\'est une arme. Merci de les rappeler clairement.', display_name: 'BraveLumiere456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 2 },
-          { id: 'vc_303_3', content: 'Je vais apporter à mon avocate. C\'est un bon résumé.', display_name: 'LumiereJustice789', created_at: new Date(Date.now() - 48000000).toISOString(), likes_count: 1 },
-          { id: 'vc_303_4', content: 'Les policiers devraient regarder ça aussi! Certains refusent de prendre les cas.', display_name: 'VoixForce123', created_at: new Date(Date.now() - 36000000).toISOString(), likes_count: 2 },
+        302: [
+          { id: 'vc_302_1', content: 'Information cruciale! 🙌', display_name: 'SageVoix123', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 2 },
+          { id: 'vc_302_2', content: 'À regarder absolument.', display_name: 'CourageuseLotus456', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 1 },
+        ],
+        303: [
+          { id: 'vc_303_1', content: 'Très important à savoir!', display_name: 'ForteLumiere789', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 2 },
+          { id: 'vc_303_2', content: 'Merci beaucoup.', display_name: 'BraveAurore123', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 0 },
+        ],
+        304: [
+          { id: 'vc_304_1', content: 'Contenu utile et clair! ✨', display_name: 'SageFemme234', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 2 },
+          { id: 'vc_304_2', content: 'Bien produit.', display_name: 'ForteVoix567', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 1 },
+        ],
+        305: [
+          { id: 'vc_305_1', content: 'Super ressource! 👏', display_name: 'BraveLotus890', created_at: new Date(Date.now() - 86400000).toISOString(), likes_count: 3 },
+          { id: 'vc_305_2', content: 'À connaître absolument.', display_name: 'SagePhoenix123', created_at: new Date(Date.now() - 72000000).toISOString(), likes_count: 1 },
         ],
       };
 
@@ -735,9 +748,12 @@ export default function Community() {
     ];
 
     const vids = [
-      { id: 300, title: '💜 Témoignage: Ma guérison', description: 'Femme partagant son parcours de résilience\n⏱️ 8 min • Inspirant et délicat', video_url: 'https://www.youtube.com/embed/jNQXAC9IVRw?t=3', trigger_warning_level: 'moderate', user_id: null, support_count: 142, comment_count: 5 },
-      { id: 302, title: '🧠 Comprendre le trauma', description: 'Expert en santé mentale explique\n⏱️ 10 min • Validant et utile', video_url: 'https://www.youtube.com/embed/LHIhuKJaHNY', trigger_warning_level: 'moderate', user_id: null, support_count: 95, comment_count: 4 },
-      { id: 303, title: '⚖️ Vos droits légaux', description: 'Comment porter plainte et vous protéger\n⏱️ 8 min • Important à savoir', video_url: 'https://www.youtube.com/embed/9bZkp7q19f0', trigger_warning_level: 'low', user_id: null, support_count: 78, comment_count: 4 },
+      { id: 300, title: '💜 Vidéo Sécurité 1', description: 'Contenu éducatif important pour votre sécurité', url: 'https://www.youtube.com/embed/Ki3yfkj4Yls', trigger_warning_level: 'low', user_id: null, support_count: 8, comment_count: 3 },
+      { id: 301, title: '🧠 Vidéo Sécurité 2', description: 'Contenu éducatif important pour votre sécurité', url: 'https://www.youtube.com/embed/Ac9jgayoOGk', trigger_warning_level: 'low', user_id: null, support_count: 6, comment_count: 2 },
+      { id: 302, title: '⚖️ Vidéo Sécurité 3', description: 'Contenu éducatif important pour votre sécurité', url: 'https://www.youtube.com/embed/VF4ZyJRUxk8', trigger_warning_level: 'none', user_id: null, support_count: 5, comment_count: 2 },
+      { id: 303, title: '👩‍⚖️ Vidéo Sécurité 4', description: 'Contenu éducatif important pour votre sécurité', url: 'https://www.youtube.com/embed/gkjW9PZBRfk', trigger_warning_level: 'none', user_id: null, support_count: 7, comment_count: 1 },
+      { id: 304, title: '💪 Vidéo Sécurité 5', description: 'Contenu éducatif important pour votre sécurité', url: 'https://www.youtube.com/embed/UpgZ5PCuf8A', trigger_warning_level: 'low', user_id: null, support_count: 9, comment_count: 3 },
+      { id: 305, title: '🛡️ Vidéo Sécurité 6', description: 'Contenu éducatif important pour votre sécurité', url: 'https://www.youtube.com/embed/m_UjYOfmkn8', trigger_warning_level: 'none', user_id: null, support_count: 10, comment_count: 2 },
     ];
 
     setTestimonies(temps);
@@ -749,20 +765,61 @@ export default function Community() {
     localStorage.setItem('lesgirls_photos', JSON.stringify(phos));
     localStorage.setItem('lesgirls_videos', JSON.stringify(vids));
 
-    // Generate and store example comments
-    const exampleComments = generateExampleComments();
-    localStorage.setItem('lesgirls_comments', JSON.stringify(exampleComments));
+    // ❌ REMOVED: localStorage comments - use API instead
+    // const exampleComments = generateExampleComments();
+    // localStorage.setItem('lesgirls_comments', JSON.stringify(exampleComments));
   };
 
   useEffect(() => {
-    // Vider TOUT le localStorage pour forcer rechargement depuis l'API
-    localStorage.removeItem('lesgirls_photos');
-    localStorage.removeItem('lesgirls_videos');
-    localStorage.removeItem('lesgirls_articles');
-    localStorage.removeItem('lesgirls_comments');
-    localStorage.removeItem('lesgirls_comment_likes');
-    localStorage.removeItem('lesgirls_comment_replies');
+    // Charger depuis l'API (6 vidéos + commentaires maintenant en BD)
     load();
+  }, []);
+
+  // WebSocket pour synchronisation en temps réel des commentaires
+  useEffect(() => {
+    const wsUrl = `ws://${window.location.host}/ws`;
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log('[Community] WebSocket connecté');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const { event: eventType, data } = JSON.parse(event.data);
+        console.log('[Community] WebSocket event:', eventType, data);
+
+        if (eventType === 'COMMENT_DELETED') {
+          // Un commentaire a été supprimé par l'admin
+          console.log('[Community] Commentaire supprimé:', data.commentId);
+          load();
+        } else if (eventType === 'COMMENT_ADDED') {
+          // Un nouveau commentaire a été ajouté
+          console.log('[Community] Nouveau commentaire:', data.comment);
+          load();
+        } else if (eventType === 'POST_DELETED') {
+          // Un post a été supprimé par l'admin
+          console.log('[Community] Post supprimé:', data.contentId);
+          load();
+        }
+      } catch (err) {
+        console.error('[Community] WebSocket parsing error:', err);
+      }
+    };
+
+    ws.onerror = (err) => {
+      console.error('[Community] WebSocket error:', err);
+    };
+
+    ws.onclose = () => {
+      console.log('[Community] WebSocket fermé');
+    };
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
   }, []);
 
   const submit = async (e) => {
@@ -918,9 +975,9 @@ export default function Community() {
             ) : (
               (() => {
                 const reported_items = JSON.parse(localStorage.getItem('lesgirls_reported') || '[]');
-                // Séparer items signalés et non-signalés, garder l'ordre original
-                const nonReported = items.filter(item => !reported_items.includes(item.id));
-                const reported = items.filter(item => reported_items.includes(item.id));
+                // Séparer items signalés (utilisatrice ou admin) et non-signalés
+                const nonReported = items.filter(item => !reported_items.includes(item.id) && !item.flagged);
+                const reported = items.filter(item => reported_items.includes(item.id) || item.flagged);
                 const sorted = [...nonReported, ...reported];
                 return sorted.map((item) => {
                   const typeMap = { testimonies: 'testimony', articles: 'article', photos: 'photo', videos: 'video' };

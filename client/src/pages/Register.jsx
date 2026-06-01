@@ -17,6 +17,8 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
   const [agreed, setAgreed]   = useState(false);
+  const [showVerification, setShowVerification] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState('');
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -35,14 +37,65 @@ export default function Register() {
         phone:      form.phone.trim() || undefined,
         password:   form.password,
       });
-      setUser(data.user);
-      navigate('/onboarding-emergency');
+      // After registration, show verification message
+      setVerificationEmail(data.email);
+      setShowVerification(true);
     } catch (err) {
       setError(err.response?.data?.error || 'Erreur lors de l\'inscription');
     } finally {
       setLoading(false);
     }
   };
+
+  // Show verification message if registration successful
+  if (showVerification) {
+    return (
+      <PageShell style={{ position: 'relative' }}>
+        <div style={{ position: 'absolute', top: -100, right: -80, width: 240, height: 240,
+          background: HS.mistyRose, borderRadius: '50%', opacity: 0.7 }} />
+        <Petal size={18} color={HS.sakuraDeep} opacity={0.5}
+          style={{ position: 'absolute', top: 120, left: 30, transform: 'rotate(30deg)' }} />
+
+        <div style={{ position: 'relative', padding: '60px 24px 0', display: 'flex',
+          justifyContent: 'space-between', alignItems: 'center' }}>
+          <BackButton to="/login" />
+        </div>
+
+        <ScrollArea style={{ position: 'relative' }}>
+          <div style={{ padding: '40px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
+            <div style={{ fontSize: 64, marginBottom: 20 }}>📧</div>
+            <H1 style={{ marginBottom: 12 }}>Vérifiez votre email!</H1>
+            <div style={{ fontSize: 15, color: HS.textMute, marginBottom: 24, lineHeight: 1.6 }}>
+              Nous avons envoyé un lien de vérification à:<br />
+              <span style={{ fontWeight: 700, color: HS.text }}>{verificationEmail}</span>
+            </div>
+            <div style={{ fontSize: 14, color: HS.textDim, marginBottom: 32, maxWidth: 340, lineHeight: 1.6, background: HS.surface, padding: 16, borderRadius: 12 }}>
+              Cliquez sur le lien dans l'email pour confirmer votre compte. Le lien expire dans 24 heures.
+            </div>
+            <button
+              onClick={() => window.location.href = 'https://mail.google.com'}
+              style={{
+                background: HS.chocolate, color: '#fff', border: 'none',
+                padding: '12px 28px', borderRadius: 12, fontWeight: 700,
+                cursor: 'pointer', fontSize: 14, marginBottom: 12,
+              }}
+            >
+              Ouvrir Gmail →
+            </button>
+            <button
+              onClick={() => setShowVerification(false)}
+              style={{
+                background: 'transparent', color: HS.textMute, border: 'none',
+                padding: '8px 16px', fontSize: 13, cursor: 'pointer',
+              }}
+            >
+              Revenir à l'inscription
+            </button>
+          </div>
+        </ScrollArea>
+      </PageShell>
+    );
+  }
 
   return (
     <PageShell style={{ position: 'relative' }}>

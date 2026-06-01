@@ -1,10 +1,12 @@
+import { useTheme } from '../../context/ThemeContext';
 import React from 'react';
 import { HS } from '../../tokens';
 
 export default function UserRow({ user }) {
+  const { theme } = useTheme();
   const statusMap = {
-    active: { c: HS.safe, bg: HS.safeSoft, l: 'Actif' },
-    inactive: { c: HS.danger, bg: HS.dangerSoft, l: 'Inactif' },
+    active: { c: theme.safe, bg: theme.safeSoft, l: 'Actif' },
+    inactive: { c: theme.danger, bg: theme.dangerSoft, l: 'Inactif' },
   };
 
   const getStatus = (user) => {
@@ -21,32 +23,32 @@ export default function UserRow({ user }) {
 
   return (
     <tr style={{
-      borderBottom: `1px solid ${HS.border}`,
+      borderBottom: `1px solid ${theme.border}`,
       height: 56,
       fontSize: 13,
     }}>
       {/* Name */}
-      <td style={{ padding: '0 12px', fontWeight: 700, color: HS.chocolate }}>
+      <td style={{ padding: '0 12px', fontWeight: 700, color: theme.chocolate }}>
         {user.full_name}
       </td>
 
       {/* Email */}
-      <td style={{ padding: '0 12px', color: HS.textDim, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '0 12px', color: theme.textDim, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {user.email}
       </td>
 
       {/* Last Location */}
-      <td style={{ padding: '0 12px', color: HS.textDim, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '0 12px', color: theme.textDim, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {user.last_location || '—'}
       </td>
 
       {/* Alerts Count */}
-      <td style={{ padding: '0 12px', fontWeight: 700, color: HS.chocolate }}>
+      <td style={{ padding: '0 12px', fontWeight: 700, color: theme.chocolate }}>
         {user.alerts_count || 0}
       </td>
 
       {/* Since */}
-      <td style={{ padding: '0 12px', color: HS.textMute, fontSize: 12 }}>
+      <td style={{ padding: '0 12px', color: theme.textMute, fontSize: 12 }}>
         {formatDate(user.created_at)}
       </td>
 

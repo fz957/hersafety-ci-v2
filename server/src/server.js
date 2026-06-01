@@ -18,6 +18,7 @@ if (missing.length > 0) {
 const app  = require('./app');
 const knex = require('./db/knex');
 const emailService = require('./services/email.service');
+const wsService = require('./services/websocket.service');
 
 const PORT = parseInt(process.env.PORT || '5000', 10);
 
@@ -28,17 +29,37 @@ async function start() {
     console.log('[DB] Connexion PostgreSQL établie');
     console.log('[CONFIG] APP_MODE=' + process.env.APP_MODE);
 
+    // Créer la table email_verifications si elle n'existe pas
+    const hasTable = await knex.schema.hasTable('email_verifications');
+    if (!hasTable) {
+      await knex.schema.createTable('email_verifications', (table) => {
+        table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+        table.string('email').notNullable().unique();
+        table.string('token').notNullable().unique();
+        table.string('full_name').nullable();
+        table.string('phone').nullable();
+        table.string('password_hash').notNullable();
+        table.timestamp('created_at').defaultTo(knex.fn.now());
+        table.timestamp('expires_at').notNullable();
+      });
+      console.log('[DB] Table email_verifications créée');
+    }
+
     // Initialiser le service email
     emailService.initializeTransporter();
     console.log('[EMAIL] Service email initialisé');
 
-    app.listen(PORT, () => {
+    // Initialiser le serveur HTTP et WebSocket
+    const server = app.listen(PORT, () => {
       console.log(`[SERVER] HerSafety CI démarré sur le port ${PORT}`);
       console.log(`[SERVER] Mode : ${process.env.APP_MODE}`);
       if (process.env.APP_MODE === 'development') {
         console.log('[SERVER] ⚠  MODE TEST — SMS sandbox, appels simulés');
       }
     });
+
+    // Initialiser WebSocket
+    wsService.initWebSocket(server);
   } catch (err) {
     console.error('[FATAL] Impossible de démarrer le serveur');
     console.error('[FATAL] Message :', err.message);

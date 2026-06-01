@@ -1,8 +1,10 @@
+import { useTheme } from '../../context/ThemeContext';
 import React from 'react';
 import { Icon } from '../ui/index.jsx';
 import { HS } from '../../tokens';
 
 export default function StatsCard({ label, value, delta, color, bgColor, icon, good = false }) {
+  const { theme } = useTheme();
   return (
     <div style={{
       padding: '20px 18px',
@@ -15,7 +17,7 @@ export default function StatsCard({ label, value, delta, color, bgColor, icon, g
     }}>
       {/* Top Row: Icon + Label */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: HS.textDim }}>{label}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: theme.textDim }}>{label}</div>
         {icon && (
           <div style={{
             width: 40,
@@ -33,14 +35,14 @@ export default function StatsCard({ label, value, delta, color, bgColor, icon, g
 
       {/* Value + Delta */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-        <div style={{ fontSize: 28, fontWeight: 800, color: HS.chocolate }}>
+        <div style={{ fontSize: 28, fontWeight: 800, color: theme.chocolate }}>
           {value}
         </div>
         {delta && (
           <div style={{
             fontSize: 13,
             fontWeight: 700,
-            color: good ? HS.safe : HS.danger,
+            color: good ? theme.safe : theme.danger,
             display: 'flex',
             alignItems: 'center',
             gap: 4,

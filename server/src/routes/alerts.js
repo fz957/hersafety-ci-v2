@@ -6,7 +6,7 @@ const { requireAuth }   = require('../middlewares/auth');
 const { requireAdmin }  = require('../middlewares/admin');
 const { sendAlertSMS }  = require('../services/sms.service');
 const { sendNotificationToUser, notifyContacts } = require('../services/firebase.service');
-const { sendAlertEmail, sendAlertConfirmationEmail } = require('../services/email.service');
+const { sendAlertEmail, sendAlertConfirmationEmail, sendAdminAlertNotification } = require('../services/email.service');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -49,11 +49,25 @@ router.post('/', async (req, res) => {
       ? `Alerte ${levelLabels[value.level]}: ${value.location_label}`
       : `Alerte ${levelLabels[value.level]}`;
 
+    // Récupérer l'utilisateur et son organization_id
+    const sender = await knex('users').where({ id: userId }).first();
+
+    // Envoyer notification à l'admin si les notifications sont activées
+    if (sender && sender.organization_id) {
+      const admin = await knex('users')
+        .where({ organization_id: sender.organization_id, role: 'admin' })
+        .where('email_notifications_enabled', '!=', false)
+        .first();
+
+      if (admin && admin.email) {
+        await sendAdminAlertNotification(admin.email, alert, sender.full_name || 'Utilisatrice');
+      }
+    }
+
     if (['2', '3', '4'].includes(value.level)) {
       const contacts = await knex('contacts').where({ user_id: userId });
 
       if (contacts.length > 0) {
-        const sender = await knex('users').where({ id: userId }).first();
         let emailsSent = 0;
 
         // Envoyer emails aux contacts

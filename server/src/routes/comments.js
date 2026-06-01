@@ -2,8 +2,33 @@ const express = require('express');
 const Joi = require('joi');
 const knex = require('../db/knex');
 const { requireAuth } = require('../middlewares/auth');
+const wsService = require('../services/websocket.service');
+const { sendAdminCommentNotification } = require('../services/email.service');
 
 const router = express.Router();
+
+// ─── GET /api/comments/count — Compter les commentaires ────────────────────
+// Usage: /api/comments/count?content_type=testimony&content_id=UUID
+
+router.get('/count', async (req, res) => {
+  const { content_type, content_id } = req.query;
+
+  if (!content_type || !content_id) {
+    return res.status(400).json({ success: false, error: 'content_type et content_id requis' });
+  }
+
+  try {
+    const result = await knex('content_comments')
+      .where({ content_type, content_id })
+      .count('id as count')
+      .first();
+
+    return res.json({ success: true, data: { count: parseInt(result?.count || 0) } });
+  } catch (err) {
+    console.error('[Comments] Count error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur comptage commentaires' });
+  }
+});
 
 // ─── POST /api/comments — Ajouter un commentaire ───────────────────────────
 
@@ -32,8 +57,21 @@ router.post('/', requireAuth, async (req, res) => {
   const { userId } = req.user;
 
   try {
+    // Whitelist des tables pour éviter SQL injection
+    const ALLOWED_TABLES = {
+      'article': 'articles',
+      'photo': 'photos',
+      'video': 'videos',
+      'testimony': 'testimonies'
+    };
+    const tableName = ALLOWED_TABLES[value.content_type];
+
+    if (!tableName) {
+      return res.status(400).json({ success: false, error: `Type de contenu invalide: ${value.content_type}` });
+    }
+
     // Vérifier que le contenu existe
-    const content = await knex(value.content_type + 's')
+    const content = await knex(tableName)
       .where({ id: value.content_id })
       .first();
 
@@ -61,6 +99,23 @@ router.post('/', requireAuth, async (req, res) => {
 
     // Récupérer les infos de l'auteur
     const user = await knex('users').where({ id: userId }).first();
+
+    // Envoyer notification à l'admin si les notifications sont activées
+    if (user && user.organization_id) {
+      const admin = await knex('users')
+        .where({ organization_id: user.organization_id, role: 'admin' })
+        .where('email_notifications_enabled', '!=', false)
+        .first();
+
+      if (admin && admin.email) {
+        await sendAdminCommentNotification(
+          admin.email,
+          comment,
+          user.full_name || 'Utilisatrice',
+          value.content_type
+        );
+      }
+    }
 
     return res.status(201).json({
       success: true,
@@ -95,6 +150,9 @@ router.delete('/:id', requireAuth, async (req, res) => {
 
     // Supprimer le commentaire (les likes sont supprimés en cascade)
     await knex('content_comments').where({ id }).delete();
+
+    // Notifier tous les clients via WebSocket
+    wsService.notifyCommentDeleted(comment.content_type, comment.content_id, id);
 
     return res.json({ success: true, data: { id } });
   } catch (err) {

@@ -235,14 +235,14 @@ export default function AdminUsers() {
                         fontSize: 14, fontWeight: 700, color: theme.chocolate,
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}>
-                        {u.full_name || '—'}
+                        {u.role === 'superadmin' ? 'Admin' : (u.full_name || '—')}
                       </div>
                       <div style={{ fontSize: 11, color: theme.textMute, marginTop: 1 }}>{u.email}</div>
                       <div style={{ display: 'flex', gap: 5, marginTop: 5, alignItems: 'center', flexWrap: 'wrap' }}>
                         <span style={{
                           fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 6,
                           background: rs.bg, color: rs.color,
-                        }}>{rs.label}</span>
+                        }}>{rs.label || (u.role === 'superadmin' ? 'Admin' : u.role)}</span>
                         {!u.is_active && (
                           <span style={{
                             fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 6,

@@ -93,30 +93,152 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ success: false, error: 'Cette adresse email est déjà utilisée' });
     }
 
+    // Vérifier si une vérification est déjà en cours
+    const pendingVerification = await knex('email_verifications').where({ email }).first();
+    if (pendingVerification) {
+      // Supprimer l'ancienne vérification
+      await knex('email_verifications').where({ email }).delete();
+    }
+
     const password_hash = await bcrypt.hash(password, 12);
 
-    const [user] = await knex('users')
-      .insert({ email, password_hash, full_name, phone })
-      .returning(['id', 'organization_id', 'email', 'full_name', 'role', 'onboarding_done']);
+    // Générer un token de vérification
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
-    const accessToken  = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    // Stocker la demande de vérification
+    await knex('email_verifications').insert({
+      email,
+      token: verificationToken,
+      full_name,
+      phone,
+      password_hash,
+      expires_at: expiresAt,
+    });
 
-    // Stocke le hash du refresh token en base
-    const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await knex('refresh_tokens').insert({ user_id: user.id, token_hash: tokenHash, expires_at: expiresAt });
+    // Envoyer l'email de vérification
+    const verificationLink = `${process.env.APP_URL || 'http://localhost:5173'}/verify-email?token=${verificationToken}`;
+    const emailService = require('../services/email.service');
 
-    setAuthCookies(res, accessToken, refreshToken);
+    await emailService.initializeTransporter();
+    const transporter = require('nodemailer').createTransport({
+      host: process.env.SMTP_HOST || 'localhost',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: process.env.SMTP_USER ? {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD,
+      } : undefined,
+    });
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
+        <h2 style="color: #C2185B;">✓ Vérifiez votre email — HerSafety</h2>
+        <p>Bonjour ${full_name},</p>
+        <p>Merci de vous être inscrite sur HerSafety! Pour confirmer votre compte, cliquez sur le bouton ci-dessous:</p>
+
+        <div style="margin: 24px 0;">
+          <a href="${verificationLink}"
+             style="background: #C2185B; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block; font-weight: bold;">
+            ✓ Vérifier mon email
+          </a>
+        </div>
+
+        <p style="font-size: 12px; color: #666;">
+          Ou copie ce lien: <br>
+          <code style="word-break: break-all;">${verificationLink}</code>
+        </p>
+
+        <p style="font-size: 12px; color: #999;">
+          Ce lien expire dans 24 heures.<br>
+          Si vous n'avez pas créé de compte, ignorez cet email.
+        </p>
+      </div>
+    `;
+
+    try {
+      await transporter.sendMail({
+        from: process.env.GMAIL_USER || process.env.SMTP_USER || 'noreply@hersafety.com',
+        to: email,
+        subject: '✓ Vérifiez votre email — HerSafety',
+        html: htmlContent,
+      });
+    } catch (emailErr) {
+      console.warn('Verification email failed:', emailErr.message);
+      // Continuer même si l'email échoue
+    }
 
     return res.status(201).json({
       success: true,
       data: {
+        message: 'Inscription réussie! Vérifiez votre email pour confirmer votre compte.',
+        email: email,
+      },
+    });
+  } catch (err) {
+    console.error('Register error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur lors de l\'inscription' });
+  }
+});
+
+// ─── GET /api/auth/verify-email?token=... ────────────────────────────────────
+
+router.get('/verify-email', async (req, res) => {
+  const { token } = req.query;
+
+  if (!token) {
+    return res.status(400).json({ success: false, error: 'Token de vérification manquant' });
+  }
+
+  try {
+    // Trouver la demande de vérification
+    const verification = await knex('email_verifications').where({ token }).first();
+
+    if (!verification) {
+      return res.status(404).json({ success: false, error: 'Token invalide ou expiré' });
+    }
+
+    // Vérifier l'expiration
+    if (new Date() > new Date(verification.expires_at)) {
+      await knex('email_verifications').where({ token }).delete();
+      return res.status(410).json({ success: false, error: 'Lien de vérification expiré. Réinscrivez-vous.' });
+    }
+
+    // Créer l'utilisateur
+    const [user] = await knex('users')
+      .insert({
+        email: verification.email,
+        password_hash: verification.password_hash,
+        full_name: verification.full_name,
+        phone: verification.phone,
+        is_active: true,
+      })
+      .returning(['id', 'organization_id', 'email', 'full_name', 'role', 'onboarding_done']);
+
+    // Supprimer la demande de vérification
+    await knex('email_verifications').where({ token }).delete();
+
+    // Générer les tokens
+    const accessToken  = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    // Stocker le hash du refresh token en base
+    const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await knex('refresh_tokens').insert({ user_id: user.id, token_hash: tokenHash, expires_at: tokenExpiresAt });
+
+    setAuthCookies(res, accessToken, refreshToken);
+
+    return res.json({
+      success: true,
+      data: {
+        message: 'Email vérifié! Vous êtes maintenant connectée.',
         user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role, onboarding_done: user.onboarding_done },
       },
     });
   } catch (err) {
-    return res.status(500).json({ success: false, error: 'Erreur lors de l\'inscription' });
+    console.error('Verify email error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur vérification email' });
   }
 });
 
@@ -281,7 +403,8 @@ router.post('/verify-phone/send', requireAuth, async (req, res) => {
     }
 
     if (process.env.APP_MODE !== 'production') {
-      console.log(`[DEV] OTP code for ${value.phone}: ${code}`);
+      const phoneLast4 = value.phone.slice(-4);
+      console.log(`[DEV] OTP code for phone ending in ${phoneLast4}: ${code}`);
     } else {
       // TODO: Envoyer SMS via Africa's Talking
       // await smsService.sendOTP(value.phone, code);

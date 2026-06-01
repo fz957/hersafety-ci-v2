@@ -1,25 +1,29 @@
 const express = require('express');
 const knex = require('../db/knex');
 const { requireAuth } = require('../middlewares/auth');
+const wsService = require('../services/websocket.service');
 
 const router = express.Router();
 
-// GET /api/videos - NO ORG FILTER
+// GET /api/videos - SHARED COMMUNITY CONTENT (NO ORG FILTER)
 router.get('/', requireAuth, async (req, res) => {
   const { userId } = req.user || {};
 
   try {
     const videos = await knex('videos')
-      .where({ status: 'approved' })
-      .select('id', 'url', 'description', 'category', 'created_at', 'support_count', 'flagged', 'user_id')
-      .orderBy('created_at', 'desc');
+      .leftJoin('users', 'videos.user_id', 'users.id')
+      .where({ 'videos.status': 'approved' })
+      .select('videos.id', 'videos.url', 'videos.description', 'videos.category', 'videos.created_at', 'videos.support_count', 'videos.flagged', 'videos.user_id', 'users.full_name as user_name')
+      .orderBy('videos.created_at', 'desc');
 
     // Ajouter le nombre de commentaires et user_liked pour chaque vidéo
     const videosWithComments = await Promise.all(
       videos.map(async (v) => {
-        // Compter dans content_comments (nouvelle table)
-        const allComments = await knex('content_comments')
-          .where({ content_type: 'video', content_id: v.id });
+        // Compter commentaires depuis content_comments
+        const commentResult = await knex('content_comments')
+          .where({ content_type: 'video', content_id: v.id })
+          .count('id as cnt')
+          .first();
 
         // Vérifier si l'utilisateur a aimé cette vidéo
         const userLiked = userId ? await knex('reactions')
@@ -28,7 +32,7 @@ router.get('/', requireAuth, async (req, res) => {
 
         return {
           ...v,
-          comment_count: allComments.length,
+          comment_count: parseInt(commentResult?.cnt || 0),
           support_count: v.support_count || 0,
           user_liked: !!userLiked
         };
@@ -75,9 +79,10 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/videos/:id - Delete video
-router.delete('/:id', async (req, res) => {
+// DELETE /api/videos/:id - Delete video (admin or owner only)
+router.delete('/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
+  const { userId } = req.user;
 
   try {
     const video = await knex('videos').where({ id }).first();
@@ -86,11 +91,21 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Vidéo introuvable' });
     }
 
+    // Only admin or owner can delete
+    const user = await knex('users').where({ id: userId }).first();
+    if (video.user_id !== userId && user?.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Accès refusé' });
+    }
+
     // Supprimer les commentaires associés
     await knex('comments').where({ content_type: 'video', content_id: id }).del();
+    await knex('content_comments').where({ content_type: 'video', content_id: id }).del();
 
     // Supprimer la vidéo
     await knex('videos').where({ id }).del();
+
+    // Notifier tous les clients via WebSocket
+    wsService.broadcast('POST_DELETED', { contentType: 'video', contentId: id });
 
     return res.json({ success: true, data: { deleted: true } });
   } catch (err) {
@@ -99,8 +114,8 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// POST /api/videos/:id/flag - Flag a video
-router.post('/:id/flag', async (req, res) => {
+// POST /api/videos/:id/flag - Toggle flag (signaler/désignaler)
+router.post('/:id/flag', requireAuth, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -110,13 +125,10 @@ router.post('/:id/flag', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Vidéo introuvable' });
     }
 
-    if (video.flagged) {
-      return res.status(400).json({ success: false, error: 'Cette vidéo a déjà été signalée' });
-    }
+    const newFlaggedState = !video.flagged;
+    await knex('videos').where({ id }).update({ flagged: newFlaggedState });
 
-    await knex('videos').where({ id }).update({ flagged: true });
-
-    return res.json({ success: true, data: { flagged: true } });
+    return res.json({ success: true, data: { flagged: newFlaggedState } });
   } catch (err) {
     console.error('Flag video error:', err);
     return res.status(500).json({ success: false, error: 'Erreur signalement vidéo' });

@@ -17,6 +17,10 @@ export function useEmergency() {
         navigate('/emergency', { state: { alert, level: String(level) } });
       }
       return alert;
+    } catch (err) {
+      console.error('[useEmergency] Alert creation error:', err.message);
+      alert(`❌ Erreur alerte: ${err.message}`);
+      return null;
     } finally {
       setLoading(false);
     }

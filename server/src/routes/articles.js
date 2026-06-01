@@ -1,25 +1,29 @@
 const express = require('express');
 const knex = require('../db/knex');
 const { requireAuth } = require('../middlewares/auth');
+const wsService = require('../services/websocket.service');
 
 const router = express.Router();
 
-// GET /api/articles - NO ORG FILTER
+// GET /api/articles - SHARED COMMUNITY CONTENT (NO ORG FILTER)
 router.get('/', requireAuth, async (req, res) => {
   const { userId } = req.user || {};
 
   try {
     const articles = await knex('articles')
-      .where({ status: 'approved' })
-      .select('id', 'title', 'content', 'category', 'created_at', 'support_count', 'flagged', 'user_id')
-      .orderBy('created_at', 'desc');
+      .leftJoin('users', 'articles.user_id', 'users.id')
+      .where({ 'articles.status': 'approved' })
+      .select('articles.id', 'articles.title', 'articles.content', 'articles.category', 'articles.created_at', 'articles.support_count', 'articles.flagged', 'articles.user_id', 'users.full_name as user_name')
+      .orderBy('articles.created_at', 'desc');
 
     // Ajouter le nombre de commentaires et user_liked pour chaque article
     const articlesWithComments = await Promise.all(
       articles.map(async (a) => {
-        // Compter dans content_comments (nouvelle table)
-        const allComments = await knex('content_comments')
-          .where({ content_type: 'article', content_id: a.id });
+        // Compter commentaires depuis content_comments
+        const commentResult = await knex('content_comments')
+          .where({ content_type: 'article', content_id: a.id })
+          .count('id as cnt')
+          .first();
 
         // Vérifier si l'utilisateur a aimé cet article
         const userLiked = userId ? await knex('reactions')
@@ -28,7 +32,7 @@ router.get('/', requireAuth, async (req, res) => {
 
         return {
           ...a,
-          comment_count: allComments.length,
+          comment_count: parseInt(commentResult?.cnt || 0),
           support_count: a.support_count || 0,
           user_liked: !!userLiked
         };
@@ -74,9 +78,10 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/articles/:id - Delete article
-router.delete('/:id', async (req, res) => {
+// DELETE /api/articles/:id - Delete article (admin or owner only)
+router.delete('/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
+  const { userId } = req.user;
 
   try {
     const article = await knex('articles').where({ id }).first();
@@ -85,11 +90,21 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Article introuvable' });
     }
 
+    // Only admin or owner can delete
+    const user = await knex('users').where({ id: userId }).first();
+    if (article.user_id !== userId && user?.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Accès refusé' });
+    }
+
     // Supprimer les commentaires associés
     await knex('comments').where({ content_type: 'article', content_id: id }).del();
+    await knex('content_comments').where({ content_type: 'article', content_id: id }).del();
 
     // Supprimer l'article
     await knex('articles').where({ id }).del();
+
+    // Notifier tous les clients via WebSocket
+    wsService.broadcast('POST_DELETED', { contentType: 'article', contentId: id });
 
     return res.json({ success: true, data: { deleted: true } });
   } catch (err) {
@@ -98,8 +113,8 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// POST /api/articles/:id/flag - Flag an article
-router.post('/:id/flag', async (req, res) => {
+// POST /api/articles/:id/flag - Toggle flag (signaler/désignaler)
+router.post('/:id/flag', requireAuth, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -109,13 +124,10 @@ router.post('/:id/flag', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Article introuvable' });
     }
 
-    if (article.flagged) {
-      return res.status(400).json({ success: false, error: 'Cet article a déjà été signalé' });
-    }
+    const newFlaggedState = !article.flagged;
+    await knex('articles').where({ id }).update({ flagged: newFlaggedState });
 
-    await knex('articles').where({ id }).update({ flagged: true });
-
-    return res.json({ success: true, data: { flagged: true } });
+    return res.json({ success: true, data: { flagged: newFlaggedState } });
   } catch (err) {
     console.error('Flag article error:', err);
     return res.status(500).json({ success: false, error: 'Erreur signalement article' });

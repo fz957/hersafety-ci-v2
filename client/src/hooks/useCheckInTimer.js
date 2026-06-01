@@ -63,12 +63,33 @@ export function useCheckInTimer(activeTrack) {
     }
   }, [activeTrack]);
 
-  // Fonction pour "Je ne vais pas bien" → Afficher l'IA Assistant
-  const handleCheckInNo = useCallback(() => {
+  // Fonction pour "Je ne vais pas bien" → Enregistrer + Afficher l'IA Assistant
+  const handleCheckInNo = useCallback(async () => {
+    if (!activeTrack?.id) return;
+
+    try {
+      // Enregistrer immédiatement une urgence niveau 1 avec status='active'
+      await api.post('/api/emergency-history', {
+        level: '1',
+        trigger_type: 'checkin_help_request',
+        latitude: activeTrack.latest_lat,
+        longitude: activeTrack.latest_lng,
+        location_name: 'Position actuelle',
+        status: 'active', // En cours - sera resolved quand l'utilisatrice confirme "en sécurité"
+        notes: 'Utilisatrice a cliqué "aide-moi" lors du check-in niveau 1',
+      }).catch(err => {
+        console.warn('[CheckInNo] Emergency creation error:', err.response?.data?.error || err.message);
+      });
+
+      console.log('[CheckInNo] Alerte enregistrée comme ACTIVE');
+    } catch (err) {
+      console.error('[CheckInNo] Erreur:', err);
+    }
+
     // Fermer le modal de check-in et afficher l'IA Assistant pour évaluation
     setShowCheckInModal(false);
     setShowAIAssistant(true);
-  }, []);
+  }, [activeTrack]);
 
   // Fonction pour arrêter complètement les check-ins
   const handleStopCheckIn = useCallback(async () => {

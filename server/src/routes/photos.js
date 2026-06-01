@@ -1,25 +1,29 @@
 const express = require('express');
 const knex = require('../db/knex');
 const { requireAuth } = require('../middlewares/auth');
+const wsService = require('../services/websocket.service');
 
 const router = express.Router();
 
-// GET /api/photos - NO ORG FILTER
+// GET /api/photos - SHARED COMMUNITY CONTENT (NO ORG FILTER)
 router.get('/', requireAuth, async (req, res) => {
   const { userId } = req.user || {};
 
   try {
     const photos = await knex('photos')
-      .where({ status: 'approved' })
-      .select('id', 'url', 'description', 'category', 'created_at', 'support_count', 'flagged', 'user_id')
-      .orderBy('created_at', 'desc');
+      .leftJoin('users', 'photos.user_id', 'users.id')
+      .where({ 'photos.status': 'approved' })
+      .select('photos.id', 'photos.url', 'photos.description', 'photos.category', 'photos.created_at', 'photos.support_count', 'photos.flagged', 'photos.user_id', 'users.full_name as user_name')
+      .orderBy('photos.created_at', 'desc');
 
     // Ajouter le nombre de commentaires et user_liked pour chaque photo
     const photosWithComments = await Promise.all(
       photos.map(async (p) => {
-        // Compter dans content_comments (nouvelle table)
-        const allComments = await knex('content_comments')
-          .where({ content_type: 'photo', content_id: p.id });
+        // Compter commentaires depuis content_comments
+        const commentResult = await knex('content_comments')
+          .where({ content_type: 'photo', content_id: p.id })
+          .count('id as cnt')
+          .first();
 
         // Vérifier si l'utilisateur a aimé cette photo
         const userLiked = userId ? await knex('reactions')
@@ -28,7 +32,7 @@ router.get('/', requireAuth, async (req, res) => {
 
         return {
           ...p,
-          comment_count: allComments.length,
+          comment_count: parseInt(commentResult?.cnt || 0),
           support_count: p.support_count || 0,
           user_liked: !!userLiked
         };
@@ -75,9 +79,10 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/photos/:id - Delete photo
-router.delete('/:id', async (req, res) => {
+// DELETE /api/photos/:id - Delete photo (admin or owner only)
+router.delete('/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
+  const { userId } = req.user;
 
   try {
     const photo = await knex('photos').where({ id }).first();
@@ -86,11 +91,21 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Photo introuvable' });
     }
 
+    // Only admin or owner can delete
+    const user = await knex('users').where({ id: userId }).first();
+    if (photo.user_id !== userId && user?.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Accès refusé' });
+    }
+
     // Supprimer les commentaires associés
     await knex('comments').where({ content_type: 'photo', content_id: id }).del();
+    await knex('content_comments').where({ content_type: 'photo', content_id: id }).del();
 
     // Supprimer la photo
     await knex('photos').where({ id }).del();
+
+    // Notifier tous les clients via WebSocket
+    wsService.broadcast('POST_DELETED', { contentType: 'photo', contentId: id });
 
     return res.json({ success: true, data: { deleted: true } });
   } catch (err) {
@@ -99,8 +114,8 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// POST /api/photos/:id/flag - Flag a photo
-router.post('/:id/flag', async (req, res) => {
+// POST /api/photos/:id/flag - Toggle flag (signaler/désignaler)
+router.post('/:id/flag', requireAuth, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -110,13 +125,10 @@ router.post('/:id/flag', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Photo introuvable' });
     }
 
-    if (photo.flagged) {
-      return res.status(400).json({ success: false, error: 'Cette photo a déjà été signalée' });
-    }
+    const newFlaggedState = !photo.flagged;
+    await knex('photos').where({ id }).update({ flagged: newFlaggedState });
 
-    await knex('photos').where({ id }).update({ flagged: true });
-
-    return res.json({ success: true, data: { flagged: true } });
+    return res.json({ success: true, data: { flagged: newFlaggedState } });
   } catch (err) {
     console.error('Flag photo error:', err);
     return res.status(500).json({ success: false, error: 'Erreur signalement photo' });

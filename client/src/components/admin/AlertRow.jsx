@@ -1,7 +1,9 @@
+import { useTheme } from '../../context/ThemeContext';
 import React from 'react';
 import { HS } from '../../tokens';
 
 export default function AlertRow({ alert }) {
+  const { theme } = useTheme();
   const levelNames = {
     '1': 'Méfiance',
     '2': 'Malaise',
@@ -10,16 +12,16 @@ export default function AlertRow({ alert }) {
   };
 
   const levelColors = {
-    '1': { c: HS.safe, bg: HS.safeSoft },
+    '1': { c: theme.safe, bg: theme.safeSoft },
     '2': { c: '#C4914A', bg: '#F4E5CF' },
     '3': { c: '#C97B3B', bg: '#F4E5CF' },
-    '4': { c: HS.danger, bg: HS.dangerSoft },
+    '4': { c: theme.danger, bg: theme.dangerSoft },
   };
 
   const statusMap = {
     active: { c: '#D97706', bg: '#FEF3C7', l: 'En cours' },
-    resolved: { c: HS.safe, bg: HS.safeSoft, l: 'Résolu' },
-    false_alarm: { c: HS.textMute, bg: '#F3F4F6', l: 'Fausse alerte' },
+    resolved: { c: theme.safe, bg: theme.safeSoft, l: 'Résolu' },
+    false_alarm: { c: theme.textMute, bg: '#F3F4F6', l: 'Fausse alerte' },
   };
 
   const levelColor = levelColors[alert.level] || levelColors['3'];
@@ -39,22 +41,22 @@ export default function AlertRow({ alert }) {
 
   return (
     <tr style={{
-      borderBottom: `1px solid ${HS.border}`,
+      borderBottom: `1px solid ${theme.border}`,
       height: 56,
       fontSize: 13,
     }}>
       {/* ID */}
-      <td style={{ padding: '0 12px', fontWeight: 700, color: HS.chocolate }}>
-        AL-{alert.id?.substring(0, 4).toUpperCase()}
+      <td style={{ padding: '0 12px', fontWeight: 700, color: theme.chocolate }}>
+        AL-{String(alert.id).substring(0, 4).toUpperCase()}
       </td>
 
       {/* User */}
-      <td style={{ padding: '0 12px', color: HS.text }}>
+      <td style={{ padding: '0 12px', color: theme.text }}>
         {alert.full_name || 'Anon.'}
       </td>
 
       {/* Location */}
-      <td style={{ padding: '0 12px', color: HS.textDim, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <td style={{ padding: '0 12px', color: theme.textDim, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {alert.location_label || '—'}
       </td>
 
@@ -74,7 +76,7 @@ export default function AlertRow({ alert }) {
       </td>
 
       {/* Time */}
-      <td style={{ padding: '0 12px', color: HS.textMute, fontSize: 12 }}>
+      <td style={{ padding: '0 12px', color: theme.textMute, fontSize: 12 }}>
         {formatTime(alert.created_at)}
       </td>
 

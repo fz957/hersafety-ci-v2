@@ -3,6 +3,7 @@ const Joi = require('joi');
 const knex = require('../db/knex');
 const { requireAuth } = require('../middlewares/auth');
 const { requireAdmin } = require('../middlewares/admin');
+const { sendAdminReportNotification } = require('../services/email.service');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -43,6 +44,19 @@ router.post('/', async (req, res) => {
         status: 'pending',
       })
       .returning('*');
+
+    // Envoyer notification à l'admin si les notifications sont activées
+    if (organizationId) {
+      const sender = await knex('users').where({ id: userId }).first();
+      const admin = await knex('users')
+        .where({ organization_id: organizationId, role: 'admin' })
+        .where('email_notifications_enabled', '!=', false)
+        .first();
+
+      if (admin && admin.email) {
+        await sendAdminReportNotification(admin.email, report, sender?.full_name || 'Utilisatrice');
+      }
+    }
 
     return res.status(201).json({ success: true, data: report });
   } catch (err) {

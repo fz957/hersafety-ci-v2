@@ -24,6 +24,7 @@ const articlesRoutes     = require('./routes/articles');
 const photosRoutes       = require('./routes/photos');
 const videosRoutes       = require('./routes/videos');
 const commentsRoutes     = require('./routes/comments');
+const adminAssistantRoutes = require('./routes/admin-assistant');
 
 const { apiLimiter } = require('./middlewares/rateLimit');
 
@@ -85,6 +86,7 @@ app.use('/api/videos',        videosRoutes);
 app.use('/api/comments',      commentsRoutes);
 app.use('/api/reports',       reportsRoutes);
 app.use('/api/admin',             adminRoutes);
+app.use('/api/admin-assist',  adminAssistantRoutes);
 app.use('/api/emergency-numbers', emergencyNumbersRoutes);
 app.use('/api/locations',     locationsRoutes);
 app.use('/api/fcm',           fcmRoutes);

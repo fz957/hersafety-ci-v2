@@ -1,6 +1,7 @@
 const express = require('express');
 const Joi     = require('joi');
 
+const wsService = require('../services/websocket.service');
 const knex              = require('../db/knex');
 const { requireAuth }   = require('../middlewares/auth');
 const { requireAdmin }  = require('../middlewares/admin');
@@ -36,26 +37,50 @@ router.get('/', async (req, res) => {
   const { userId } = req.user;
 
   try {
-    // Montrer: tous les témoignages approuvés + les témoignages pending de l'utilisateur
+    // Montrer: tous les témoignages approuvés + les témoignages pending de l'utilisateur (SHARED COMMUNITY)
     const testimonies = await knex('testimonies')
+      .leftJoin('users', 'testimonies.user_id', 'users.id')
       .where((builder) => {
         builder
-          .where('status', 'approved')
+          .where('testimonies.status', 'approved')
           .orWhere((subBuilder) => {
-            subBuilder.where('status', 'pending').where('user_id', userId);
+            subBuilder.where('testimonies.status', 'pending').where('testimonies.user_id', userId);
           });
       })
       .select(
-        'id', 'is_anonymous', 'display_name',
-        'category', 'title', 'content', 'location_label',
-        'trigger_warning_level', 'support_count', 'comment_count', 'status', 'created_at',
-        'user_id', 'flagged' // Inclure pour vérifier propriétaire (anonymat préservé via is_anonymous)
+        'testimonies.id', 'testimonies.is_anonymous', 'testimonies.display_name',
+        'testimonies.category', 'testimonies.title', 'testimonies.content', 'testimonies.location_label',
+        'testimonies.trigger_warning_level', 'testimonies.support_count', 'testimonies.status', 'testimonies.created_at',
+        'testimonies.user_id', 'testimonies.flagged',
+        'users.full_name as user_name'
       )
-      .orderBy('created_at', 'desc')
+      .orderBy('testimonies.created_at', 'desc')
       .limit(limit)
       .offset((page - 1) * limit);
 
-    return res.json({ success: true, data: testimonies });
+    // Ajouter comment_count et user_liked pour chaque testimony
+    const testimoniesWithMeta = await Promise.all(
+      testimonies.map(async (t) => {
+        // Compter commentaires depuis testimony_comments (pas content_comments!)
+        const commentResult = await knex('testimony_comments')
+          .where({ testimony_id: t.id })
+          .count('id as cnt')
+          .first();
+
+        // Vérifier si utilisateur a liké
+        const userLiked = userId ? await knex('testimony_reactions')
+          .where({ testimony_id: t.id, user_id: userId })
+          .first() : null;
+
+        return {
+          ...t,
+          comment_count: parseInt(commentResult?.cnt || 0),
+          user_liked: !!userLiked
+        };
+      })
+    );
+
+    return res.json({ success: true, data: testimoniesWithMeta });
   } catch (err) {
     console.error('Testimonies get error:', err);
     return res.status(500).json({ success: false, error: 'Erreur récupération témoignages' });
@@ -682,12 +707,16 @@ router.delete('/:id', async (req, res) => {
 
     // Supprimer les commentaires associés
     await knex('testimony_comments').where({ testimony_id: id }).del();
+    await knex('comments').where({ content_type: 'testimony', content_id: id }).del();
 
     // Supprimer les réactions
     await knex('testimony_reactions').where({ testimony_id: id }).del();
 
     // Supprimer le témoignage
     await knex('testimonies').where({ id }).del();
+
+    // Notifier tous les clients via WebSocket
+    wsService.broadcast('POST_DELETED', { contentType: 'testimony', contentId: id });
 
     return res.json({ success: true, data: { deleted: true } });
   } catch (err) {
@@ -703,30 +732,27 @@ router.get('/:id/comments', requireAuth, async (req, res) => {
   const { userId } = req.user;
 
   try {
-    // FIXED: Read from testimony_comments (not old comments table)
+    // Read from testimony_comments (not content_comments which is for article/photo/video)
     const comments = await knex('testimony_comments')
+      .join('users', 'testimony_comments.user_id', '=', 'users.id')
       .where({ testimony_id: id })
-      .select('id', 'display_name', 'content', 'is_anonymous', 'user_id', 'created_at')
-      .orderBy('created_at', 'asc');
+      .select(
+        'testimony_comments.id',
+        'testimony_comments.content as comment_text',
+        'testimony_comments.created_at',
+        'users.id as user_id',
+        'users.full_name as user_name',
+        'testimony_comments.user_id as author_id'
+      )
+      .orderBy('testimony_comments.created_at', 'asc');
 
     // Add like_count and user_liked for each comment
-    const commentsWithLikes = await Promise.all(
-      comments.map(async (c) => {
-        const likes = await knex('comment_likes')
-          .where({ comment_id: c.id });
-        const userLiked = userId ? likes.some(l => l.user_id === userId) : false;
-
-        return {
-          ...c,
-          comment_text: c.content, // Normalize field name
-          like_count: likes.length,
-          user_liked: userLiked,
-          author_id: c.user_id,
-          user_name: c.is_anonymous ? c.display_name : (await knex('users').where({ id: c.user_id }).first())?.full_name || 'Anonyme',
-          replies: [] // testimonies don't have nested replies yet
-        };
-      })
-    );
+    const commentsWithLikes = comments.map((c) => ({
+      ...c,
+      like_count: 0,
+      user_liked: false,
+      replies: []
+    }));
 
     return res.json({ success: true, data: commentsWithLikes });
   } catch (err) {
@@ -735,7 +761,7 @@ router.get('/:id/comments', requireAuth, async (req, res) => {
   }
 });
 
-// ─── POST /api/testimonies/:id/flag — Flag a testimony ──────────────────────
+// ─── POST /api/testimonies/:id/flag — Toggle flag (signaler/désignaler) ──────
 
 router.post('/:id/flag', async (req, res) => {
   const { id } = req.params;
@@ -747,13 +773,10 @@ router.post('/:id/flag', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Témoignage introuvable' });
     }
 
-    if (testimony.flagged) {
-      return res.status(400).json({ success: false, error: 'Ce témoignage a déjà été signalé' });
-    }
+    const newFlaggedState = !testimony.flagged;
+    await knex('testimonies').where({ id }).update({ flagged: newFlaggedState });
 
-    await knex('testimonies').where({ id }).update({ flagged: true });
-
-    return res.json({ success: true, data: { flagged: true } });
+    return res.json({ success: true, data: { flagged: newFlaggedState } });
   } catch (err) {
     console.error('Flag testimony error:', err);
     return res.status(500).json({ success: false, error: 'Erreur signalement témoignage' });

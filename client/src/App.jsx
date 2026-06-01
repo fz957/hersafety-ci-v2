@@ -21,6 +21,7 @@ function useIsDesktop() {
 import Landing    from './pages/Landing.jsx';
 import Login      from './pages/Login.jsx';
 import Register   from './pages/Register.jsx';
+import VerifyEmail from './pages/VerifyEmail.jsx';
 
 // Pages protégées
 import Dashboard  from './pages/Dashboard.jsx';
@@ -43,6 +44,9 @@ import AdminUsers       from './pages/admin/AdminUsers.jsx';
 import AdminTestimonies from './pages/admin/AdminTestimonies.jsx';
 import AdminModeration  from './pages/admin/AdminModeration.jsx';
 import AdminReports     from './pages/admin/AdminReports.jsx';
+import AdminCartography from './pages/admin/AdminCartography.jsx';
+import AdminAdmins      from './pages/admin/AdminAdmins.jsx';
+import AdminSettings    from './pages/admin/AdminSettings.jsx';
 
 // ─── Écran de chargement ──────────────────────────────────────────────────────
 function LoadingScreen() {
@@ -177,6 +181,7 @@ function AppRoutes() {
       <Route path="/"         element={<Landing />} />
       <Route path="/login"    element={<GuestRoute><Login /></GuestRoute>} />
       <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
 
       {/* Protégées — enveloppées dans AppLayout */}
       <Route path="/dashboard"  element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -200,6 +205,9 @@ function AppRoutes() {
       <Route path="/admin/moderation"  element={<ProtectedRoute superAdminOnly><AdminModeration /></ProtectedRoute>} />
       <Route path="/admin/testimonies" element={<ProtectedRoute superAdminOnly><AdminTestimonies /></ProtectedRoute>} />
       <Route path="/admin/reports"     element={<ProtectedRoute superAdminOnly><AdminReports /></ProtectedRoute>} />
+      <Route path="/admin/cartography" element={<ProtectedRoute superAdminOnly><AdminCartography /></ProtectedRoute>} />
+      <Route path="/admin/admins"      element={<ProtectedRoute superAdminOnly><AdminAdmins /></ProtectedRoute>} />
+      <Route path="/admin/settings"    element={<ProtectedRoute superAdminOnly><AdminSettings /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

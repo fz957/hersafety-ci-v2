@@ -487,6 +487,188 @@ const sendWeeklyReport = async (email, userName, reportData) => {
   }
 };
 
+/**
+ * Send admin notification for new alert
+ */
+const sendAdminAlertNotification = async (adminEmail, alertData, userName) => {
+  try {
+    if (!transporter) initializeTransporter();
+    if (!transporter) {
+      console.warn('Email service not configured, skipping admin alert notification');
+      return { success: false, error: 'Email service not configured' };
+    }
+
+    const levelLabels = {
+      '1': '🟢 Vigilance',
+      '2': '🟡 Malaise',
+      '3': '🔴 Danger',
+      '4': '🔴 SOS'
+    };
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
+        <h2 style="color: #B23A48;">⚠️ Nouvelle Alerte — HerSafety Admin</h2>
+        <p>Une utilisatrice a créé une nouvelle alerte.</p>
+
+        <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 20px 0;">
+          <p><strong>Utilisatrice:</strong> ${userName || 'Anonyme'}</p>
+          <p><strong>Niveau:</strong> ${levelLabels[alertData.alert_level] || 'Unknown'}</p>
+          <p><strong>Heure:</strong> ${new Date(alertData.created_at).toLocaleString('fr-FR')}</p>
+          ${alertData.location ? `<p><strong>Localisation:</strong> ${alertData.location}</p>` : ''}
+        </div>
+
+        <p style="margin-top: 24px;">
+          <a href="${process.env.APP_URL}/admin/dashboard"
+             style="background: #C2185B; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block; font-weight: bold;">
+            Voir les alertes
+          </a>
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+        <p style="font-size: 12px; color: #999;">
+          Cette notification a été envoyée car tu as activé les notifications email d'admin.
+        </p>
+      </div>
+    `;
+
+    const result = await transporter.sendMail({
+      from: process.env.GMAIL_USER || process.env.SMTP_USER || 'noreply@hersafety.com',
+      to: adminEmail,
+      subject: `🚨 Nouvelle alerte — ${userName || 'Utilisatrice'}`,
+      html: htmlContent,
+    });
+
+    log(`✓ Admin alert notification sent to ${adminEmail}`);
+    return { success: true, messageId: result.messageId };
+  } catch (err) {
+    console.error('✗ Admin alert notification failed:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Send admin notification for new report
+ */
+const sendAdminReportNotification = async (adminEmail, reportData, userName) => {
+  try {
+    if (!transporter) initializeTransporter();
+    if (!transporter) {
+      console.warn('Email service not configured, skipping admin report notification');
+      return { success: false, error: 'Email service not configured' };
+    }
+
+    const dangerTypes = {
+      'vol': '🚔 Vol',
+      'agression_physique': '👊 Agression physique',
+      'harcelement_verbal': '🗣️ Harcèlement verbal',
+      'suivi': '👁️ Suivi',
+      'autre': '⚠️ Autre'
+    };
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
+        <h2 style="color: #B23A48;">📍 Nouveau Signalement — HerSafety Admin</h2>
+        <p>Une utilisatrice a signalé une zone dangereuse.</p>
+
+        <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 20px 0;">
+          <p><strong>Utilisatrice:</strong> ${userName || 'Anonyme'}</p>
+          <p><strong>Lieu:</strong> ${reportData.place_name || 'Localisation non identifiée'}</p>
+          <p><strong>Type de danger:</strong> ${dangerTypes[reportData.danger_type] || reportData.danger_type || 'Non spécifié'}</p>
+          <p><strong>Description:</strong> ${reportData.description || 'Aucune'}</p>
+          <p><strong>Heure:</strong> ${new Date(reportData.created_at).toLocaleString('fr-FR')}</p>
+        </div>
+
+        <p style="margin-top: 24px;">
+          <a href="${process.env.APP_URL}/admin/reports"
+             style="background: #C2185B; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block; font-weight: bold;">
+            Modérer ce signalement
+          </a>
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+        <p style="font-size: 12px; color: #999;">
+          Cette notification a été envoyée car tu as activé les notifications email d'admin.
+        </p>
+      </div>
+    `;
+
+    const result = await transporter.sendMail({
+      from: process.env.GMAIL_USER || process.env.SMTP_USER || 'noreply@hersafety.com',
+      to: adminEmail,
+      subject: `📍 Nouveau signalement — ${reportData.place_name || 'Zone dangereuse'}`,
+      html: htmlContent,
+    });
+
+    log(`✓ Admin report notification sent to ${adminEmail}`);
+    return { success: true, messageId: result.messageId };
+  } catch (err) {
+    console.error('✗ Admin report notification failed:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Send admin notification for new comment
+ */
+const sendAdminCommentNotification = async (adminEmail, commentData, userName, contentType) => {
+  try {
+    if (!transporter) initializeTransporter();
+    if (!transporter) {
+      console.warn('Email service not configured, skipping admin comment notification');
+      return { success: false, error: 'Email service not configured' };
+    }
+
+    const contentTypes = {
+      'article': '📰 Article',
+      'photo': '📸 Photo',
+      'video': '🎥 Vidéo',
+      'testimony': '💬 Témoignage'
+    };
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
+        <h2 style="color: #B23A48;">💬 Nouveau Commentaire — HerSafety Admin</h2>
+        <p>Un nouveau commentaire attend votre modération.</p>
+
+        <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 20px 0;">
+          <p><strong>Utilisatrice:</strong> ${userName || 'Anonyme'}</p>
+          <p><strong>Type:</strong> ${contentTypes[contentType] || contentType || 'Contenu'}</p>
+          <p><strong>Commentaire:</strong></p>
+          <p style="font-style: italic; padding: 12px; background: white; border-left: 3px solid #C2185B;">
+            "${commentData.comment_text || commentData.content || 'Commentaire vide'}"
+          </p>
+          <p><strong>Heure:</strong> ${new Date(commentData.created_at).toLocaleString('fr-FR')}</p>
+        </div>
+
+        <p style="margin-top: 24px;">
+          <a href="${process.env.APP_URL}/admin/moderation"
+             style="background: #C2185B; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block; font-weight: bold;">
+            Modérer maintenant
+          </a>
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+        <p style="font-size: 12px; color: #999;">
+          Cette notification a été envoyée car tu as activé les notifications email d'admin.
+        </p>
+      </div>
+    `;
+
+    const result = await transporter.sendMail({
+      from: process.env.GMAIL_USER || process.env.SMTP_USER || 'noreply@hersafety.com',
+      to: adminEmail,
+      subject: `💬 Nouveau commentaire à modérer — ${userName || 'Utilisatrice'}`,
+      html: htmlContent,
+    });
+
+    log(`✓ Admin comment notification sent to ${adminEmail}`);
+    return { success: true, messageId: result.messageId };
+  } catch (err) {
+    console.error('✗ Admin comment notification failed:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
 module.exports = {
   initializeTransporter,
   sendVerificationEmail,
@@ -496,4 +678,7 @@ module.exports = {
   sendAccountDeletionEmail,
   sendWeeklyReport,
   sendAlertConfirmationEmail,
+  sendAdminAlertNotification,
+  sendAdminReportNotification,
+  sendAdminCommentNotification,
 };

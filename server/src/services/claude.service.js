@@ -186,4 +186,216 @@ async function getAssistMessage({ level, context = {}, conversationHistory = [],
   }
 }
 
-module.exports = { getAssistMessage, FALLBACK };
+// ────────────────────────────────────────────────────────────────────────────
+// ADMIN MODES
+// ────────────────────────────────────────────────────────────────────────────
+
+const SYSTEM_PROMPT_ADMIN_SUMMARY = `Tu es l'assistant IA de l'administrateur HerSafety.
+Tu reçois des données complètes sur le jour et génères un résumé utile en français.
+
+Données fournies:
+- Nombre d'alertes du jour
+- Distribution par niveau (vigilance, malaise, danger, SOS)
+- Nombre d'utilisatrices actives
+- Posts et commentaires
+- Signalements en attente
+- Anomalies détectées
+
+Ton rôle:
+1. Crée un résumé COURT et ACTIONNABLE (3-4 phrases)
+2. Mets en évidence les éléments importants
+3. Suggère des actions prioritaires
+4. Sois professionnel et factuel
+
+Format: Texte clair, sans JSON, facile à lire.`;
+
+const SYSTEM_PROMPT_ADMIN_ALERTS = `Tu es l'assistant IA pour l'analyse des alertes.
+
+Données fournies:
+- Alertes du jour
+- Alertes actives
+- Distribution par niveau
+- Utilisatrices les plus actives
+- Tendances
+
+Ton rôle:
+1. Analyse les alertes
+2. Identifie les PATTERNS (pics, zones à risque)
+3. Mets en évidence les alertes critiques (SOS/Danger)
+4. Donne des recommandations
+
+Sois concis, utilise des chiffres réels, reste factuel.`;
+
+const SYSTEM_PROMPT_ADMIN_REPORTS = `Tu es l'assistant IA pour la gestion des signalements.
+
+Données fournies:
+- Total de signalements
+- Signalements en attente
+- Signalements vérifiés
+- Types de danger les plus courants
+- Zones dangereuses prioritaires
+
+Ton rôle:
+1. Résume l'état des signalements
+2. Identifie les zones à risque élevé (>10 signalements)
+3. Suggère quels signalements vérifier EN PRIORITÉ
+4. Propose des actions (vérifier zone X, contacter utilisatrice Y)
+
+Sois spécifique: cite les noms de lieux réels.`;
+
+const SYSTEM_PROMPT_ADMIN_MODERATION = `Tu es l'assistant IA pour la modération de contenu.
+
+Données fournies:
+- Posts flaggés
+- Nombre de commentaires
+- Contenus signalés
+- Témoignages en attente de validation
+
+Ton rôle:
+1. Analyse le contenu à modérer
+2. Suggère QUELS POSTS/COMMENTAIRES supprimer (spam, violence, harcèlement)
+3. Donne un POURCENTAGE DE CONFIANCE pour chaque suggestion
+4. Explique le motif de suppression
+
+Format: "Post ID X: SUPPRIMER (85% confiance) - Contient du harcèlement"`;
+
+const SYSTEM_PROMPT_ADMIN_ANOMALIES = `Tu es expert en détection d'anomalies.
+
+Données fournies:
+- Anomalies détectées
+- Pics d'alertes
+- Zones avec concentration anormale
+- Utilisateurs suspects
+
+Ton rôle:
+1. LISTE chaque anomalie
+2. ÉVALUE la gravité (LOW/MEDIUM/HIGH)
+3. SUGGÈRE une action (vérifier, bloquer, surveiller)
+4. Donne un contexte clair
+
+Sois alarmiste si nécessaire - c'est ton rôle.`;
+
+const SYSTEM_PROMPT_ADMIN_CHAT = `Tu es l'assistant IA personnel de l'administrateur HerSafety.
+
+Tu aides avec:
+- Questions sur les statistiques
+- Conseils de modération
+- Recommandations de sécurité
+- Analyse de patterns
+- Gestion des crises
+
+Ton attitude:
+- Professionnel et utile
+- Basé sur des données réelles
+- Pas de spéculation, seulement des faits
+- Suggère des actions concrètes
+
+Réponds en français, sois concis et clair.`;
+
+/**
+ * Get admin assistant message
+ */
+async function getAdminAssistMessage({
+  mode = 'chat',
+  data = {},
+  question = '',
+  conversationHistory = []
+}) {
+  const adminFallback = 'Je n\'ai pas pu traiter votre demande. Veuillez réessayer.';
+
+  try {
+    // Sélectionner le prompt selon le mode
+    let systemPrompt = SYSTEM_PROMPT_ADMIN_CHAT;
+
+    switch (mode) {
+      case 'summary':
+        systemPrompt = SYSTEM_PROMPT_ADMIN_SUMMARY;
+        break;
+      case 'alerts':
+        systemPrompt = SYSTEM_PROMPT_ADMIN_ALERTS;
+        break;
+      case 'reports':
+        systemPrompt = SYSTEM_PROMPT_ADMIN_REPORTS;
+        break;
+      case 'moderation':
+        systemPrompt = SYSTEM_PROMPT_ADMIN_MODERATION;
+        break;
+      case 'anomalies':
+        systemPrompt = SYSTEM_PROMPT_ADMIN_ANOMALIES;
+        break;
+      default:
+        systemPrompt = SYSTEM_PROMPT_ADMIN_CHAT;
+    }
+
+    // Construire les messages
+    let messages = [];
+
+    // Ajouter l'historique de conversation
+    if (conversationHistory.length > 0) {
+      messages = conversationHistory.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+    }
+
+    // Ajouter le contexte des données
+    let dataContext = '';
+    if (Object.keys(data).length > 0) {
+      dataContext = `\n\n📊 DONNÉES DU JOUR:\n${JSON.stringify(data, null, 2)}`;
+    }
+
+    // Ajouter la question/demande actuelle
+    if (question) {
+      messages.push({
+        role: 'user',
+        content: question + dataContext,
+      });
+    } else if (dataContext && messages.length === 0) {
+      // Si pas de question mais des données, générer un résumé
+      messages.push({
+        role: 'user',
+        content: `Analyse ces données et génère un résumé utile:${dataContext}`,
+      });
+    }
+
+    // Appeler Groq
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
+          ...messages,
+        ],
+        temperature: 0.7,
+        max_tokens: 800,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('[Groq Admin] Erreur API:', response.status);
+      return { message: adminFallback, source: 'fallback' };
+    }
+
+    const result = await response.json();
+    const responseText = result.choices?.[0]?.message?.content?.trim() || '';
+
+    return {
+      message: responseText || adminFallback,
+      source: 'groq',
+      mode: mode,
+    };
+  } catch (err) {
+    console.error('[Admin Assistant] Erreur:', err.message);
+    return { message: adminFallback, source: 'fallback', mode: mode };
+  }
+}
+
+module.exports = { getAssistMessage, getAdminAssistMessage, FALLBACK };
