@@ -777,53 +777,58 @@ export default function Community() {
 
   // WebSocket pour synchronisation en temps réel des commentaires
   useEffect(() => {
-    // Use API_URL to get backend domain, then convert to WebSocket
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    const protocol = apiUrl.startsWith('https') ? 'wss' : 'ws';
-    const host = apiUrl.replace(/^https?:\/\//, '').split('/')[0];
-    const wsUrl = `${protocol}://${host}/ws`;
-    const ws = new WebSocket(wsUrl);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const protocol = apiUrl.startsWith('https') ? 'wss' : 'ws';
+      const host = apiUrl.replace(/^https?:\/\//, '').split('/')[0];
+      const wsUrl = `${protocol}://${host}/ws`;
 
-    ws.onopen = () => {
-      console.log('[Community] WebSocket connecté');
-    };
+      console.log('[Community] WebSocket connecting to:', wsUrl);
+      const ws = new WebSocket(wsUrl);
 
-    ws.onmessage = (event) => {
-      try {
-        const { event: eventType, data } = JSON.parse(event.data);
-        console.log('[Community] WebSocket event:', eventType, data);
+      ws.onopen = () => {
+        console.log('[Community] WebSocket connecté');
+      };
 
-        if (eventType === 'COMMENT_DELETED') {
-          // Un commentaire a été supprimé par l'admin
-          console.log('[Community] Commentaire supprimé:', data.commentId);
-          load();
-        } else if (eventType === 'COMMENT_ADDED') {
-          // Un nouveau commentaire a été ajouté
-          console.log('[Community] Nouveau commentaire:', data.comment);
-          load();
-        } else if (eventType === 'POST_DELETED') {
-          // Un post a été supprimé par l'admin
-          console.log('[Community] Post supprimé:', data.contentId);
-          load();
+      ws.onmessage = (event) => {
+        try {
+          const { event: eventType, data } = JSON.parse(event.data);
+          console.log('[Community] WebSocket event:', eventType, data);
+
+          if (eventType === 'COMMENT_DELETED') {
+            console.log('[Community] Commentaire supprimé:', data.commentId);
+            load();
+          } else if (eventType === 'COMMENT_ADDED') {
+            console.log('[Community] Nouveau commentaire:', data.comment);
+            load();
+          } else if (eventType === 'POST_DELETED') {
+            console.log('[Community] Post supprimé:', data.contentId);
+            load();
+          }
+        } catch (err) {
+          console.error('[Community] WebSocket parsing error:', err);
         }
-      } catch (err) {
-        console.error('[Community] WebSocket parsing error:', err);
-      }
-    };
+      };
 
-    ws.onerror = (err) => {
-      console.error('[Community] WebSocket error:', err);
-    };
+      ws.onerror = (err) => {
+        console.warn('[Community] WebSocket error (non-critical):', err);
+        // Don't throw - page works fine without WebSocket
+      };
 
-    ws.onclose = () => {
-      console.log('[Community] WebSocket fermé');
-    };
+      ws.onclose = () => {
+        console.log('[Community] WebSocket fermé');
+      };
 
-    return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
-    };
+      return () => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        }
+      };
+    } catch (err) {
+      console.warn('[Community] WebSocket setup failed (non-critical):', err.message);
+      // Don't throw - page works without WebSocket
+      return () => {};
+    }
   }, []);
 
   const submit = async (e) => {
