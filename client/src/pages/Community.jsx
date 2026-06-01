@@ -692,18 +692,29 @@ export default function Community() {
   };
 
   const handleReport = async (itemId, type, reason) => {
-    const reported_items = JSON.parse(localStorage.getItem('lesgirls_reported') || '[]');
-    if (!reported_items.includes(itemId)) {
-      reported_items.push(itemId);
-      localStorage.setItem('lesgirls_reported', JSON.stringify(reported_items));
-    }
+    try {
+      // Envoie le signalement à l'API
+      const endpoint = type === 'testimony'
+        ? `/api/testimonies/${itemId}/report`
+        : `/api/${type}s/${itemId}/report`;
 
-    if (type === 'testimony') {
-      try {
-        // TODO: Uncomment when /api/content-reports endpoint is available
-        // await api.post('/api/content-reports', { report_type: 'testimony', testimony_id: itemId, reason });
-      } catch (err) {
-        console.error('Report error:', err);
+      await api.post(endpoint, { reason });
+
+      // Marque comme signalé localement
+      const reported_items = JSON.parse(localStorage.getItem('lesgirls_reported') || '[]');
+      if (!reported_items.includes(itemId)) {
+        reported_items.push(itemId);
+        localStorage.setItem('lesgirls_reported', JSON.stringify(reported_items));
+      }
+
+      console.log(`✓ ${type} ${itemId} signalé pour: ${reason}`);
+    } catch (err) {
+      console.error('Report error:', err);
+      // Marque quand même comme signalé localement même si l'API fail
+      const reported_items = JSON.parse(localStorage.getItem('lesgirls_reported') || '[]');
+      if (!reported_items.includes(itemId)) {
+        reported_items.push(itemId);
+        localStorage.setItem('lesgirls_reported', JSON.stringify(reported_items));
       }
     }
   };
