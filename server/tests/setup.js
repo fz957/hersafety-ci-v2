@@ -3,6 +3,21 @@ const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
 const knex   = require('../src/db/knex');
 
+// Mock email service - prevent real SMTP connections in tests
+jest.mock('../src/services/email.service', () => ({
+  initializeTransporter: jest.fn(),
+  sendVerificationEmail: jest.fn().mockResolvedValue({ success: true, messageId: 'test-id' }),
+  sendAlertEmail: jest.fn().mockResolvedValue({ success: true, messageId: 'test-id' }),
+  sendAlertConfirmationEmail: jest.fn().mockResolvedValue({ success: true, messageId: 'test-id' }),
+  sendProfileChangeEmail: jest.fn().mockResolvedValue({ success: true, messageId: 'test-id' }),
+  sendAccountDeletionEmail: jest.fn().mockResolvedValue({ success: true, messageId: 'test-id' }),
+  sendWeeklyReport: jest.fn().mockResolvedValue({ success: true, messageId: 'test-id' }),
+  sendTrackNotification: jest.fn().mockResolvedValue({ success: true, messageId: 'test-id' }),
+  sendAdminAlertNotification: jest.fn().mockResolvedValue({ success: true, messageId: 'test-id' }),
+  sendAdminReportNotification: jest.fn().mockResolvedValue({ success: true, messageId: 'test-id' }),
+  sendAdminCommentNotification: jest.fn().mockResolvedValue({ success: true, messageId: 'test-id' }),
+}));
+
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 async function createTestOrg(overrides = {}) {
