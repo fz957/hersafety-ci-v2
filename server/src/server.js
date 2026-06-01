@@ -26,6 +26,7 @@ if (!process.env.DATABASE_URL) {
 const app  = require('./app');
 const knex = require('./db/knex');
 const emailService = require('./services/email.service');
+const firebaseService = require('./services/firebase.service');
 const wsService = require('./services/websocket.service');
 
 const PORT = parseInt(process.env.PORT || '5000', 10);
@@ -33,9 +34,17 @@ const PORT = parseInt(process.env.PORT || '5000', 10);
 async function start() {
   console.log('[CONFIG] APP_MODE=' + process.env.APP_MODE);
 
-  // Initialiser le service email
+  // Initialiser les services
   emailService.initializeTransporter();
   console.log('[EMAIL] Service email initialisé');
+
+  // Initialiser Firebase Admin SDK
+  try {
+    firebaseService.initializeFirebase();
+    console.log('[Firebase] Admin SDK initialisé');
+  } catch (err) {
+    console.warn('[Firebase] Initialization error (notifications may not work):', err.message);
+  }
 
   // ===== DATABASE INITIALIZATION (BLOCKING) =====
   console.log('[DB] Vérification de la base de données...');

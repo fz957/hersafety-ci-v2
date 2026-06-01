@@ -140,11 +140,41 @@ export const listenToMessages = (onMessageCallback) => {
  * Setup complete FCM (init + request permission + register + listen)
  */
 export const setupFCM = async (api) => {
-  // Firebase CDN not accessible in this environment
-  // Push notifications are handled via Web Push API (native browser notifications)
-  // No setup needed - service worker handles background push notifications
-  console.log('ℹ️  Push notifications: Using Web Push API (service worker)');
-  return { success: true, message: 'Service worker ready for push notifications' };
+  try {
+    console.log('[FCM Setup] Initializing...');
+
+    // Step 1: Request notification permission from user
+    if ('Notification' in window && Notification.permission === 'default') {
+      console.log('[FCM Setup] Requesting notification permission...');
+      const permission = await requestNotificationPermission();
+      if (!permission) {
+        console.warn('[FCM Setup] Notification permission denied by user');
+        return { success: false, message: 'Notification permission denied' };
+      }
+    }
+
+    // Step 2: Get FCM token
+    console.log('[FCM Setup] Getting FCM token...');
+    const token = await requestNotificationPermission();
+    if (!token) {
+      console.warn('[FCM Setup] Failed to get FCM token');
+      return { success: false, message: 'Failed to get FCM token' };
+    }
+
+    // Step 3: Register token with backend
+    console.log('[FCM Setup] Registering token with backend...');
+    const registerResult = await registerFCMToken(token, api);
+    if (!registerResult.success) {
+      console.warn('[FCM Setup] Failed to register token:', registerResult.error);
+      return { success: false, message: registerResult.error };
+    }
+
+    console.log('✓ FCM Setup complete');
+    return { success: true, message: 'Push notifications enabled' };
+  } catch (err) {
+    console.error('[FCM Setup] Error:', err.message);
+    return { success: false, error: err.message };
+  }
 };
 
 /**
