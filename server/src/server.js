@@ -57,35 +57,67 @@ async function start() {
       await knex.raw('SELECT 1');
       console.log('[DB] Connexion PostgreSQL établie');
 
-      // Vérifier la table users - si elle n'existe pas, forcer les migrations
+      // Vérifier la table users - si elle n'existe pas, créer les tables essentielles
       const usersTableExists = await knex.schema.hasTable('users');
       if (!usersTableExists) {
-        console.warn('[DB] Table users manquante! Lancement des migrations...');
+        console.warn('[DB] Tables manquantes! Création des tables essentielles...');
 
         try {
-          // Supprimer la table knex_migrations_lock si elle bloque
-          const migrationsTableExists = await knex.schema.hasTable('knex_migrations');
-          if (migrationsTableExists) {
-            await knex('knex_migrations').del();
-            console.log('[DB] Nettoyage de la table knex_migrations');
-          }
-        } catch (cleanErr) {
-          console.warn('[DB] Impossible de nettoyer knex_migrations:', cleanErr.message);
-        }
+          // Créer l'ENUM user_role
+          await knex.raw(`
+            DO $$ BEGIN
+              CREATE TYPE user_role AS ENUM ('user', 'admin', 'superadmin');
+            EXCEPTION WHEN duplicate_object THEN NULL;
+            END $$
+          `);
+          console.log('[DB] Type user_role créé');
 
-        try {
-          const migrations = await knex.migrate.latest();
-          console.log(`[DB] ✓ ${migrations[1].length} migrations exécutées (batch #${migrations[0]})`);
-          migrations[1].forEach(m => console.log(`  ✓ ${m}`));
-        } catch (migErr) {
-          console.error('[DB] Erreur migrations:', migErr.message);
-          console.error('[DB] Stack:', migErr.stack);
+          // Créer la table users
+          await knex.schema.createTable('users', (t) => {
+            t.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
+            t.uuid('organization_id').nullable();
+            t.text('email').notNullable().unique();
+            t.text('password_hash').notNullable();
+            t.text('phone').nullable();
+            t.text('full_name').nullable();
+            t.specificType('role', 'user_role').notNullable().defaultTo('user');
+            t.boolean('is_active').notNullable().defaultTo(true);
+            t.boolean('onboarding_done').notNullable().defaultTo(false);
+            t.boolean('is_demo').notNullable().defaultTo(false);
+            t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
+            t.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
+          });
+          console.log('[DB] Table users créée ✓');
+
+          // Créer la table login_attempts
+          await knex.schema.createTable('login_attempts', (t) => {
+            t.increments('id').primary();
+            t.string('email').notNullable().index();
+            t.string('ip_address').nullable();
+            t.boolean('success').defaultTo(false);
+            t.timestamp('attempted_at').defaultTo(knex.fn.now()).index();
+          });
+          console.log('[DB] Table login_attempts créée ✓');
+
+          // Créer la table refresh_tokens
+          await knex.schema.createTable('refresh_tokens', (t) => {
+            t.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
+            t.uuid('user_id').notNullable();
+            t.text('token_hash').notNullable().unique();
+            t.timestamp('expires_at', { useTz: true }).notNullable();
+            t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
+          });
+          console.log('[DB] Table refresh_tokens créée ✓');
+
+          console.log('[DB] ✓ Tables essentielles créées avec succès');
+        } catch (createErr) {
+          console.error('[DB] Erreur création tables:', createErr.message);
         }
       } else {
         console.log('[DB] Table users existe ✓');
       }
 
-      // Lancer les migrations standard aussi
+      // Lancer les autres migrations
       try {
         const migrations = await knex.migrate.latest();
         if (migrations[1].length > 0) {
