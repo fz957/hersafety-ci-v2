@@ -12,8 +12,9 @@ function parseDbUrl(dbUrl) {
     };
   }
 
-  // Parse postgresql://user:password@host:port/database
-  const match = dbUrl.match(/postgresql:\/\/([^:]+):([^@]+)@([^:]+)(?::(\d+))?\/(.+)/);
+  // Parse postgresql://user:password@host:port/database?params
+  // Regex: postgresql://[user]:[password]@[host]:[port]/[database][?params]
+  const match = dbUrl.match(/postgresql:\/\/([^:]+):([^@]+)@([^:]+)(?::(\d+))?\/([^?]+)(?:\?.*)?/);
   if (!match) {
     throw new Error(`Invalid DATABASE_URL format: ${dbUrl}`);
   }
@@ -23,7 +24,7 @@ function parseDbUrl(dbUrl) {
     port: match[4] ? parseInt(match[4]) : 5432,
     user: match[1],
     password: match[2],
-    database: match[5],
+    database: match[5], // Ignores ?sslmode=require and other params
   };
 }
 
