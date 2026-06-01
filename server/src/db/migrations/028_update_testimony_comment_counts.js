@@ -1,5 +1,15 @@
 exports.up = async (knex) => {
   try {
+    // Check if required tables exist
+    const testimoniesTableExists = await knex.schema.hasTable('testimonies');
+    const commentsTableExists = await knex.schema.hasTable('comments');
+    const hasCommentCountColumn = await knex.schema.hasColumn('testimonies', 'comment_count');
+
+    if (!testimoniesTableExists || !commentsTableExists || !hasCommentCountColumn) {
+      console.log('- testimonies, comments table or comment_count column does not exist, skipping migration');
+      return;
+    }
+
     // Pour chaque témoignage, compter les commentaires et mettre à jour comment_count
     const testimonies = await knex('testimonies').select('id');
 
@@ -22,5 +32,10 @@ exports.up = async (knex) => {
 
 exports.down = async (knex) => {
   // Réinitialiser comment_count à 0
-  await knex('testimonies').update({ comment_count: 0 });
+  const testimoniesTableExists = await knex.schema.hasTable('testimonies');
+  const hasCommentCountColumn = await knex.schema.hasColumn('testimonies', 'comment_count');
+
+  if (testimoniesTableExists && hasCommentCountColumn) {
+    await knex('testimonies').update({ comment_count: 0 });
+  }
 };

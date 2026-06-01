@@ -2,6 +2,13 @@ const crypto = require('crypto');
 
 exports.up = async (knex) => {
   try {
+    // Check if videos table exists
+    const tableExists = await knex.schema.hasTable('videos');
+    if (!tableExists) {
+      console.log('- videos table does not exist, skipping migration');
+      return;
+    }
+
     // Supprimer les vidéos de test
     await knex('videos').del();
 
@@ -53,5 +60,8 @@ exports.up = async (knex) => {
 };
 
 exports.down = async (knex) => {
-  await knex('videos').del();
+  const tableExists = await knex.schema.hasTable('videos');
+  if (tableExists) {
+    await knex('videos').del();
+  }
 };

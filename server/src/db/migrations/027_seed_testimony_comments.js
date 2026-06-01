@@ -26,6 +26,15 @@ const anonymousNames = [
 
 exports.up = async (knex) => {
   try {
+    // Check if required tables exist
+    const testimoniesTableExists = await knex.schema.hasTable('testimonies');
+    const commentsTableExists = await knex.schema.hasTable('comments');
+
+    if (!testimoniesTableExists || !commentsTableExists) {
+      console.log('- testimonies or comments table does not exist, skipping migration');
+      return;
+    }
+
     // Récupérer tous les témoignages approuvés
     const testimonies = await knex('testimonies').where({ status: 'approved' });
 
@@ -68,5 +77,8 @@ exports.up = async (knex) => {
 
 exports.down = async (knex) => {
   // Supprimer tous les commentaires de témoignages
-  await knex('comments').where({ content_type: 'testimony' }).del();
+  const commentsTableExists = await knex.schema.hasTable('comments');
+  if (commentsTableExists) {
+    await knex('comments').where({ content_type: 'testimony' }).del();
+  }
 };
