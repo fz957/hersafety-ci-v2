@@ -777,8 +777,11 @@ export default function Community() {
 
   // WebSocket pour synchronisation en temps réel des commentaires
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const wsUrl = `${protocol}://${window.location.host}/ws`;
+    // Use API_URL to get backend domain, then convert to WebSocket
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const protocol = apiUrl.startsWith('https') ? 'wss' : 'ws';
+    const host = apiUrl.replace(/^https?:\/\//, '').split('/')[0];
+    const wsUrl = `${protocol}://${host}/ws`;
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
