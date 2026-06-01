@@ -18,6 +18,11 @@ const initializeTransporter = () => {
   if (transporter) return;
 
   try {
+    console.log('[Email] Initializing transporter...');
+    console.log('[Email] EMAIL_PROVIDER:', process.env.EMAIL_PROVIDER);
+    console.log('[Email] GMAIL_USER:', process.env.GMAIL_USER ? '✓ Set' : '✗ NOT SET');
+    console.log('[Email] GMAIL_PASSWORD:', process.env.GMAIL_PASSWORD ? '✓ Set' : '✗ NOT SET');
+
     if (process.env.EMAIL_PROVIDER === 'gmail') {
       transporter = nodemailer.createTransport({
         service: 'gmail',
@@ -247,8 +252,10 @@ const sendTrackNotification = async (email, trackData) => {
  */
 const sendProfileChangeEmail = async (email, userName, changes) => {
   try {
+    console.log('[Email] sendProfileChangeEmail called for:', email);
     if (!transporter) initializeTransporter();
     if (!transporter) {
+      console.error('[Email] Transporter not initialized after initialization attempt');
       return { success: false, error: 'Email service not configured' };
     }
 
