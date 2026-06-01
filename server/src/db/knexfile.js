@@ -1,23 +1,30 @@
 require('dotenv').config();
 
-// Helper to parse DATABASE_URL and add SSL config for production
-function getConnectionConfig(dbUrl, env) {
+// Helper to parse DATABASE_URL for Knex
+function parseDbUrl(dbUrl) {
   if (!dbUrl) {
-    return 'postgresql://postgres:postgres@localhost:5432/hersafety';
-  }
-
-  // For production (Render, Heroku, etc.), SSL is required but may be self-signed
-  if (env === 'production') {
     return {
-      connectionString: dbUrl,
-      ssl: {
-        rejectUnauthorized: false, // Accept self-signed certificates (Render databases)
-      },
+      host: 'localhost',
+      port: 5432,
+      user: 'postgres',
+      password: 'postgres',
+      database: 'hersafety',
     };
   }
 
-  // For development and test, use simple connection string
-  return dbUrl;
+  // Parse postgresql://user:password@host:port/database
+  const match = dbUrl.match(/postgresql:\/\/([^:]+):([^@]+)@([^:]+)(?::(\d+))?\/(.+)/);
+  if (!match) {
+    throw new Error(`Invalid DATABASE_URL format: ${dbUrl}`);
+  }
+
+  return {
+    host: match[3],
+    port: match[4] ? parseInt(match[4]) : 5432,
+    user: match[1],
+    password: match[2],
+    database: match[5],
+  };
 }
 
 module.exports = {
@@ -42,7 +49,12 @@ module.exports = {
   },
   production: {
     client: 'pg',
-    connection: getConnectionConfig(process.env.DATABASE_URL, 'production'),
+    connection: {
+      ...parseDbUrl(process.env.DATABASE_URL),
+      ssl: {
+        rejectUnauthorized: false, // Accept self-signed certificates (Render)
+      },
+    },
     pool: { min: 2, max: 10 },
     migrations: {
       directory: __dirname + '/migrations',
