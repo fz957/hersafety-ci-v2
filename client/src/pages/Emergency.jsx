@@ -106,6 +106,11 @@ export default function Emergency() {
     }
   };
 
+  // Reset initialization ref when component mounts
+  useEffect(() => {
+    initializedRef.current = false;
+  }, []);
+
   // Chrono
   useEffect(() => {
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
