@@ -77,8 +77,8 @@ app.use(cors({
       return;
     }
 
-    // Allow any vercel.app domain (new Vercel deployments generate different URLs)
-    if (origin.includes('vercel.app')) {
+    // Allow any vercel.app or netlify.app domain (frontend deployment platforms)
+    if (origin.includes('vercel.app') || origin.includes('netlify.app')) {
       callback(null, true);
       return;
     }
