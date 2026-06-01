@@ -5,7 +5,6 @@ import L from 'leaflet';
 import 'leaflet-routing-machine';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import { useGPS } from '../hooks/useGPS';
-import { useOverpassPOIs } from '../hooks/useOverpassPOIs';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import useSpeechRecognition from '../hooks/useSpeechRecognition';
 import { useTheme } from '../context/ThemeContext';
