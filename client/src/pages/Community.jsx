@@ -775,60 +775,15 @@ export default function Community() {
     load();
   }, []);
 
-  // WebSocket pour synchronisation en temps réel des commentaires
+  // Polling pour mises à jour en temps réel (remplace WebSocket qui est bloqué en HTTPS)
   useEffect(() => {
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const protocol = apiUrl.startsWith('https') ? 'wss' : 'ws';
-      const host = apiUrl.replace(/^https?:\/\//, '').split('/')[0];
-      const wsUrl = `${protocol}://${host}/ws`;
+    console.log('[Community] Polling enabled for real-time updates');
+    // Rafraîchir les données toutes les 5 secondes pour les mises à jour
+    const pollInterval = setInterval(() => {
+      load();
+    }, 5000);
 
-      console.log('[Community] WebSocket connecting to:', wsUrl);
-      const ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        console.log('[Community] WebSocket connecté');
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const { event: eventType, data } = JSON.parse(event.data);
-          console.log('[Community] WebSocket event:', eventType, data);
-
-          if (eventType === 'COMMENT_DELETED') {
-            console.log('[Community] Commentaire supprimé:', data.commentId);
-            load();
-          } else if (eventType === 'COMMENT_ADDED') {
-            console.log('[Community] Nouveau commentaire:', data.comment);
-            load();
-          } else if (eventType === 'POST_DELETED') {
-            console.log('[Community] Post supprimé:', data.contentId);
-            load();
-          }
-        } catch (err) {
-          console.error('[Community] WebSocket parsing error:', err);
-        }
-      };
-
-      ws.onerror = (err) => {
-        console.warn('[Community] WebSocket error (non-critical):', err);
-        // Don't throw - page works fine without WebSocket
-      };
-
-      ws.onclose = () => {
-        console.log('[Community] WebSocket fermé');
-      };
-
-      return () => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.close();
-        }
-      };
-    } catch (err) {
-      console.warn('[Community] WebSocket setup failed (non-critical):', err.message);
-      // Don't throw - page works without WebSocket
-      return () => {};
-    }
+    return () => clearInterval(pollInterval);
   }, []);
 
   const submit = async (e) => {
