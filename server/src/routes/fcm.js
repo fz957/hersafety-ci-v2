@@ -27,8 +27,8 @@ router.post('/register-token', async (req, res) => {
       return res.status(400).json({ success: false, error: error.details[0].message });
     }
 
-    const { userId } = req.user;
-    const result = await registerFCMToken(userId, value.token, value.deviceType);
+    const { userId, organizationId } = req.user;
+    const result = await registerFCMToken(userId, organizationId, value.token, value.deviceType);
 
     return res.json(result);
   } catch (err) {

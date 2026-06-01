@@ -8,6 +8,7 @@ export function useAudioRecorder() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const streamRef = useRef(null);
+  const mimeTypeRef = useRef('audio/webm'); // Store detected MIME type
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState(null);
 
@@ -41,6 +42,7 @@ export function useAudioRecorder() {
       }
 
       console.log('[AudioRecorder] Utilisant MIME type:', mimeType);
+      mimeTypeRef.current = mimeType || 'audio/webm'; // Store detected type for later use
 
       const mediaRecorder = new MediaRecorder(stream,
         mimeType ? { mimeType } : {}
@@ -84,7 +86,7 @@ export function useAudioRecorder() {
       // Check if already stopping
       if (mediaRecorder.state === 'inactive') {
         console.log('[AudioRecorder] Enregistrement déjà arrêté');
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeTypeRef.current });
         audioChunksRef.current = [];
         resolve(audioBlob);
         return;
@@ -92,7 +94,7 @@ export function useAudioRecorder() {
 
       mediaRecorder.onstop = () => {
         // Créer le blob audio
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeTypeRef.current });
         audioChunksRef.current = [];
 
         // Arrêter le stream IMMÉDIATEMENT

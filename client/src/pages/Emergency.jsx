@@ -8,6 +8,7 @@ import { useGPS } from '../hooks/useGPS';
 import { useOverpassPOIs } from '../hooks/useOverpassPOIs';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import useSpeechRecognition from '../hooks/useSpeechRecognition';
+import { useTheme } from '../context/ThemeContext';
 import api from '../services/api';
 import { HS, ICONS } from '../tokens';
 import { Icon, Card, Eyebrow, BackButton, PageShell, ScrollArea, Spinner } from '../components/ui/index.jsx';
@@ -98,6 +99,7 @@ const getVTCLinks = (safePlace) => {
 export default function Emergency() {
   const { state }   = useLocation();
   const navigate    = useNavigate();
+  const { theme }   = useTheme();
   const { position } = useGPS({ watch: true });
   const { isListening, transcript, toggleListening, clearTranscript, isSupported } = useSpeechRecognition();
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();

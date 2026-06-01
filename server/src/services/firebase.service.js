@@ -8,7 +8,7 @@ const path = require('path');
 
 // Logger helper - only logs in development mode
 const isDev = process.env.NODE_ENV === 'development';
-const log = (...args) => isDev && log(...args);
+const log = (...args) => isDev && console.log('[Firebase]', ...args);
 
 let firebaseInitialized = false;
 

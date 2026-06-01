@@ -106,7 +106,7 @@ router.post('/', async (req, res) => {
               console.error('[Alert Email] Error sending confirmation:', err.message);
             }
           }
-        })();
+        })().catch(err => console.error('[Alert] Background email process error:', err.message));
       }
 
       // Contacts reçoivent des emails (pas de notifications push FCM)

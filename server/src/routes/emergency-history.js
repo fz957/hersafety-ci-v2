@@ -40,7 +40,7 @@ router.post('/', requireAuth, async (req, res) => {
 
   try {
     const { level, trigger_type, latitude, longitude, location_name, final_latitude, final_longitude, final_location_name, contacts_alerted, sms_sent, lyra_messages, notes, status, audio_base64 } = value;
-    const userId = req.user.userId;
+    const { userId, organizationId } = req.user;
 
     // Sauvegarder le fichier audio s'il existe
     let audioFilePath = null;
@@ -83,6 +83,7 @@ router.post('/', requireAuth, async (req, res) => {
     // Note: JSON columns in PostgreSQL should store JSON, not stringified strings
     const insertResult = await knex('emergency_history').insert({
       user_id: userId,
+      organization_id: organizationId,
       level,
       trigger_type,
       latitude,
