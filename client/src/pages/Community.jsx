@@ -777,7 +777,8 @@ export default function Community() {
 
   // WebSocket pour synchronisation en temps réel des commentaires
   useEffect(() => {
-    const wsUrl = `ws://${window.location.host}/ws`;
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${protocol}://${window.location.host}/ws`;
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
