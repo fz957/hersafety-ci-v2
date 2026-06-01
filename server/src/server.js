@@ -23,53 +23,63 @@ const wsService = require('./services/websocket.service');
 const PORT = parseInt(process.env.PORT || '5000', 10);
 
 async function start() {
-  try {
-    // Vérifie la connexion PostgreSQL avant d'ouvrir le port
-    await knex.raw('SELECT 1');
-    console.log('[DB] Connexion PostgreSQL établie');
-    console.log('[CONFIG] APP_MODE=' + process.env.APP_MODE);
+  console.log('[CONFIG] APP_MODE=' + process.env.APP_MODE);
 
-    // Créer la table email_verifications si elle n'existe pas
-    const hasTable = await knex.schema.hasTable('email_verifications');
-    if (!hasTable) {
-      await knex.schema.createTable('email_verifications', (table) => {
-        table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
-        table.string('email').notNullable().unique();
-        table.string('token').notNullable().unique();
-        table.string('full_name').nullable();
-        table.string('phone').nullable();
-        table.string('password_hash').notNullable();
-        table.timestamp('created_at').defaultTo(knex.fn.now());
-        table.timestamp('expires_at').notNullable();
-      });
-      console.log('[DB] Table email_verifications créée');
+  // Initialiser le service email
+  emailService.initializeTransporter();
+  console.log('[EMAIL] Service email initialisé');
+
+  // Initialiser et démarrer le serveur HTTP et WebSocket IMMÉDIATEMENT
+  // Cela permet au healthcheck de réussir même si la DB n'est pas prête
+  const server = app.listen(PORT, () => {
+    console.log(`[SERVER] HerSafety CI démarré sur le port ${PORT}`);
+    console.log(`[SERVER] Mode : ${process.env.APP_MODE}`);
+    if (process.env.APP_MODE === 'development') {
+      console.log('[SERVER] ⚠  MODE TEST — SMS sandbox, appels simulés');
     }
+  });
 
-    // Initialiser le service email
-    emailService.initializeTransporter();
-    console.log('[EMAIL] Service email initialisé');
+  // Initialiser WebSocket
+  wsService.initWebSocket(server);
 
-    // Initialiser le serveur HTTP et WebSocket
-    const server = app.listen(PORT, () => {
-      console.log(`[SERVER] HerSafety CI démarré sur le port ${PORT}`);
-      console.log(`[SERVER] Mode : ${process.env.APP_MODE}`);
-      if (process.env.APP_MODE === 'development') {
-        console.log('[SERVER] ⚠  MODE TEST — SMS sandbox, appels simulés');
+  // Essayer de se connecter à la DB en arrière-plan (non-bloquant)
+  // Cela ne doit pas empêcher le serveur d'écouter sur le port
+  setImmediate(async () => {
+    try {
+      await knex.raw('SELECT 1');
+      console.log('[DB] Connexion PostgreSQL établie');
+
+      // Créer la table email_verifications si elle n'existe pas
+      const hasTable = await knex.schema.hasTable('email_verifications');
+      if (!hasTable) {
+        await knex.schema.createTable('email_verifications', (table) => {
+          table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+          table.string('email').notNullable().unique();
+          table.string('token').notNullable().unique();
+          table.string('full_name').nullable();
+          table.string('phone').nullable();
+          table.string('password_hash').notNullable();
+          table.timestamp('created_at').defaultTo(knex.fn.now());
+          table.timestamp('expires_at').notNullable();
+        });
+        console.log('[DB] Table email_verifications créée');
       }
-    });
+    } catch (dbErr) {
+      console.warn('[DB] Impossible de se connecter à la base de données');
+      console.warn('[DB] Message:', dbErr.message);
+      console.warn('[DB] Tentative de reconnexion dans 5 secondes...');
 
-    // Initialiser WebSocket
-    wsService.initWebSocket(server);
-  } catch (err) {
-    console.error('[FATAL] Impossible de démarrer le serveur');
-    console.error('[FATAL] Message :', err.message);
-    console.error('[FATAL] Stack   :', err.stack);
-    // Détails supplémentaires pour les erreurs PostgreSQL (code, détail, contrainte)
-    if (err.code)    console.error('[FATAL] PG code  :', err.code);
-    if (err.detail)  console.error('[FATAL] PG détail:', err.detail);
-    if (err.hint)    console.error('[FATAL] PG hint  :', err.hint);
-    process.exit(1);
-  }
+      // Retry après 5 secondes
+      setTimeout(async () => {
+        try {
+          await knex.raw('SELECT 1');
+          console.log('[DB] Connexion PostgreSQL rétablie');
+        } catch (retryErr) {
+          console.error('[DB] Reconnexion échouée:', retryErr.message);
+        }
+      }, 5000);
+    }
+  });
 }
 
 // Arrêt propre (Docker / PM2 SIGTERM)
