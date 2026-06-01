@@ -92,24 +92,43 @@ app.get('/api/test', (req, res) => res.json({ test: 'OK', timestamp: new Date().
 app.get('/api/debug/db', async (req, res) => {
   try {
     const knex = require('./db/knex');
-    const userCount = await knex('users').count('id as total').first();
-    const users = await knex('users').select('id', 'email', 'full_name').limit(20);
+
+    console.log('[DEBUG] DATABASE_URL:', process.env.DATABASE_URL?.substring(0, 50) + '...');
+
+    // Test connection first
+    await knex.raw('SELECT 1');
+    console.log('[DEBUG] Database connection OK');
+
     const tables = await knex.raw(`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public' ORDER BY table_name
     `);
 
+    console.log('[DEBUG] Tables found:', tables.rows?.map(r => r.table_name));
+
+    let userCount = 0;
+    let users = [];
+
+    const usersTableExists = tables.rows?.some(r => r.table_name === 'users');
+    if (usersTableExists) {
+      const result = await knex('users').count('id as total').first();
+      userCount = result?.total || 0;
+      users = await knex('users').select('id', 'email', 'full_name').limit(20);
+    }
+
     res.json({
       status: 'ok',
-      userCount: userCount?.total || 0,
+      database_url_set: !!process.env.DATABASE_URL,
+      userCount: userCount,
       users: users,
       tables: tables.rows?.map(r => r.table_name) || [],
     });
   } catch (err) {
+    console.error('[DEBUG] Error:', err.message);
     res.status(500).json({
       status: 'error',
+      database_url_set: !!process.env.DATABASE_URL,
       error: err.message,
-      stack: err.stack,
     });
   }
 });
