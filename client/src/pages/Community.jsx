@@ -13,14 +13,6 @@ const generateAnonName = () => {
   return `${adj}${noun}${num}`;
 };
 
-const cleanTitle = (title) => {
-  if (!title) return 'Sans titre';
-  // Remplace les ? qui viennent de mauvais encodage UTF-8 avec un titre par défaut
-  if (title.includes('????') || /\?{2,}/.test(title)) {
-    return '📖 Contenu de la communauté';
-  }
-  return title;
-};
 
 // NO HARDCODED CONTENT - LOAD FROM API ONLY
 
@@ -246,7 +238,7 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: HS.chocolate, marginBottom: 4 }}>
-            {cleanTitle(item.title)}
+            {item.title}
           </div>
           <div style={{ fontSize: 12, color: HS.textMute }}>
             Par {item.display_name || generateAnonName()} • {new Date(item.created_at).toLocaleDateString('fr-FR')}
