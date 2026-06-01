@@ -120,9 +120,6 @@ export default function Emergency() {
   // DEBUG: Log on every render
   console.log('[Emergency RENDER] messages:', messages.length, 'emergencyNums:', emergencyNums.length, 'places:', places.length, 'loadingAI:', loadingAI, 'initialized:', initializedRef.current);
 
-  // Charger POIs depuis Overpass - UTILISER POUR LES LIEUX SÛRS
-  const { pois, loading: poiLoading } = useOverpassPOIs(position?.lat, position?.lng, 5);
-
   // Modals de confirmation
   const [callModal, setCallModal]         = useState({ isOpen: false, number: null, name: null });
   const [vtcModal, setVtcModal]           = useState({ isOpen: false, app: null, url: null });
@@ -229,39 +226,56 @@ export default function Emergency() {
     }
   }, [isListening, transcript]);
 
-  // Lieux sûrs — Utiliser les POIs d'Overpass directement (tous les lieux OSM)
+  // Lieux sûrs — Charger en arrière-plan SANS BLOQUER L'AFFICHAGE
   useEffect(() => {
-    console.log('[Emergency EFFECT] Places effect triggered - position:', position ? 'OK' : 'NONE', 'pois:', pois ? pois.length : 0);
-    if (!position || !pois || pois.length === 0) {
-      console.log('[Emergency EFFECT] Skipping places - missing data');
+    if (!position) {
+      console.log('[Emergency EFFECT] No position yet, using fallback Abidjan');
+      // Utiliser position par défaut (Abidjan) pour charger les lieux sûrs
+      api.get('/api/places', {
+        params: {
+          lat: 5.3405,
+          lng: -4.0397,
+          radius: 5000
+        }
+      })
+        .then(res => {
+          const places = res.data.data || [];
+          console.log('[Emergency EFFECT] Fallback places loaded:', places.length);
+          setPlaces(places);
+        })
+        .catch(err => {
+          console.error('[Emergency EFFECT] Error loading fallback places:', err);
+          setPlaces([]);
+        });
       return;
     }
 
-    // Calculer distances et trier
-    const withDistances = pois.map(p => ({
-      ...p,
-      distance: getDistance(position.lat, position.lng, p.lat, p.lng)
-    }));
+    // Avoir position - charger les lieux réels
+    console.log('[Emergency EFFECT] Loading places for position:', position.lat.toFixed(4), position.lng.toFixed(4));
+    api.get('/api/places', {
+      params: {
+        lat: position.lat.toFixed(6),
+        lng: position.lng.toFixed(6),
+        radius: 5000
+      }
+    })
+      .then(res => {
+        const places = res.data.data || [];
+        console.log('[Emergency EFFECT] Real places loaded:', places.length);
+        setPlaces(places);
+      })
+      .catch(err => {
+        console.error('[Emergency EFFECT] Error loading places:', err);
+        setPlaces([]);
+      });
+  }, [position]);
 
-    // Garder les plus proches (< 5km)
-    const filtered = withDistances.filter(p => p.distance < 5);
-
-    // Trier par distance et prendre les 10 plus proches
-    const sorted = filtered
-      .sort((a, b) => a.distance - b.distance)
-      .slice(0, 10);
-
-    console.log('[Emergency EFFECT] Places found and set:', sorted.length);
-    setPlaces(sorted);
-  }, [position, pois]);
-
-  // Init: Appel initial à Claude pour commencer la conversation (UNE SEULE FOIS - GARANTIE)
+  // Init: Appel initial à Claude pour commencer la conversation (UNE SEULE FOIS - IMMÉDIAT)
   useEffect(() => {
     console.log('========== [Emergency INIT EFFECT] TRIGGERED ==========');
     console.log('  initialized:', initializedRef.current);
     console.log('  messages.length:', messages.length);
     console.log('  emergencyNums.length:', emergencyNums.length);
-    console.log('  places.length:', places.length);
 
     if (initializedRef.current) {
       console.log('  → SKIP: Already initialized (ref=true)');
@@ -271,13 +285,8 @@ export default function Emergency() {
       console.log('  → SKIP: Messages already exist');
       return;
     }
-    // Only wait for emergencyNums - places can be empty (will load independently)
-    if (!emergencyNums.length) {
-      console.log('  → SKIP: Waiting for emergencyNums...');
-      return;
-    }
-
-    console.log('  ✓ PROCEEDING with initialization');
+    // Ne pas attendre emergencyNums - lancer immédiatement avec données partielles
+    console.log('  ✓ PROCEEDING with initialization (may have partial data)');
     console.log('  Setting initializedRef.current = true');
     initializedRef.current = true;
 
@@ -318,7 +327,7 @@ export default function Emergency() {
         setLoadingAI(false);
         console.log('========== [Emergency INIT EFFECT] COMPLETED ==========');
       });
-  }, [emergencyNums, places]);
+  }, []);
 
   // Pas de scroll auto - chaque seconde compte en urgence
 
