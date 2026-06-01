@@ -15,13 +15,16 @@ let transporter = null;
  * Initialize email transporter
  */
 const initializeTransporter = () => {
-  if (transporter) return;
+  if (transporter) {
+    console.log('[Email] Transporter already initialized');
+    return;
+  }
 
   try {
-    console.log('[Email] Initializing transporter...');
+    console.log('[Email] ===== INITIALIZING TRANSPORTER =====');
     console.log('[Email] EMAIL_PROVIDER:', process.env.EMAIL_PROVIDER);
-    console.log('[Email] GMAIL_USER:', process.env.GMAIL_USER ? '✓ Set' : '✗ NOT SET');
-    console.log('[Email] GMAIL_PASSWORD:', process.env.GMAIL_PASSWORD ? '✓ Set' : '✗ NOT SET');
+    console.log('[Email] GMAIL_USER:', process.env.GMAIL_USER ? `✓ ${process.env.GMAIL_USER}` : '✗ NOT SET');
+    console.log('[Email] GMAIL_PASSWORD:', process.env.GMAIL_PASSWORD ? `✓ Length ${process.env.GMAIL_PASSWORD.length}` : '✗ NOT SET');
 
     if (process.env.EMAIL_PROVIDER === 'gmail') {
       transporter = nodemailer.createTransport({
@@ -62,9 +65,10 @@ const initializeTransporter = () => {
       });
     }
 
-    log(`✓ Email transporter initialized (${process.env.EMAIL_PROVIDER || 'SMTP'})`);
+    console.log(`✓ [Email] Transporter initialized (${process.env.EMAIL_PROVIDER || 'SMTP'})`);
   } catch (err) {
-    console.error('✗ Email transporter init failed:', err.message);
+    console.error('✗ [Email] Transporter init FAILED:', err.message);
+    console.error('[Email] Full error:', err);
   }
 };
 
@@ -252,12 +256,21 @@ const sendTrackNotification = async (email, trackData) => {
  */
 const sendProfileChangeEmail = async (email, userName, changes) => {
   try {
-    console.log('[Email] sendProfileChangeEmail called for:', email);
-    if (!transporter) initializeTransporter();
+    console.log('[Email] ===== sendProfileChangeEmail called =====');
+    console.log('[Email] Email to:', email);
+    console.log('[Email] Changes:', Object.keys(changes));
+
     if (!transporter) {
-      console.error('[Email] Transporter not initialized after initialization attempt');
+      console.log('[Email] Transporter not initialized, initializing...');
+      initializeTransporter();
+    }
+
+    if (!transporter) {
+      console.error('[Email] ✗ Transporter STILL not initialized after initialization attempt');
       return { success: false, error: 'Email service not configured' };
     }
+
+    console.log('[Email] ✓ Transporter ready, preparing email...');
 
     const changesList = Object.entries(changes)
       .map(([key, value]) => {
@@ -294,6 +307,7 @@ const sendProfileChangeEmail = async (email, userName, changes) => {
       </div>
     `;
 
+    console.log('[Email] Calling transporter.sendMail()...');
     const result = await transporter.sendMail({
       from: process.env.EMAIL_FROM || 'noreply@hersafety.ci',
       to: email,
@@ -301,10 +315,11 @@ const sendProfileChangeEmail = async (email, userName, changes) => {
       html: htmlContent,
     });
 
-    log(`✓ Profile change email sent to ${email}`);
+    console.log('✓ [Email] Profile change email SENT:', result.messageId);
     return { success: true, messageId: result.messageId };
   } catch (err) {
-    console.error('✗ Profile change email failed:', err.message);
+    console.error('✗ [Email] Profile change email FAILED:', err.message);
+    console.error('[Email] Full error:', err);
     return { success: false, error: err.message };
   }
 };
