@@ -88,6 +88,32 @@ app.use('/api', apiLimiter);
 // Test route to verify code is loaded
 app.get('/api/test', (req, res) => res.json({ test: 'OK', timestamp: new Date().toISOString(), rateLimit: 'DISABLED' }));
 
+// Debug route to check database
+app.get('/api/debug/db', async (req, res) => {
+  try {
+    const knex = require('./db/knex');
+    const userCount = await knex('users').count('id as total').first();
+    const users = await knex('users').select('id', 'email', 'full_name').limit(20);
+    const tables = await knex.raw(`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' ORDER BY table_name
+    `);
+
+    res.json({
+      status: 'ok',
+      userCount: userCount?.total || 0,
+      users: users,
+      tables: tables.rows?.map(r => r.table_name) || [],
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'error',
+      error: err.message,
+      stack: err.stack,
+    });
+  }
+});
+
 // Routes
 app.use('/api/auth',          authRoutes);
 app.use('/api/users',         usersRoutes);
