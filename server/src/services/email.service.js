@@ -65,20 +65,13 @@ class EmailJSTransporter {
     try {
       const formData = new URLSearchParams();
       formData.append('service_id', this.serviceId);
-      formData.append('template_id', this.templateId);
+      // DO NOT use template_id - send HTML directly
       formData.append('user_id', this.publicKey);
       formData.append('accessToken', this.privateKey);
-      formData.append('email', mailOptions.to);
+      formData.append('to_email', mailOptions.to);
       formData.append('subject', mailOptions.subject);
-      formData.append('message', mailOptions.html || mailOptions.message || '');
-      formData.append('name', 'HerSafety');
-      // Add optional fields if provided
-      if (mailOptions.senderEmail) formData.append('senderEmail', mailOptions.senderEmail);
-      if (mailOptions.senderName) formData.append('senderName', mailOptions.senderName);
-      if (mailOptions.location) formData.append('location', mailOptions.location);
-      if (mailOptions.locationLink) formData.append('locationLink', mailOptions.locationLink);
-      if (mailOptions.time) formData.append('time', mailOptions.time);
-      if (mailOptions.alertLevel) formData.append('alertLevel', mailOptions.alertLevel);
+      formData.append('html_message', mailOptions.html || mailOptions.message || '');
+      formData.append('from_name', 'HerSafety');
 
       const response = await fetch(this.baseUrl, {
         method: 'POST',
