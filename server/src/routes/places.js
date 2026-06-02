@@ -76,27 +76,76 @@ function getDistance(lat1, lng1, lat2, lng2) {
   return R * c;
 }
 
-// Fetch real places from Foursquare Places API (Primary source)
-// Better data coverage and accuracy than OpenStreetMap for Abidjan
-async function fetchFoursquare(lat, lng, radius) {
-  const clientId = process.env.FOURSQUARE_CLIENT_ID;
-  const clientSecret = process.env.FOURSQUARE_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    console.error('[Foursquare] Client ID or Secret not configured');
+// Fetch REAL places from Overpass API (OSM data) based on actual position
+async function fetchOverpass(lat, lng, radius) {
+  try {
+    const radiusKm = radius / 1000;
+
+    // Build bbox for Overpass query (lat, lng ± radius in degrees)
+    // 1 degree ≈ 111 km
+    const latDelta = radiusKm / 111;
+    const lngDelta = radiusKm / (111 * Math.cos(lat * Math.PI / 180));
+
+    const bbox = `${lng - lngDelta},${lat - latDelta},${lng + lngDelta},${lat + latDelta}`;
+
+    // Query restaurants, pharmacies, hospitals, police
+    const overpassQuery = `[bbox:${bbox}];
+      (
+        node["amenity"="restaurant"](${bbox});
+        way["amenity"="restaurant"](${bbox});
+        node["amenity"="pharmacy"](${bbox});
+        way["amenity"="pharmacy"](${bbox});
+        node["amenity"="police"](${bbox});
+        way["amenity"="police"](${bbox});
+        node["amenity"="hospital"](${bbox});
+        way["amenity"="hospital"](${bbox});
+        node["amenity"="fire_station"](${bbox});
+        way["amenity"="fire_station"](${bbox});
+      );
+      out geom;`;
+
+    const response = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      body: overpassQuery,
+      timeout: 10000,
+    });
+
+    if (!response.ok) {
+      console.warn('[Overpass] API error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    if (!data.elements || data.elements.length === 0) {
+      console.log('[Overpass] No elements found');
+      return null;
+    }
+
+    const places = data.elements
+      .filter(el => el.lat && el.lon && el.tags && el.tags.name)
+      .map(el => ({
+        id: el.id,
+        name: el.tags.name,
+        type: el.tags.amenity === 'restaurant' ? 'restaurant' :
+              el.tags.amenity === 'pharmacy' ? 'pharmacie' :
+              el.tags.amenity === 'police' ? 'police' :
+              el.tags.amenity === 'hospital' ? 'hopital' :
+              el.tags.amenity === 'fire_station' ? 'pompiers' : 'autre',
+        lat: el.lat,
+        lng: el.lon,
+        address: el.tags['addr:street'] || el.tags['addr:city'] || 'Abidjan',
+        phone: el.tags.phone || '',
+        distance: getDistance(lat, lng, el.lat, el.lon),
+      }))
+      .sort((a, b) => a.distance - b.distance);
+
+    console.log(`[Overpass] Found ${places.length} real places`);
+    return places.slice(0, 15); // Return top 15
+  } catch (err) {
+    console.error('[Overpass] Error:', err.message);
     return null;
   }
-
-  // Search queries for safety-critical places
-  const queries = [
-    { q: 'pharmacy', type: 'pharmacie' },
-    { q: 'police', type: 'police' },
-    { q: 'hospital', type: 'hopital' },
-    { q: 'fire station', type: 'pompiers' },
-    { q: 'clinic', type: 'hopital' },
-    { q: 'medical', type: 'hopital' }
-  ];
-
-  const allPlaces = [];
+}
 
   try {
     console.log(`[Foursquare] Searching safe places around ${lat.toFixed(4)}, ${lng.toFixed(4)} (radius: ${radius}m)`);
@@ -407,31 +456,42 @@ router.get('/', async (req, res) => {
   console.log(`\n[GET /api/places] INCOMING REQUEST: lat=${lat}, lng=${lng}, radius=${radius}`);
 
   try {
-    // Use FALLBACK_PLACES - guaranteed to always return safe nearby places
-    console.log(`[GET /api/places] Using FALLBACK_PLACES (closest places to you)`);
+    // Try Overpass API FIRST for REAL places near user position
+    console.log(`[GET /api/places] Trying Overpass API for real places...`);
+    let realPlaces = await fetchOverpass(lat, lng, radius);
 
+    if (realPlaces && realPlaces.length > 0) {
+      console.log(`[GET /api/places] Found ${realPlaces.length} REAL places via Overpass`);
+      realPlaces.slice(0, 10).forEach((p, i) => {
+        const dist = getDistance(lat, lng, p.lat, p.lng);
+        console.log(`  ${i+1}. ${p.name} (${p.type}) - ${dist.toFixed(2)}km`);
+      });
+      return res.json({ success: true, data: realPlaces, source: 'overpass' });
+    }
+
+    // Fallback: use FALLBACK_PLACES if Overpass returns nothing
+    console.log(`[GET /api/places] Overpass returned nothing, using FALLBACK_PLACES`);
     const withDistance = FALLBACK_PLACES.map(p => ({
       ...p,
       distance: getDistance(lat, lng, p.lat, p.lng)
     }));
 
-    // Filter by radius and sort by distance - closest first
     const sorted = withDistance
       .filter(p => p.distance <= (radius / 1000))
       .sort((a, b) => a.distance - b.distance);
 
     const result = sorted.slice(0, 15).map(({ distance, ...p }) => p);
 
-    console.log(`[GET /api/places] Found ${result.length} places within ${radius}m`);
+    console.log(`[GET /api/places] Found ${result.length} FALLBACK places within ${radius}m`);
     result.slice(0, 10).forEach((p, i) => {
       const dist = withDistance.find(x => x.id === p.id)?.distance || 0;
       console.log(`  ${i+1}. ${p.name} (${p.type}) - ${dist.toFixed(2)}km`);
     });
 
-    return res.json({ success: true, data: result, source: 'local' });
+    return res.json({ success: true, data: result, source: 'fallback' });
   } catch (err) {
     console.error('[GET /api/places] Error:', err.message);
-    // Final fallback: ALWAYS return something
+    // Final safety: ALWAYS return something
     const fallbackWithDistance = FALLBACK_PLACES.map(p => ({
       ...p,
       distance: getDistance(lat, lng, p.lat, p.lng)
@@ -440,8 +500,8 @@ router.get('/', async (req, res) => {
       .filter(p => p.distance <= (radius / 1000))
       .sort((a, b) => a.distance - b.distance);
     const result = sorted.slice(0, 15).map(({ distance, ...p }) => p);
-    console.log(`[GET /api/places] Returning ${result.length} fallback places`);
-    return res.json({ success: true, data: result, source: 'error' });
+    console.log(`[GET /api/places] Returning ${result.length} FALLBACK places as error recovery`);
+    return res.json({ success: true, data: result, source: 'fallback-error' });
   }
 });
 
