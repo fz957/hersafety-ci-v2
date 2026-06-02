@@ -285,8 +285,21 @@ router.get('/', async (req, res) => {
       return res.json({ success: true, data: realPlaces, source: 'overpass' });
     }
 
-    // Fallback: use FALLBACK_PLACES if Overpass returns nothing
-    console.log(`[GET /api/places] Overpass returned nothing, using FALLBACK_PLACES`);
+    // Fallback 1: Try Nominatim API (OpenStreetMap search engine - more reliable)
+    console.log(`[GET /api/places] Overpass returned nothing, trying Nominatim API...`);
+    let nominatimPlaces = await fetchNominatim(lat, lng, radius);
+
+    if (nominatimPlaces && nominatimPlaces.length > 0) {
+      console.log(`[GET /api/places] Found ${nominatimPlaces.length} REAL places via Nominatim`);
+      nominatimPlaces.slice(0, 10).forEach((p, i) => {
+        const dist = getDistance(lat, lng, p.lat, p.lng);
+        console.log(`  ${i+1}. ${p.name} (${p.type}) - ${dist.toFixed(2)}km`);
+      });
+      return res.json({ success: true, data: nominatimPlaces, source: 'nominatim' });
+    }
+
+    // Fallback 2: use FALLBACK_PLACES if both APIs fail
+    console.log(`[GET /api/places] Both Overpass and Nominatim returned nothing, using FALLBACK_PLACES`);
     const withDistance = FALLBACK_PLACES.map(p => ({
       ...p,
       distance: getDistance(lat, lng, p.lat, p.lng)
