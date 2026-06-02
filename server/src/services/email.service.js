@@ -89,15 +89,15 @@ class EmailJSTransporter {
       // EmailJS returns "OK" as plain text, not JSON
       const responseText = await response.text();
       if (responseText.includes('OK') || responseText === 'OK') {
-        return { response: { messageId: 'email-sent' } };
+        return { messageId: 'email-sent' };
       }
 
       // Fallback: try parsing as JSON
       try {
         const data = JSON.parse(responseText);
-        return { response: { messageId: data.id || 'email-sent' } };
+        return { messageId: data.id || 'email-sent' };
       } catch (e) {
-        return { response: { messageId: 'email-sent' } };
+        return { messageId: 'email-sent' };
       }
     } catch (err) {
       throw err;
