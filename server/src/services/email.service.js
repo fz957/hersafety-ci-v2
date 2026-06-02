@@ -162,7 +162,7 @@ const initializeTransporter = () => {
       transporter = new EmailJSTransporter(
         process.env.EMAILJS_SERVICE_ID,
         process.env.EMAILJS_TEMPLATE_ID,
-        process.env.EMAILJS_PRIVATE_KEY
+        process.env.EMAILJS_PUBLIC_KEY
       );
     } else if (process.env.EMAIL_PROVIDER === 'resend') {
       transporter = new ResendTransporter(process.env.RESEND_API_KEY);
