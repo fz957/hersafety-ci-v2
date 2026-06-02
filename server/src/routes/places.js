@@ -57,9 +57,9 @@ const FALLBACK_PLACES = [
 ];
 
 const querySchema = Joi.object({
-  lat:    Joi.number().min(-90).max(90).required(),
-  lng:    Joi.number().min(-180).max(180).required(),
-  radius: Joi.number().integer().min(100).max(10000).default(5000), // 5km default - prioritize REAL places over just close ones
+  lat:    Joi.number().min(-90).max(90).optional(),
+  lng:    Joi.number().min(-180).max(180).optional(),
+  radius: Joi.number().integer().min(100).max(10000).default(5000), // 5km default
 });
 
 // Priority order for safe places
@@ -273,6 +273,12 @@ router.get('/', async (req, res) => {
 
   const { lat, lng, radius } = value;
   console.log(`\n[GET /api/places] INCOMING REQUEST: lat=${lat}, lng=${lng}, radius=${radius}`);
+
+  // If no location provided (e.g., from admin cartography), return all fallback places
+  if (!lat || !lng) {
+    console.log(`[GET /api/places] No location provided - returning all FALLBACK_PLACES for admin`);
+    return res.json({ success: true, data: FALLBACK_PLACES, source: 'fallback-admin' });
+  }
 
   try {
     // Try Overpass API FIRST for REAL places near user position
