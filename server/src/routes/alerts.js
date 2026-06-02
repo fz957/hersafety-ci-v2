@@ -6,7 +6,7 @@ const { requireAuth }   = require('../middlewares/auth');
 const { requireAdmin }  = require('../middlewares/admin');
 const { sendAlertSMS }  = require('../services/sms.service');
 const { sendNotificationToUser, notifyContacts } = require('../services/firebase.service');
-const { sendAlertEmail, sendAlertConfirmationEmail, sendAdminAlertNotification } = require('../services/email.service');
+const { sendSimpleAlertEmail, sendAlertConfirmationEmail, sendAdminAlertNotification } = require('../services/email.service');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -139,11 +139,11 @@ router.post('/', async (req, res) => {
 </div>
                 `;
 
-                const emailResult = await sendAlertEmail(contact.email, {
-                  subject: `🚨 ALERTE URGENCE - ${sender.full_name || 'Utilisatrice'}`,
-                  html: emailHTML,
-                  message: emailHTML
-                });
+                const emailResult = await sendSimpleAlertEmail(
+                  contact.email,
+                  `🚨 ALERTE URGENCE - ${sender.full_name || 'Utilisatrice'}`,
+                  emailHTML
+                );
                 console.log(`[Alert] Email result for ${contact.email}:`, emailResult);
                 if (emailResult.success) emailsSent++;
               } catch (err) {

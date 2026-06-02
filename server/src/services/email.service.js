@@ -861,10 +861,39 @@ const sendAdminCommentNotification = async (adminEmail, commentData, userName, c
   }
 };
 
+/**
+ * Send alert email with pre-built HTML (no template needed)
+ * Used by alerts.js for immediate alert notifications
+ */
+const sendSimpleAlertEmail = async (email, subject, html) => {
+  try {
+    if (!transporter) initializeTransporter();
+    if (!transporter) {
+      console.warn('Email service not configured, skipping alert email');
+      return { success: false, error: 'Email service not configured' };
+    }
+
+    const result = await transporter.sendMail({
+      from: getFromEmail(),
+      to: email,
+      subject: subject,
+      html: html,
+      message: html,
+    });
+
+    log(`✓ Simple alert email sent to ${email}`);
+    return { success: true, messageId: result.messageId };
+  } catch (err) {
+    console.error('✗ Simple alert email failed:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
 module.exports = {
   initializeTransporter,
   sendVerificationEmail,
   sendAlertEmail,
+  sendSimpleAlertEmail,
   sendTrackNotification,
   sendProfileChangeEmail,
   sendAccountDeletionEmail,
