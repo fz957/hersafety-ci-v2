@@ -179,15 +179,40 @@ const initializeTransporter = () => {
     console.log('[Email] GMAIL_PASSWORD:', process.env.GMAIL_PASSWORD ? `✓ Length ${process.env.GMAIL_PASSWORD.length}` : '✗ NOT SET');
 
     if (process.env.EMAIL_PROVIDER === 'brevo') {
-      transporter = nodemailer.createTransport({
-        host: 'smtp-relay.brevo.com',
-        port: 587,
-        secure: false,
-        auth: {
-          user: process.env.BREVO_SMTP_USER,
-          pass: process.env.BREVO_SMTP_PASSWORD,
-        },
-      });
+      // Use Brevo REST API instead of SMTP (more reliable, no connection issues)
+      // API key xkeysib-... works for REST API
+      transporter = {
+        sendMail: async (mailOptions) => {
+          const apiKey = process.env.BREVO_API_KEY;
+          if (!apiKey) {
+            throw new Error('BREVO_API_KEY not configured');
+          }
+
+          const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'api-key': apiKey,
+            },
+            body: JSON.stringify({
+              to: [{ email: mailOptions.to, name: mailOptions.toName || '' }],
+              from: { email: mailOptions.from || getFromEmail(), name: 'HerSafety' },
+              subject: mailOptions.subject || '',
+              htmlContent: mailOptions.html || mailOptions.message || '',
+              textContent: mailOptions.text || '',
+            }),
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(`Brevo API error: ${error.message || response.statusText}`);
+          }
+
+          const data = await response.json();
+          return { messageId: data.messageId };
+        }
+      };
     } else if (process.env.EMAIL_PROVIDER === 'emailjs') {
       transporter = new EmailJSTransporter(
         process.env.EMAILJS_SERVICE_ID,
