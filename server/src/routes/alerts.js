@@ -93,6 +93,8 @@ router.post('/', async (req, res) => {
                   senderEmail: sender.email,
                   alertLevel: value.level,
                   locationLabel: value.location_label,
+                  locationLat: value.location_lat,
+                  locationLng: value.location_lng,
                   createdAt: alert.created_at,
                 });
                 console.log(`[Alert] Email result for ${contact.email}:`, emailResult);

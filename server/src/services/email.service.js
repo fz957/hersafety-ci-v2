@@ -76,6 +76,7 @@ class EmailJSTransporter {
       if (mailOptions.senderEmail) formData.append('senderEmail', mailOptions.senderEmail);
       if (mailOptions.senderName) formData.append('senderName', mailOptions.senderName);
       if (mailOptions.location) formData.append('location', mailOptions.location);
+      if (mailOptions.locationLink) formData.append('locationLink', mailOptions.locationLink);
       if (mailOptions.time) formData.append('time', mailOptions.time);
       if (mailOptions.alertLevel) formData.append('alertLevel', mailOptions.alertLevel);
 
@@ -302,7 +303,13 @@ const sendAlertEmail = async (email, alertData) => {
       return { success: false, error: 'Email service not configured' };
     }
 
-    const { senderName, senderEmail, alertLevel, locationLabel, createdAt } = alertData;
+    const { senderName, senderEmail, alertLevel, locationLabel, locationLat, locationLng, createdAt } = alertData;
+
+    // Générer lien OpenStreetMap si on a les coordonnées
+    let mapsLink = '';
+    if (locationLat && locationLng) {
+      mapsLink = `https://openstreetmap.org/?mlat=${locationLat}&mlon=${locationLng}&zoom=17`;
+    }
     const levelLabels = { '1': 'Vigilance', '2': 'Malaise', '3': 'DANGER', '4': 'SOS' };
     const levelColors = { '1': '#7B9171', '2': '#F48FB1', '3': '#C97B3B', '4': '#B71C1C' };
 
@@ -338,10 +345,11 @@ const sendAlertEmail = async (email, alertData) => {
       to: email,
       subject: `🚨 ALERTE ${levelLabels[alertLevel]} — ${senderName}`,
       html: htmlContent,
-      text: `ALERTE ${levelLabels[alertLevel]}\n\n${senderName} a déclenché une alerte.\n${locationLabel ? `Localisation: ${locationLabel}` : ''}`,
+      text: `ALERTE ${levelLabels[alertLevel]}\n\n${senderName} a déclenché une alerte.\n${locationLabel ? `Localisation: ${locationLabel}` : ''}\n${mapsLink ? `Voir sur la carte: ${mapsLink}` : ''}`,
       senderEmail: senderEmail,
       senderName: senderName,
       location: locationLabel || 'Non précisée',
+      locationLink: mapsLink,
       time: new Date(createdAt).toLocaleString('fr-FR'),
       alertLevel: levelLabels[alertLevel],
       message: htmlContent,
