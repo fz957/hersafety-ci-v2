@@ -3,45 +3,20 @@ const Joi     = require('joi');
 
 const { requireAuth } = require('../middlewares/auth');
 
-// Logger helper - only logs in development mode
-const isDev = process.env.NODE_ENV === 'development';
-const log = (...args) => isDev && console.log(...args);
-
 const router = express.Router();
-// No auth needed for emergency places
+router.use(requireAuth);
 
-// Cache mémoire simple (5 min TTL for Foursquare results)
+// Cache mémoire simple — DISABLED for testing, will re-enable later
 const cache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 0; // Disabled during debugging
 
-// VRAIES endroits sûrs à Abidjan — coordonnées réelles (de locations.js)
-const SAFE_PLACES = [
-  // Quartiers principaux avec types de sécurité
-  { id: 'plateau-q', type: 'quartier', name: 'Plateau', lat: 5.3405, lng: -4.0397, area: 'Centre', safety: 3, description: 'Centre-ville d\'Abidjan' },
-  { id: 'cocody-q', type: 'quartier', name: 'Cocody', lat: 5.3382, lng: -4.0143, area: 'Nord', safety: 4, description: 'Quartier résidentiel' },
-  { id: 'yopougon-q', type: 'quartier', name: 'Yopougon', lat: 5.3452, lng: -4.0718, area: 'Ouest', safety: 2, description: 'Quartier populaire' },
-  { id: 'adjame-q', type: 'quartier', name: 'Adjamé', lat: 5.3520, lng: -4.0300, area: 'Est', safety: 2, description: 'Zone commerciale' },
-  { id: 'treichville-q', type: 'quartier', name: 'Treichville', lat: 5.3200, lng: -4.0500, area: 'Sud', safety: 2, description: 'Zone portuaire' },
+function getCached(key) {
+  return null; // Always skip cache
+}
 
-  // Restaurants/Cafés
-  { id: 'lokodj', type: 'restaurant', name: 'Espace Lokodjé', lat: 5.3410, lng: -4.0390, area: 'Plateau', safety: 3, description: 'Restaurant Plateau' },
-  { id: 'petit-suisse', type: 'restaurant', name: 'Au Petit Suisse', lat: 5.3375, lng: -4.0140, area: 'Cocody', safety: 4, description: 'Restaurant Cocody' },
-  { id: 'reserve', type: 'restaurant', name: 'La Réserve', lat: 5.3380, lng: -4.0155, area: 'Cocody', safety: 4, description: 'Restaurant haut de gamme' },
-  { id: 'delice', type: 'restaurant', name: 'Café Delice', lat: 5.3460, lng: -4.0700, area: 'Yopougon', safety: 2, description: 'Café Yopougon' },
-  { id: 'fati', type: 'restaurant', name: 'Chez Fati', lat: 5.3210, lng: -4.0510, area: 'Treichville', safety: 2, description: 'Restaurant Treichville' },
-
-  // Hôpitaux (SAFE PLACES PRIORITAIRES)
-  { id: 'chu-treich', type: 'hopital', name: 'CHU Treichville', lat: 5.3240, lng: -4.0530, area: 'Treichville', safety: 3, description: 'Hôpital public', phone: '+225 22 50 40 00' },
-  { id: 'clinique-amitie', type: 'hopital', name: 'Clinique de l\'Amitié', lat: 5.3390, lng: -4.0160, area: 'Cocody', safety: 4, description: 'Clinique privée', phone: '+225 22 48 10 00' },
-
-  // Transport
-  { id: 'aeroport', type: 'transport', name: 'Aéroport Félix Houphouët', lat: 5.2608, lng: -3.9640, area: 'Port-Bouët', safety: 3, description: 'Aéroport international', phone: '+225 27 33 50 00' },
-  { id: 'gare-adjame', type: 'transport', name: 'Gare d\'Adjamé', lat: 5.3500, lng: -4.0320, area: 'Adjamé', safety: 2, description: 'Gare routière' },
-
-  // Éducation & Autres
-  { id: 'univ-cocody', type: 'education', name: 'Université Cocody', lat: 5.3420, lng: -4.0020, area: 'Cocody', safety: 3, description: 'Université' },
-  { id: 'marche-treich', type: 'commerce', name: 'Marché de Treichville', lat: 5.3180, lng: -4.0480, area: 'Treichville', safety: 2, description: 'Grand marché' },
-];
+function setCache(key, data) {
+  // Cache disabled - don't store
+}
 
 const AMENITY_TO_TYPE = {
   police:       'police',
@@ -99,9 +74,10 @@ function getDistance(lat1, lng1, lat2, lng2) {
 // Fetch real places from Foursquare Places API (Primary source)
 // Better data coverage and accuracy than OpenStreetMap for Abidjan
 async function fetchFoursquare(lat, lng, radius) {
-  const apiKey = process.env.FOURSQUARE_API_KEY;
-  if (!apiKey) {
-    console.error('[Foursquare] API Key not configured');
+  const clientId = process.env.FOURSQUARE_CLIENT_ID;
+  const clientSecret = process.env.FOURSQUARE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    console.error('[Foursquare] Client ID or Secret not configured');
     return null;
   }
 
@@ -112,40 +88,40 @@ async function fetchFoursquare(lat, lng, radius) {
     { q: 'hospital', type: 'hopital' },
     { q: 'fire station', type: 'pompiers' },
     { q: 'clinic', type: 'hopital' },
-    { q: 'medical center', type: 'hopital' }
+    { q: 'medical', type: 'hopital' }
   ];
 
   const allPlaces = [];
 
   try {
-    log(`[Foursquare] Searching safe places around ${lat.toFixed(4)}, ${lng.toFixed(4)} (radius: ${radius}m)`);
+    console.log(`[Foursquare] Searching safe places around ${lat.toFixed(4)}, ${lng.toFixed(4)} (radius: ${radius}m)`);
 
     for (const query of queries) {
       try {
-        // Foursquare Places API v3 with Bearer Token
+        // Foursquare Places API v3 with Client ID + Secret
         const url = `https://api.foursquare.com/v3/places/search?` +
-          `query=${encodeURIComponent(query.q)}&ll=${lat},${lng}&radius=${radius}&limit=50`;
+          `query=${encodeURIComponent(query.q)}&near=${lat},${lng}&radius=${radius}&limit=50&` +
+          `client_id=${clientId}&client_secret=${clientSecret}`;
 
         const response = await fetch(url, {
           headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
+            'Accept': 'application/json'
           },
           signal: AbortSignal.timeout(8000)
         });
 
         if (!response.ok) {
-          log(`[Foursquare] ${query.q}: HTTP ${response.status}`);
+          console.log(`[Foursquare] ${query.q}: HTTP ${response.status}`);
           continue;
         }
 
         const data = await response.json();
         if (!data.results || data.results.length === 0) {
-          log(`[Foursquare] ${query.q}: no results`);
+          console.log(`[Foursquare] ${query.q}: no results`);
           continue;
         }
 
-        log(`[Foursquare] ${query.q}: found ${data.results.length} results`);
+        console.log(`[Foursquare] ${query.q}: found ${data.results.length} results`);
 
         // Convert Foursquare format to our format
         const places = data.results
@@ -163,7 +139,7 @@ async function fetchFoursquare(lat, lng, radius) {
 
         if (places.length > 0) {
           allPlaces.push(...places);
-          log(`[Foursquare] Added ${places.length} places from ${query.q}`);
+          console.log(`[Foursquare] Added ${places.length} places from ${query.q}`);
         }
       } catch (err) {
         console.error(`[Foursquare] Error: ${query.q} -`, err.message);
@@ -171,7 +147,7 @@ async function fetchFoursquare(lat, lng, radius) {
     }
 
     if (allPlaces.length === 0) {
-      log('[Foursquare] No places found');
+      console.log('[Foursquare] No places found');
       return null;
     }
 
@@ -192,9 +168,9 @@ async function fetchFoursquare(lat, lng, radius) {
     // Sort by closest distance
     const sorted = withDistance.sort((a, b) => a.distance - b.distance);
 
-    log(`[Foursquare] Found ${unique.length} places, ${withDistance.length} within radius`);
+    console.log(`[Foursquare] Found ${unique.length} places, ${withDistance.length} within radius`);
     if (sorted.length > 0) {
-      log('[Foursquare] Top 5:', sorted.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(3)}km)`));
+      console.log('[Foursquare] Top 5:', sorted.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(3)}km)`));
     }
 
     // Remove distance field before returning
@@ -223,7 +199,7 @@ async function fetchOverpass(lat, lng, radius) {
 out center;`;
 
   try {
-    log(`[Overpass] Searching all amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)} (radius: ${radius}m)`);
+    console.log(`[Overpass] Searching all amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)} (radius: ${radius}m)`);
 
     const response = await fetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
@@ -233,7 +209,7 @@ out center;`;
     });
 
     if (!response.ok) {
-      log(`[Overpass] HTTP ${response.status}`);
+      console.log(`[Overpass] HTTP ${response.status}`);
       return null;
     }
 
@@ -241,11 +217,11 @@ out center;`;
     const json = JSON.parse(text);
 
     if (!json.elements || json.elements.length === 0) {
-      log('[Overpass] No amenities found');
+      console.log('[Overpass] No amenities found');
       return null;
     }
 
-    log(`[Overpass] Found ${json.elements.length} total amenities, filtering by distance...`);
+    console.log(`[Overpass] Found ${json.elements.length} total amenities, filtering by distance...`);
 
     // Convert Overpass format and calculate distances
     const placesWithDistance = json.elements
@@ -281,9 +257,9 @@ out center;`;
       // Sort by distance - CLOSEST first
       .sort((a, b) => a.distance - b.distance);
 
-    log(`[Overpass] After distance filter: ${placesWithDistance.length} places within ${radius}m`);
+    console.log(`[Overpass] After distance filter: ${placesWithDistance.length} places within ${radius}m`);
     if (placesWithDistance.length > 0) {
-      log('[Overpass] Top results:', placesWithDistance.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(3)}km, ${p.type})`));
+      console.log('[Overpass] Top results:', placesWithDistance.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(3)}km, ${p.type})`));
     }
 
     // Remove distance field before returning
@@ -292,85 +268,6 @@ out center;`;
 
   } catch (err) {
     console.error(`[Overpass] Error:`, err.message);
-    return null;
-  }
-}
-
-// Fetch real places using Photon API (Komoot)
-// More precise than Nominatim - searches ALL real places from OpenStreetMap
-async function fetchPhoton(lat, lng, radius) {
-  try {
-    log(`[Photon] Searching nearby places around ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-
-    const photonUrl = new URL('https://photon.komoot.io/api/');
-    photonUrl.searchParams.append('lat', lat);
-    photonUrl.searchParams.append('lon', lng);
-    photonUrl.searchParams.append('limit', '50');
-    photonUrl.searchParams.append('lang', 'fr');
-    photonUrl.searchParams.append('radius', Math.min(radius / 1000, 50)); // Convert meters to km, max 50km
-
-    const response = await fetch(photonUrl.toString(), {
-      signal: AbortSignal.timeout(8000)
-    });
-
-    if (!response.ok) {
-      log(`[Photon] HTTP ${response.status}`);
-      return null;
-    }
-
-    const data = await response.json();
-    if (!data.features || data.features.length === 0) {
-      log('[Photon] No features found');
-      return null;
-    }
-
-    log(`[Photon] Found ${data.features.length} features`);
-
-    // Convert Photon format to our format
-    const places = data.features
-      .filter(f => f.geometry && f.geometry.coordinates && f.properties && f.properties.name)
-      .map(f => {
-        const [lng_coord, lat_coord] = f.geometry.coordinates;
-        const props = f.properties;
-
-        // Determine type from OSM tags
-        let type = 'autre';
-        const osm_key = props.osm_key || '';
-        const osm_value = props.osm_value || '';
-
-        if (osm_key === 'amenity') {
-          if (['police', 'police_station'].includes(osm_value)) type = 'police';
-          else if (osm_value === 'pharmacy') type = 'pharmacie';
-          else if (['hospital', 'clinic', 'health_center'].includes(osm_value)) type = 'hopital';
-          else if (osm_value === 'fire_station') type = 'pompiers';
-        }
-
-        return {
-          id: `${props.osm_id}-photon`,
-          type: type,
-          name: props.name,
-          lat: lat_coord,
-          lng: lng_coord,
-          address: props.street ? `${props.street}, ${props.city || 'Abidjan'}` : (props.city || 'Abidjan'),
-          phone: null,
-          source: 'photon',
-          distance: getDistance(lat, lng, lat_coord, lng_coord)
-        };
-      })
-      // Filter by radius
-      .filter(p => p.distance <= (radius / 1000))
-      // Sort by distance
-      .sort((a, b) => a.distance - b.distance);
-
-    log(`[Photon] ${places.length} places within radius`);
-    if (places.length > 0) {
-      log('[Photon] Top results:', places.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(3)}km)`));
-    }
-
-    return places.length > 0 ? places : null;
-
-  } catch (err) {
-    console.error('[Photon] Error:', err.message);
     return null;
   }
 }
@@ -394,7 +291,7 @@ async function fetchNominatim(lat, lng, radius) {
   const bbox = `${lng - 0.3},${lat - 0.3},${lng + 0.3},${lat + 0.3}`;
 
   try {
-    log(`[Nominatim] Searching French amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    console.log(`[Nominatim] Searching French amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
 
     // Search for each French term
     for (const query of queries) {
@@ -403,7 +300,7 @@ async function fetchNominatim(lat, lng, radius) {
           `q=${encodeURIComponent(query)}&format=json&limit=100&` +
           `viewbox=${bbox}&bounded=1&countrycodes=ci&accept-language=fr`;
 
-        log(`[Nominatim] Searching: ${query}`);
+        console.log(`[Nominatim] Searching: ${query}`);
 
         const response = await fetch(url, {
           signal: AbortSignal.timeout(8000),
@@ -411,17 +308,17 @@ async function fetchNominatim(lat, lng, radius) {
         });
 
         if (!response.ok) {
-          log(`[Nominatim] ${query}: HTTP ${response.status}`);
+          console.log(`[Nominatim] ${query}: HTTP ${response.status}`);
           continue;
         }
 
         const results = await response.json();
         if (!results || results.length === 0) {
-          log(`[Nominatim] ${query}: no results`);
+          console.log(`[Nominatim] ${query}: no results`);
           continue;
         }
 
-        log(`[Nominatim] ${query}: found ${results.length} results`);
+        console.log(`[Nominatim] ${query}: found ${results.length} results`);
 
         // Convert all results to our format
         const places = results
@@ -448,7 +345,7 @@ async function fetchNominatim(lat, lng, radius) {
 
         if (places.length > 0) {
           allPlaces.push(...places);
-          log(`[Nominatim] Added ${places.length} places from "${query}"`);
+          console.log(`[Nominatim] Added ${places.length} places from "${query}"`);
         }
       } catch (err) {
         console.error(`[Nominatim] Error: ${query} -`, err.message);
@@ -456,7 +353,7 @@ async function fetchNominatim(lat, lng, radius) {
     }
 
     if (allPlaces.length === 0) {
-      log('[Nominatim] No places found');
+      console.log('[Nominatim] No places found');
       return null;
     }
 
@@ -466,27 +363,21 @@ async function fetchNominatim(lat, lng, radius) {
       return exists ? acc : [...acc, p];
     }, []);
 
-    // Calculate distances
+    // Calculate distances but DON'T filter strictly - return what we found
     const withDistance = unique
       .map(p => ({
         ...p,
         distance: getDistance(lat, lng, p.lat, p.lng)
       }));
 
-    // FILTER: Only keep places within 2km (walking distance)
-    const withinRadius = withDistance.filter(p => p.distance <= 2);
-
     // Sort by closest distance
-    const sorted = withinRadius.sort((a, b) => a.distance - b.distance);
+    const sorted = withDistance.sort((a, b) => a.distance - b.distance);
 
-    log(`[Nominatim] Total: ${allPlaces.length}, unique: ${unique.length}, within 5km: ${withinRadius.length}`);
-
-    // Return top 5 closest within 5km
-    const top5 = sorted.slice(0, 5);
-    log('[Nominatim] Top 5 closest (within 5km):', top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km, ${p.type})`));
+    console.log(`[Nominatim] Total: ${allPlaces.length}, unique: ${unique.length}, returning all`);
+    console.log('[Nominatim] Top 10:', sorted.slice(0, 10).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km, ${p.type})`));
 
     // Remove distance field before returning
-    const result = top5.map(({ distance, ...p }) => p);
+    const result = sorted.map(({ distance, ...p }) => p);
     return result.length > 0 ? result : null;
 
   } catch (err) {
@@ -495,114 +386,55 @@ async function fetchNominatim(lat, lng, radius) {
   }
 }
 
-// Cache simple en mémoire (5 min TTL)
-const placesCache = new Map();
-
-function getCacheKey(lat, lng, radius) {
-  return `${lat.toFixed(4)}-${lng.toFixed(4)}-${radius}`;
-}
-
-function getCachedPlaces(key) {
-  const cached = placesCache.get(key);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    log(`[Places] Cache hit for ${key}`);
-    return cached.data;
-  }
-  return null;
-}
-
-function setCachedPlaces(key, data) {
-  placesCache.set(key, { data, timestamp: Date.now() });
-}
-
-// Type priority for sorting
-const typePriority = {
-  police: 0,
-  gendarmerie: 0,
-  pharmacie: 1,
-  pompiers: 1,
-  hopital: 2,
-  restaurant: 3,
-  quartier: 4,
-  transport: 5,
-  education: 6,
-  autre: 99
-};
-
-// GET /api/places - Foursquare-powered safe places (avec fallback)
+// GET /api/places?lat=X&lng=Y&radius=1000
 router.get('/', async (req, res) => {
-  const { lat, lng, radius } = req.query;
-
-  if (!lat || !lng) {
-    return res.json({ success: true, data: [] });
+  const { error, value } = querySchema.validate(req.query);
+  if (error) {
+    return res.status(400).json({ success: false, error: error.details[0].message });
   }
 
-  const userLat = parseFloat(lat);
-  const userLng = parseFloat(lng);
-  const radiusMeters = parseInt(radius) || 5000;
-  const radiusKm = radiusMeters / 1000;
+  const { lat, lng, radius } = value;
+  console.log(`\n[GET /api/places] INCOMING REQUEST: lat=${lat}, lng=${lng}, radius=${radius}`);
 
-  log(`[Places] Looking for safe places around ${userLat.toFixed(4)}, ${userLng.toFixed(4)} (radius: ${radiusKm}km)`);
+  const cacheKey = `${lat}_${lng}_${radius}`;
 
-  // Check cache first
-  const cacheKey = getCacheKey(userLat, userLng, radiusMeters);
-  const cached = getCachedPlaces(cacheKey);
+  const cached = getCached(cacheKey);
   if (cached) {
-    return res.json({ success: true, data: cached });
+    console.log(`[GET /api/places] Cache hit`);
+    return res.json({ success: true, data: cached, source: 'cache' });
   }
+  console.log(`[GET /api/places] Cache miss, fetching fresh data`);
 
   try {
-    // Skip Overpass (Render blocks it) - go DIRECTLY to Photon!
-    // Photon is accurate and works from Render
-    log(`[Places] Fetching from Photon (Komoot OpenStreetMap)...`);
-    const photonResults = await Promise.race([
-      fetchPhoton(userLat, userLng, radiusKm * 1000),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000))
-    ]);
+    // Use Nominatim with improved French-based search
+    let places = await fetchNominatim(lat, lng, radius);
 
-    if (photonResults && photonResults.length > 0) {
-      log(`[Places] Got ${photonResults.length} results from Photon`);
-      const nearest = photonResults
-        .sort((a, b) => {
-          const aPriority = typePriority[a.type] !== undefined ? typePriority[a.type] : 99;
-          const bPriority = typePriority[b.type] !== undefined ? typePriority[b.type] : 99;
-          if (aPriority !== bPriority) return aPriority - bPriority;
-          return (a.distance || 0) - (b.distance || 0);
-        })
-        .slice(0, 5);
-
-      log(`[Places] Returning ${nearest.length} from Photon`);
-      setCachedPlaces(cacheKey, nearest);
-      return res.json({ success: true, data: nearest });
+    // If no results, return empty
+    if (!places || places.length === 0) {
+      console.log(`[GET /api/places] No places found near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      return res.json({ success: true, data: [], source: 'empty' });
     }
 
-    // Final fallback to static emergency locations
-    throw new Error('No OSM results');
-
-  } catch (err) {
-    log(`[Places] External APIs failed (${err.message}), using FALLBACK_PLACES only...`);
-
-    // Use only FALLBACK_PLACES - these are verified real emergency locations
-    // Don't mix with SAFE_PLACES which are generic districts
-    const withDistance = FALLBACK_PLACES.map(p => ({
+    // Calculate distances and sort by closest
+    const withDistance = places.map(p => ({
       ...p,
-      distance: getDistance(userLat, userLng, p.lat, p.lng)
+      distance: getDistance(lat, lng, p.lat, p.lng)
     }));
 
-    const nearest = withDistance
-      .filter(p => p.distance <= radiusKm)
-      .sort((a, b) => {
-        const aPriority = typePriority[a.type] !== undefined ? typePriority[a.type] : 99;
-        const bPriority = typePriority[b.type] !== undefined ? typePriority[b.type] : 99;
-        if (aPriority !== bPriority) return aPriority - bPriority;
-        return a.distance - b.distance;
-      })
-      .slice(0, 5)
-      .map(({ distance, ...p }) => p);
+    const sorted = withDistance.sort((a, b) => a.distance - b.distance);
+    const top5 = sorted.slice(0, 5);
+    const result = top5.map(({ distance, ...p }) => p);
 
-    log(`[Places] Returning ${nearest.length} from FALLBACK_PLACES (real emergency locations)`);
-    setCachedPlaces(cacheKey, nearest);
-    return res.json({ success: true, data: nearest });
+    console.log(`[GET /api/places] User at ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    console.log(`[GET /api/places] Found ${places.length} places, returning top 5 closest:`);
+    console.log(top5.map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km)`));
+
+    setCache(cacheKey, result);
+    return res.json({ success: true, data: result, source: 'nominatim' });
+
+  } catch (err) {
+    console.error('[GET /api/places] Error:', err.message);
+    return res.json({ success: true, data: [], source: 'error' });
   }
 });
 
