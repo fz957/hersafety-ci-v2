@@ -81,16 +81,20 @@ router.post('/', async (req, res) => {
         // SEND EMAILS IN BACKGROUND (don't block the alert creation response)
         // Envoyer emails aux contacts
         (async () => {
+          console.log(`[Alert] Starting email send - ${contacts.length} contacts found`);
           let emailsSent = 0;
           for (const contact of contacts) {
+            console.log(`[Alert] Contact: email="${contact.email}"`);
             if (contact.email) {
               try {
+                console.log(`[Alert] Sending email to ${contact.email}...`);
                 const emailResult = await sendAlertEmail(contact.email, {
                   senderName: sender.full_name,
                   alertLevel: value.level,
                   locationLabel: value.location_label,
                   createdAt: alert.created_at,
                 });
+                console.log(`[Alert] Email result for ${contact.email}:`, emailResult);
                 if (emailResult.success) emailsSent++;
               } catch (err) {
                 console.error('[Alert Email] Error sending to contact:', err.message);
