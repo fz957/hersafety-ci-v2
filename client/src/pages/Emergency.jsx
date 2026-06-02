@@ -2,6 +2,8 @@ import { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
+import LRM from 'leaflet-routing-machine';
 import { useGPS } from '../hooks/useGPS';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import useSpeechRecognition from '../hooks/useSpeechRecognition';
@@ -12,6 +14,74 @@ import { Icon, Card, Eyebrow, BackButton, PageShell, ScrollArea, Spinner } from 
 import ConfirmationModal from '../components/ConfirmationModal.jsx';
 
 const NUM_COLORS = { police: '#4A6B8A', pompiers: '#C97B3B', hopital: '#5C7F4F', gendarmerie: '#5C5C8A', autre: HS.sakuraDeep };
+
+// Routing control component
+function RoutingControl({ position, selectedPlace, onClose }) {
+  const map = useMap();
+  const routingRef = useRef(null);
+
+  useEffect(() => {
+    if (!position || !selectedPlace || !map) return;
+
+    // Remove old routing
+    if (routingRef.current) {
+      map.removeControl(routingRef.current);
+    }
+
+    // Create new routing
+    routingRef.current = LRM.Routing.control({
+      waypoints: [
+        L.latLng(position.lat, position.lng),
+        L.latLng(selectedPlace.lat, selectedPlace.lng)
+      ],
+      routeWhileDragging: false,
+      showAlternatives: false,
+      lineOptions: {
+        styles: [{ color: HS.sakura, weight: 4, opacity: 0.8 }]
+      }
+    }).addTo(map);
+
+    return () => {
+      if (routingRef.current) {
+        map.removeControl(routingRef.current);
+        routingRef.current = null;
+      }
+    };
+  }, [position, selectedPlace, map]);
+
+  if (!selectedPlace) return null;
+
+  return (
+    <div style={{
+      position: 'absolute',
+      top: 10,
+      right: 10,
+      background: 'white',
+      padding: '12px',
+      borderRadius: 8,
+      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      zIndex: 1000,
+      maxWidth: 250,
+      fontSize: 12
+    }}>
+      <div style={{ fontWeight: 700, marginBottom: 8 }}>🗺️ Itinéraire vers {selectedPlace.name}</div>
+      <button
+        onClick={onClose}
+        style={{
+          width: '100%',
+          padding: '8px',
+          background: HS.sakura,
+          color: '#fff',
+          border: 'none',
+          borderRadius: 6,
+          cursor: 'pointer',
+          fontWeight: 700
+        }}>
+        Fermer
+      </button>
+    </div>
+  );
+}
 
 // Véhicules de transport avec destination = lieu sûr le plus proche
 const getVTCLinks = (safePlace) => {
@@ -604,7 +674,7 @@ export default function Emergency() {
         {/* Lieux sûrs — Carte */}
         <Eyebrow style={{ marginBottom: 10 }}>Lieux sûrs autour de toi</Eyebrow>
         {places.length > 0 && (
-          <div style={{ height: 280, borderRadius: 14, overflow: 'hidden', border: `1px solid ${HS.border}`, marginBottom: 16 }}>
+          <div style={{ height: 280, borderRadius: 14, overflow: 'hidden', border: `1px solid ${HS.border}`, marginBottom: 16, position: 'relative' }}>
             <MapContainer
               center={position || { lat: 5.2757, lng: -3.9761 }}
               zoom={14}
@@ -613,6 +683,7 @@ export default function Emergency() {
               <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
+              <RoutingControl position={position} selectedPlace={selectedPlace} onClose={() => setSelectedPlace(null)} />
               {/* Vous êtes ici — marqueur central */}
               {position && (
                 <CircleMarker
