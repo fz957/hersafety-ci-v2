@@ -33,7 +33,11 @@ function RoutingControl({ position, selectedPlace, onClose }) {
 
     // Create new routing
     try {
-      console.log('[Routing] LRM available?', LRM ? 'YES' : 'NO');
+      console.log('[Routing] LRM available?', LRM ? 'YES' : 'NO', 'LRM.Routing?', LRM?.Routing ? 'YES' : 'NO');
+      if (!LRM || !LRM.Routing) {
+        console.warn('[Routing] leaflet-routing-machine not loaded, skipping route');
+        return;
+      }
       routingRef.current = LRM.Routing.control({
         waypoints: [
           L.latLng(position.lat, position.lng),
@@ -188,20 +192,6 @@ export default function Emergency() {
   // Reset initialization ref when component mounts
   useEffect(() => {
     initializedRef.current = false;
-
-    // Force GPS request immediately when page opens
-    if (navigator.geolocation) {
-      console.log('[Emergency] Requesting GPS immediately...');
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          console.log('[Emergency] GPS obtained:', pos.coords.latitude, pos.coords.longitude);
-        },
-        (err) => {
-          console.warn('[Emergency] GPS error:', err.message);
-        },
-        { enableHighAccuracy: false, timeout: 5000 }
-      );
-    }
   }, []);
 
   // Chrono
