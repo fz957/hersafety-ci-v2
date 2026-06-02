@@ -10,17 +10,27 @@ export function useEmergency() {
   const triggerAlert = useCallback(async (level, extras = {}) => {
     setLoading(true);
     try {
-      const res = await api.post('/api/alerts', { level: String(level), ...extras });
-      const alert = res.data.data.alert;
-      setActiveAlert(alert);
+      // Pour niveaux 3 et 4, naviguer IMMÉDIATEMENT sans attendre l'API
       if (['3', '4'].includes(String(level))) {
-        navigate('/emergency', { state: { alert, level: String(level) } });
+        navigate('/emergency', { state: { level: String(level) } });
       }
-      return alert;
-    } catch (err) {
-      console.error('[useEmergency] Alert creation error:', err.message);
-      alert(`❌ Erreur alerte: ${err.message}`);
-      return null;
+
+      // Créer l'alerte en background (timeout 5s max)
+      const alertPromise = api.post('/api/alerts', { level: String(level), ...extras });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('API timeout')), 5000)
+      );
+
+      try {
+        const res = await Promise.race([alertPromise, timeoutPromise]);
+        const alert = res.data.data.alert;
+        setActiveAlert(alert);
+        return alert;
+      } catch (err) {
+        console.warn('[useEmergency] Alert creation background error:', err.message);
+        // Ne pas bloquer - on a déjà navigué vers Emergency
+        return null;
+      }
     } finally {
       setLoading(false);
     }
