@@ -552,31 +552,9 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    // Use OVERPASS (OpenStreetMap) - free & reliable for Abidjan
-    log(`[Places] Fetching from Overpass (OpenStreetMap)...`);
-    const overpassResults = await Promise.race([
-      fetchOverpass(userLat, userLng, radiusMeters),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
-    ]);
-
-    if (overpassResults && overpassResults.length > 0) {
-      log(`[Places] Got ${overpassResults.length} results from Overpass`);
-      const nearest = overpassResults
-        .sort((a, b) => {
-          const aPriority = typePriority[a.type] !== undefined ? typePriority[a.type] : 99;
-          const bPriority = typePriority[b.type] !== undefined ? typePriority[b.type] : 99;
-          if (aPriority !== bPriority) return aPriority - bPriority;
-          return (a.distance || 0) - (b.distance || 0);
-        })
-        .slice(0, 5);
-
-      log(`[Places] Returning ${nearest.length} from Overpass`);
-      setCachedPlaces(cacheKey, nearest);
-      return res.json({ success: true, data: nearest });
-    }
-
-    // Fallback to Photon if Overpass fails (more precise than Nominatim!)
-    log(`[Places] Overpass returned no results, trying Photon...`);
+    // Skip Overpass (Render blocks it) - go DIRECTLY to Photon!
+    // Photon is accurate and works from Render
+    log(`[Places] Fetching from Photon (Komoot OpenStreetMap)...`);
     const photonResults = await Promise.race([
       fetchPhoton(userLat, userLng, radiusKm * 1000),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000))
