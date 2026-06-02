@@ -473,47 +473,54 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    // PRODUCTION FIX: Skip external APIs and use FALLBACK_PLACES directly (real data)
-    // They're verified emergency locations in Abidjan with actual phone numbers
-    const hasApiKeys = !!process.env.FOURSQUARE_API_KEY;
-
-    if (!hasApiKeys) {
-      log(`[Places] No external API keys configured, using FALLBACK_PLACES (real emergency locations)`);
-      throw new Error('Using fallback');
-    }
-
-    // Try Foursquare first (with timeout) - only if API key exists
-    log(`[Places] Fetching from Foursquare...`);
-    const foursquareResults = await Promise.race([
-      fetchFoursquare(userLat, userLng, radiusMeters),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+    // Use OVERPASS (OpenStreetMap) - free & reliable for Abidjan
+    log(`[Places] Fetching from Overpass (OpenStreetMap)...`);
+    const overpassResults = await Promise.race([
+      fetchOverpass(userLat, userLng, radiusMeters),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
     ]);
 
-    if (foursquareResults && foursquareResults.length > 0) {
-      log(`[Places] Got ${foursquareResults.length} results from Foursquare`);
-      const withDistance = foursquareResults.map(p => ({
-        ...p,
-        distance: getDistance(userLat, userLng, p.lat, p.lng)
-      }));
-
-      const nearest = withDistance
-        .filter(p => p.distance <= radiusKm)
+    if (overpassResults && overpassResults.length > 0) {
+      log(`[Places] Got ${overpassResults.length} results from Overpass`);
+      const nearest = overpassResults
         .sort((a, b) => {
           const aPriority = typePriority[a.type] !== undefined ? typePriority[a.type] : 99;
           const bPriority = typePriority[b.type] !== undefined ? typePriority[b.type] : 99;
           if (aPriority !== bPriority) return aPriority - bPriority;
-          return a.distance - b.distance;
+          return (a.distance || 0) - (b.distance || 0);
         })
-        .slice(0, 5)
-        .map(({ distance, ...p }) => p);
+        .slice(0, 5);
 
-      log(`[Places] Returning ${nearest.length} from Foursquare`);
+      log(`[Places] Returning ${nearest.length} from Overpass`);
       setCachedPlaces(cacheKey, nearest);
       return res.json({ success: true, data: nearest });
     }
 
-    // Fallback to static list if Foursquare fails
-    throw new Error('No Foursquare results');
+    // Fallback to Nominatim if Overpass fails
+    log(`[Places] Overpass returned no results, trying Nominatim...`);
+    const nominatimResults = await Promise.race([
+      fetchNominatim(userLat, userLng, radiusMeters),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000))
+    ]);
+
+    if (nominatimResults && nominatimResults.length > 0) {
+      log(`[Places] Got ${nominatimResults.length} results from Nominatim`);
+      const nearest = nominatimResults
+        .sort((a, b) => {
+          const aPriority = typePriority[a.type] !== undefined ? typePriority[a.type] : 99;
+          const bPriority = typePriority[b.type] !== undefined ? typePriority[b.type] : 99;
+          if (aPriority !== bPriority) return aPriority - bPriority;
+          return (a.distance || 0) - (b.distance || 0);
+        })
+        .slice(0, 5);
+
+      log(`[Places] Returning ${nearest.length} from Nominatim`);
+      setCachedPlaces(cacheKey, nearest);
+      return res.json({ success: true, data: nearest });
+    }
+
+    // Final fallback to static emergency locations
+    throw new Error('No OSM results');
 
   } catch (err) {
     log(`[Places] External APIs failed (${err.message}), using FALLBACK_PLACES only...`);
