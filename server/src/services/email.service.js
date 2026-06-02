@@ -4,12 +4,52 @@
  */
 
 const nodemailer = require('nodemailer');
+const fetch = require('node-fetch');
 
 // Logger helper - only logs in development mode
 const isDev = process.env.NODE_ENV === 'development';
 const log = (...args) => isDev && console.log(...args);
 
 let transporter = null;
+
+// MailerSend API wrapper (compatible with nodemailer interface)
+class MailerSendTransporter {
+  constructor(apiKey) {
+    this.apiKey = apiKey;
+    this.baseUrl = 'https://api.mailersend.com/v1';
+  }
+
+  async sendMail(mailOptions) {
+    try {
+      const response = await fetch(`${this.baseUrl}/email`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: {
+            email: mailOptions.from,
+            name: 'HerSafety',
+          },
+          to: [{ email: mailOptions.to }],
+          subject: mailOptions.subject,
+          html: mailOptions.html,
+          text: mailOptions.text || '',
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`MailerSend API error: ${error.message || response.statusText}`);
+      }
+
+      return { response: { messageId: await response.json() } };
+    } catch (err) {
+      throw err;
+    }
+  }
+}
 
 /**
  * Initialize email transporter
@@ -23,10 +63,13 @@ const initializeTransporter = () => {
   try {
     console.log('[Email] ===== INITIALIZING TRANSPORTER =====');
     console.log('[Email] EMAIL_PROVIDER:', process.env.EMAIL_PROVIDER);
+    console.log('[Email] MAILERSEND_API_KEY:', process.env.MAILERSEND_API_KEY ? `✓ Length ${process.env.MAILERSEND_API_KEY.length}` : '✗ NOT SET');
     console.log('[Email] GMAIL_USER:', process.env.GMAIL_USER ? `✓ ${process.env.GMAIL_USER}` : '✗ NOT SET');
     console.log('[Email] GMAIL_PASSWORD:', process.env.GMAIL_PASSWORD ? `✓ Length ${process.env.GMAIL_PASSWORD.length}` : '✗ NOT SET');
 
-    if (process.env.EMAIL_PROVIDER === 'gmail') {
+    if (process.env.EMAIL_PROVIDER === 'mailersend') {
+      transporter = new MailerSendTransporter(process.env.MAILERSEND_API_KEY);
+    } else if (process.env.EMAIL_PROVIDER === 'gmail') {
       transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 587,
