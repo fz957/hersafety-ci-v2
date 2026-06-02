@@ -437,7 +437,7 @@ export default function Emergency() {
           contacts_alerted: [], // À compléter si nécessaire
           sms_sent: [],
           audio_base64: base64Audio,
-          status: 'active',
+          status: finalLocation ? 'resolved' : 'active', // Mark as resolved if user pressed "Je suis en sécurité" (finalLocation provided)
         };
 
         console.log('[Emergency SAVE] Posting to /api/emergency-history...');
