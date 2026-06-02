@@ -431,36 +431,16 @@ router.get('/', async (req, res) => {
     return res.json({ success: true, data: result, source: 'local' });
   } catch (err) {
     console.error('[GET /api/places] Error:', err.message);
-
     // Final fallback: ALWAYS return something
-    const withDistance = FALLBACK_PLACES.map(p => ({
+    const fallbackWithDistance = FALLBACK_PLACES.map(p => ({
       ...p,
       distance: getDistance(lat, lng, p.lat, p.lng)
     }));
-
-    const withDistance = FALLBACK_PLACES.map(p => ({
-      ...p,
-      distance: getDistance(lat, lng, p.lat, p.lng)
-    }));
-
-    const sorted = withDistance
+    const sorted = fallbackWithDistance
       .filter(p => p.distance <= (radius / 1000))
       .sort((a, b) => a.distance - b.distance);
-
     const result = sorted.slice(0, 15).map(({ distance, ...p }) => p);
-
     console.log(`[GET /api/places] Returning ${result.length} fallback places`);
-    return res.json({ success: true, data: result, source: 'fallback' });
-
-  } catch (err) {
-    console.error('[GET /api/places] Error:', err.message);
-    // Final fallback
-    const withDistance = FALLBACK_PLACES.map(p => ({
-      ...p,
-      distance: getDistance(lat, lng, p.lat, p.lng)
-    }));
-    const sorted = withDistance.sort((a, b) => a.distance - b.distance);
-    const result = sorted.slice(0, 15).map(({ distance, ...p }) => p);
     return res.json({ success: true, data: result, source: 'error' });
   }
 });
