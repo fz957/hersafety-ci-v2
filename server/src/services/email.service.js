@@ -72,6 +72,9 @@ class EmailJSTransporter {
       formData.append('subject', mailOptions.subject);
       formData.append('message', mailOptions.html);
       formData.append('name', 'HerSafety');
+      // Add optional fields if provided
+      if (mailOptions.senderEmail) formData.append('senderEmail', mailOptions.senderEmail);
+      if (mailOptions.senderName) formData.append('senderName', mailOptions.senderName);
 
       const response = await fetch(this.baseUrl, {
         method: 'POST',
@@ -296,7 +299,7 @@ const sendAlertEmail = async (email, alertData) => {
       return { success: false, error: 'Email service not configured' };
     }
 
-    const { senderName, alertLevel, locationLabel, createdAt } = alertData;
+    const { senderName, senderEmail, alertLevel, locationLabel, createdAt } = alertData;
     const levelLabels = { '1': 'Vigilance', '2': 'Malaise', '3': 'DANGER', '4': 'SOS' };
     const levelColors = { '1': '#7B9171', '2': '#F48FB1', '3': '#C97B3B', '4': '#B71C1C' };
 
@@ -333,6 +336,8 @@ const sendAlertEmail = async (email, alertData) => {
       subject: `🚨 ALERTE ${levelLabels[alertLevel]} — ${senderName}`,
       html: htmlContent,
       text: `ALERTE ${levelLabels[alertLevel]}\n\n${senderName} a déclenché une alerte.\n${locationLabel ? `Localisation: ${locationLabel}` : ''}`,
+      senderEmail: senderEmail,
+      senderName: senderName,
     });
 
     log(`✓ Alert email sent to ${email}:`, result.messageId);

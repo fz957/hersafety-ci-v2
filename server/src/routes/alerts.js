@@ -90,6 +90,7 @@ router.post('/', async (req, res) => {
                 console.log(`[Alert] Sending email to ${contact.email}...`);
                 const emailResult = await sendAlertEmail(contact.email, {
                   senderName: sender.full_name,
+                  senderEmail: sender.email,
                   alertLevel: value.level,
                   locationLabel: value.location_label,
                   createdAt: alert.created_at,
