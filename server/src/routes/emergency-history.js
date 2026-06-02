@@ -4,6 +4,7 @@ const knex = require('../db/knex');
 const { requireAuth } = require('../middlewares/auth');
 const fs = require('fs').promises;
 const path = require('path');
+const { sendAlertEmail, sendAlertConfirmationEmail } = require('../services/email.service');
 
 const router = express.Router();
 
@@ -106,6 +107,106 @@ router.post('/', requireAuth, async (req, res) => {
     // Extract ID from result (could be array or object depending on DB)
     const id = Array.isArray(insertResult) ? insertResult[0]?.id || insertResult[0] : insertResult?.id || insertResult;
     log(`[EmergencyHistory] Emergency sauvegardé: ${id}`);
+
+    // SEND EMAILS IN BACKGROUND for levels 2, 3, 4
+    if (['2', '3', '4'].includes(level)) {
+      (async () => {
+        try {
+          // Récupérer l'utilisateur
+          const sender = await knex('users').where({ id: userId }).first();
+
+          // Récupérer les contacts
+          const contacts = await knex('contacts').where({ user_id: userId });
+
+          console.log(`[EmergencyHistory] Sending emails to ${contacts.length} contacts`);
+
+          if (contacts.length > 0 && sender) {
+            // Format time for email
+            const timeFormatted = new Date().toLocaleString('fr-FR', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+
+            // Build email HTML with ACTUAL VALUES
+            const emailHTML = `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; background: #f5f5f5;">
+  <div style="background: white; padding: 20px; border-radius: 8px;">
+    <h2 style="color: #C2185B; margin-bottom: 16px;">🚨 ALERTE D'URGENCE — HerSafety</h2>
+
+    <p style="font-size: 16px; margin-bottom: 12px;">
+      <strong>${sender.full_name || 'Une femme'}</strong> a besoin de toi!
+    </p>
+
+    <p style="font-size: 16px; margin-bottom: 12px;">
+      Elle a déclenché une alerte de niveau <strong>${level}</strong>
+    </p>
+
+    <div style="background: #f9f9f9; padding: 12px; border-radius: 6px; margin: 16px 0;">
+      <p style="margin: 8px 0;"><strong>📍 Localisation:</strong> ${location_name || 'Non disponible'}</p>
+      <p style="margin: 8px 0;"><strong>⏰ Heure:</strong> ${timeFormatted}</p>
+    </div>
+
+    <div style="margin: 20px 0; padding: 12px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+      <p style="margin: 0; font-weight: bold;">📞 Actions:</p>
+      <ul style="margin: 8px 0; padding-left: 20px;">
+        <li>Appelle-la immédiatement</li>
+        <li>Contacte les services (110)</li>
+        <li>Aide-la si possible</li>
+      </ul>
+    </div>
+
+    <p style="font-size: 18px; text-align: center; color: #C2185B; margin: 20px 0; font-weight: bold;">
+      Elle compte sur toi! 🛡️
+    </p>
+
+    <p style="text-align: center; font-size: 12px; color: #999; margin-top: 20px;">
+      © HerSafety - Plateforme de sécurité personnelle
+    </p>
+  </div>
+</div>
+            `;
+
+            // Send emails to all contacts
+            for (const contact of contacts) {
+              if (contact.email) {
+                try {
+                  console.log(`[EmergencyHistory] Sending email to ${contact.email}...`);
+                  const emailResult = await sendAlertEmail(contact.email, {
+                    subject: `🚨 ALERTE URGENCE - ${sender.full_name || 'Utilisatrice'}`,
+                    senderName: sender.full_name || 'Utilisatrice',
+                    senderEmail: sender.email,
+                    alertLevel: level,
+                    locationLabel: location_name || 'Non précisée',
+                    locationLat: latitude,
+                    locationLng: longitude,
+                    createdAt: new Date(),
+                    html: emailHTML,
+                    message: emailHTML,
+                  });
+                  console.log(`[EmergencyHistory] Email result for ${contact.email}:`, emailResult);
+                } catch (err) {
+                  console.error('[EmergencyHistory] Error sending email:', err.message);
+                }
+              }
+            }
+
+            // Send confirmation email to sender
+            if (sender && sender.email) {
+              try {
+                await sendAlertConfirmationEmail(sender.email, sender.full_name, level, contacts.length, location_name);
+              } catch (err) {
+                console.error('[EmergencyHistory] Error sending confirmation:', err.message);
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[EmergencyHistory] Background email process error:', err.message);
+        }
+      })();
+    }
 
     return res.json({
       success: true,
