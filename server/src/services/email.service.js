@@ -53,10 +53,10 @@ class MailerSendTransporter {
 
 // EmailJS API wrapper (compatible with nodemailer interface)
 class EmailJSTransporter {
-  constructor(serviceId, templateId, publicKey) {
+  constructor(serviceId, templateId, privateKey) {
     this.serviceId = serviceId;
     this.templateId = templateId;
-    this.publicKey = publicKey;
+    this.privateKey = privateKey;
     this.baseUrl = 'https://api.emailjs.com/api/v1.0/email/send';
   }
 
@@ -70,7 +70,7 @@ class EmailJSTransporter {
         body: JSON.stringify({
           service_id: this.serviceId,
           template_id: this.templateId,
-          user_id: this.publicKey,
+          user_id: this.privateKey,
           template_params: {
             to_email: mailOptions.to,
             subject: mailOptions.subject,
@@ -162,7 +162,7 @@ const initializeTransporter = () => {
       transporter = new EmailJSTransporter(
         process.env.EMAILJS_SERVICE_ID,
         process.env.EMAILJS_TEMPLATE_ID,
-        process.env.EMAILJS_PUBLIC_KEY
+        process.env.EMAILJS_PRIVATE_KEY
       );
     } else if (process.env.EMAIL_PROVIDER === 'resend') {
       transporter = new ResendTransporter(process.env.RESEND_API_KEY);
