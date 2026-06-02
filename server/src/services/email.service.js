@@ -69,13 +69,15 @@ class EmailJSTransporter {
       formData.append('user_id', this.publicKey);
       formData.append('accessToken', this.privateKey);
       formData.append('to_email', mailOptions.to || mailOptions.email || '');
-      formData.append('subject', mailOptions.subject);
-      formData.append('from_name', 'HerSafety');
+      formData.append('subject', mailOptions.subject || '');
 
-      // Send all mailOptions fields as template variables
+      // Send all fields as template variables - EmailJS expects them all
       Object.keys(mailOptions).forEach(key => {
-        if (key !== 'to' && key !== 'email' && key !== 'subject' && key !== 'from') {
-          formData.append(key, mailOptions[key] || '');
+        if (key !== 'to' && key !== 'email' && key !== 'subject' && key !== 'from' && key !== 'html' && key !== 'message') {
+          const value = mailOptions[key];
+          if (value !== null && value !== undefined) {
+            formData.append(key, String(value));
+          }
         }
       });
 
