@@ -51,6 +51,42 @@ class MailerSendTransporter {
   }
 }
 
+// Resend API wrapper (compatible with nodemailer interface)
+class ResendTransporter {
+  constructor(apiKey) {
+    this.apiKey = apiKey;
+    this.baseUrl = 'https://api.resend.com';
+  }
+
+  async sendMail(mailOptions) {
+    try {
+      const response = await fetch(`${this.baseUrl}/emails`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: mailOptions.from,
+          to: mailOptions.to,
+          subject: mailOptions.subject,
+          html: mailOptions.html,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`Resend API error: ${error.message || response.statusText}`);
+      }
+
+      const data = await response.json();
+      return { response: { messageId: data.id } };
+    } catch (err) {
+      throw err;
+    }
+  }
+}
+
 // Helper to get correct "from" email based on provider
 const getFromEmail = () => {
   if (process.env.EMAIL_PROVIDER === 'mailersend' && process.env.MAILERSEND_DOMAIN) {
@@ -77,7 +113,9 @@ const initializeTransporter = () => {
     console.log('[Email] GMAIL_USER:', process.env.GMAIL_USER ? `✓ ${process.env.GMAIL_USER}` : '✗ NOT SET');
     console.log('[Email] GMAIL_PASSWORD:', process.env.GMAIL_PASSWORD ? `✓ Length ${process.env.GMAIL_PASSWORD.length}` : '✗ NOT SET');
 
-    if (process.env.EMAIL_PROVIDER === 'mailersend') {
+    if (process.env.EMAIL_PROVIDER === 'resend') {
+      transporter = new ResendTransporter(process.env.RESEND_API_KEY);
+    } else if (process.env.EMAIL_PROVIDER === 'mailersend') {
       transporter = new MailerSendTransporter(process.env.MAILERSEND_API_KEY);
     } else if (process.env.EMAIL_PROVIDER === 'gmail') {
       transporter = nodemailer.createTransport({
