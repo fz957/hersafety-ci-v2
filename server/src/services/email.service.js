@@ -65,15 +65,16 @@ class EmailJSTransporter {
     try {
       const formData = new URLSearchParams();
       formData.append('service_id', this.serviceId);
-      formData.append('template_id', this.templateId); // Use the template
+      formData.append('template_id', this.templateId);
       formData.append('user_id', this.publicKey);
       formData.append('accessToken', this.privateKey);
-      formData.append('to_email', mailOptions.to);
+      formData.append('to_email', mailOptions.to || mailOptions.email || '');
       formData.append('subject', mailOptions.subject);
+      formData.append('from_name', 'HerSafety');
 
       // Send all mailOptions fields as template variables
       Object.keys(mailOptions).forEach(key => {
-        if (key !== 'to' && key !== 'subject' && key !== 'from') {
+        if (key !== 'to' && key !== 'email' && key !== 'subject' && key !== 'from') {
           formData.append(key, mailOptions[key] || '');
         }
       });
