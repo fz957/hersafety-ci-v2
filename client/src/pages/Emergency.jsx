@@ -109,6 +109,20 @@ export default function Emergency() {
   // Reset initialization ref when component mounts
   useEffect(() => {
     initializedRef.current = false;
+
+    // Force GPS request immediately when page opens
+    if (navigator.geolocation) {
+      console.log('[Emergency] Requesting GPS immediately...');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          console.log('[Emergency] GPS obtained:', pos.coords.latitude, pos.coords.longitude);
+        },
+        (err) => {
+          console.warn('[Emergency] GPS error:', err.message);
+        },
+        { enableHighAccuracy: false, timeout: 5000 }
+      );
+    }
   }, []);
 
   // Chrono
@@ -592,7 +606,7 @@ export default function Emergency() {
         {places.length > 0 && (
           <div style={{ height: 280, borderRadius: 14, overflow: 'hidden', border: `1px solid ${HS.border}`, marginBottom: 16 }}>
             <MapContainer
-              center={position || { lat: 6.8276, lng: -5.2893 }}
+              center={position || { lat: 5.2757, lng: -3.9761 }}
               zoom={14}
               style={{ width: '100%', height: '100%' }}
               attributionControl={false}>

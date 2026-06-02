@@ -21,6 +21,9 @@ const CI_LOCATIONS = [
   { name: 'Treichville', area: 'Sud', lat: 5.3200, lng: -4.0500, safety: 2, incidents: 0, description: 'Zone portuaire' },
 
   // RESTAURANTS/CAFES REELS
+  { name: 'Le Sayour', area: 'Bietry', lat: 5.2760, lng: -3.9765, safety: 3, incidents: 0, description: 'Restaurant Bietry' },
+  { name: 'POI&GO nom', area: 'Bietry', lat: 5.2758, lng: -3.9760, safety: 3, incidents: 0, description: 'Restaurant Bietry' },
+  { name: 'La pizza d\'or', area: 'Bietry', lat: 5.2765, lng: -3.9770, safety: 3, incidents: 0, description: 'Restaurant Bietry' },
   { name: 'Espace Lokodjé', area: 'Plateau', lat: 5.3410, lng: -4.0390, safety: 3, incidents: 0, description: 'Restaurant Plateau' },
   { name: 'Au Petit Suisse', area: 'Cocody', lat: 5.3375, lng: -4.0140, safety: 4, incidents: 0, description: 'Restaurant Cocody' },
   { name: 'La Réserve', area: 'Cocody', lat: 5.3380, lng: -4.0155, safety: 4, incidents: 0, description: 'Restaurant haut de gamme' },

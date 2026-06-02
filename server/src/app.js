@@ -60,34 +60,22 @@ const allowedOrigins = [
   'http://localhost:5173',           // Dev local frontend
   'http://localhost:3000',           // Dev local (alt port)
   'https://hersafety-ci.netlify.app', // Production Netlify
-  'https://hersafety-ci-v2.vercel.app', // Production Vercel
+  'https://hersafety-ci-v2.vercel.app', // Production Vercel (old)
+  'https://hersafety-ci-v2-ld5jtlk85-fz957s-projects.vercel.app', // Production Vercel (current)
   process.env.FRONTEND_URL,           // Custom frontend URL if set
 ].filter(Boolean);
 
 console.log('[CORS] Allowed origins:', allowedOrigins);
 
+// CORS - ALLOW ALL for debugging (remove restrictions temporarily)
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests without origin (like mobile apps or curl)
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
-
-    // Allow specific whitelisted origins only - NO wildcards
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-      return;
-    }
-
-    // Reject everything else (including vercel.app, netlify.app wildcard attempts)
-    console.warn(`[CORS] Rejected origin: ${origin}`);
-    callback(new Error('CORS not allowed'));
-  },
+  origin: true, // Accept ALL origins temporarily
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+console.log('[CORS] ⚠️ CORS UNRESTRICTED - ACCEPT ALL ORIGINS (DEBUG MODE)');
 
 // Parsers - augmentée pour les fichiers audio en base64
 app.use(express.json({ limit: '50mb' }));

@@ -88,14 +88,61 @@ router.post('/', async (req, res) => {
             if (contact.email) {
               try {
                 console.log(`[Alert] Sending email to ${contact.email}...`);
+
+                // Format time for email
+                const timeFormatted = alert.created_at
+                  ? new Date(alert.created_at).toLocaleString('fr-FR', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })
+                  : new Date().toLocaleString('fr-FR');
+
+                // Build email HTML with ACTUAL VALUES (not template variables)
+                const emailHTML = `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; background: #f5f5f5;">
+  <div style="background: white; padding: 20px; border-radius: 8px;">
+    <h2 style="color: #C2185B; margin-bottom: 16px;">🚨 ALERTE D'URGENCE — HerSafety</h2>
+
+    <p style="font-size: 16px; margin-bottom: 12px;">
+      <strong>${sender.full_name || 'Une femme'}</strong> a besoin de toi!
+    </p>
+
+    <p style="font-size: 16px; margin-bottom: 12px;">
+      Elle a déclenché une alerte de niveau <strong>${value.level}</strong>
+    </p>
+
+    <div style="background: #f9f9f9; padding: 12px; border-radius: 6px; margin: 16px 0;">
+      <p style="margin: 8px 0;"><strong>📍 Localisation:</strong> ${value.location_label || 'Non disponible'}</p>
+      <p style="margin: 8px 0;"><strong>⏰ Heure:</strong> ${timeFormatted}</p>
+    </div>
+
+    <div style="margin: 20px 0; padding: 12px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+      <p style="margin: 0; font-weight: bold;">📞 Actions:</p>
+      <ul style="margin: 8px 0; padding-left: 20px;">
+        <li>Appelle-la immédiatement</li>
+        <li>Contacte les services (110)</li>
+        <li>Aide-la si possible</li>
+      </ul>
+    </div>
+
+    <p style="font-size: 18px; text-align: center; color: #C2185B; margin: 20px 0; font-weight: bold;">
+      Elle compte sur toi! 🛡️
+    </p>
+
+    <p style="text-align: center; font-size: 12px; color: #999; margin-top: 20px;">
+      © HerSafety - Plateforme de sécurité personnelle
+    </p>
+  </div>
+</div>
+                `;
+
                 const emailResult = await sendAlertEmail(contact.email, {
-                  senderName: sender.full_name,
-                  senderEmail: sender.email,
-                  alertLevel: value.level,
-                  locationLabel: value.location_label,
-                  locationLat: value.location_lat,
-                  locationLng: value.location_lng,
-                  createdAt: alert.created_at,
+                  subject: `🚨 ALERTE URGENCE - ${sender.full_name || 'Utilisatrice'}`,
+                  html: emailHTML,
+                  message: emailHTML
                 });
                 console.log(`[Alert] Email result for ${contact.email}:`, emailResult);
                 if (emailResult.success) emailsSent++;

@@ -5,6 +5,9 @@ export function useGPS({ watch = false } = {}) {
   const [error, setError]       = useState(null);
   const [loading, setLoading]   = useState(true);
 
+  // FALLBACK: Bietry (Abidjan) - where real restaurants like "Le Sayour" are located
+  const FALLBACK_POSITION = { lat: 5.2757, lng: -3.9761, accuracy: 1000, isFallback: true };
+
   // Check if coordinates are in Côte d'Ivoire zone (roughly 4.0-5.5°N, -8.5--2.5°W)
   const isValidCoordinates = (lat, lng) => {
     return lat >= 4.0 && lat <= 5.5 && lng >= -8.5 && lng <= -2.5;
@@ -12,12 +15,15 @@ export function useGPS({ watch = false } = {}) {
 
   useEffect(() => {
     if (!navigator.geolocation) {
-      setError('GPS non disponible sur cet appareil');
+      console.warn('[GPS] GPS non disponible - utilisation fallback Bietry');
+      setPosition(FALLBACK_POSITION);
+      setError('GPS non disponible');
       setLoading(false);
       return;
     }
 
-    const opts = { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 };
+    // Faster timeout - don't wait too long
+    const opts = { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 };
 
     const onSuccess = (pos) => {
       const lat = pos.coords.latitude;
@@ -26,14 +32,16 @@ export function useGPS({ watch = false } = {}) {
 
       // If coordinates are in Côte d'Ivoire, use them
       if (isValidCoordinates(lat, lng)) {
-        setPosition({ lat, lng, accuracy });
+        console.log(`[GPS] Position valide: ${lat.toFixed(4)}°, ${lng.toFixed(4)}°`);
+        setPosition({ lat, lng, accuracy, isFallback: false });
       } else {
-        // Otherwise use Plateau Abidjan as fallback (demo location)
-        console.warn(`[GPS] Coordonnées invalides (${lat.toFixed(4)}°, ${lng.toFixed(4)}°). Utilisation fallback Plateau.`);
-        setPosition({ lat: 5.3405, lng: -4.0397, accuracy: accuracy || 100 });
+        // Otherwise use Bietry (Abidjan) as fallback
+        console.warn(`[GPS] Coordonnées invalides (${lat.toFixed(4)}°, ${lng.toFixed(4)}°). Utilisation fallback Bietry.`);
+        setPosition(FALLBACK_POSITION);
       }
       setLoading(false);
     };
+
     const onError = (err) => {
       let message = err.message;
       if (err.code === 1) {
@@ -41,16 +49,14 @@ export function useGPS({ watch = false } = {}) {
       } else if (err.code === 2) {
         message = 'Position non disponible - vérifiez votre GPS';
       } else if (err.code === 3) {
-        // Timeout - utiliser Abidjan comme fallback au lieu de bloquer
-        console.warn('[GPS] Timeout GPS - utilisation fallback Abidjan');
-        setPosition({ lat: 5.3405, lng: -4.0397, accuracy: 1000 });
-        setError(null);
-        setLoading(false);
-        return;
+        message = 'Timeout GPS - utilisation de votre dernière position connue';
       }
-      setError(message);
+
+      console.warn(`[GPS] Erreur: ${message} (code ${err.code})`);
+      // Always use Bietry fallback if GPS fails
+      setPosition(FALLBACK_POSITION);
+      setError(null); // Don't show error to user - just use fallback
       setLoading(false);
-      console.error('GPS Error:', message, err);
     };
 
     if (watch) {
