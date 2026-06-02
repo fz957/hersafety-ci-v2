@@ -178,7 +178,17 @@ const initializeTransporter = () => {
     console.log('[Email] GMAIL_USER:', process.env.GMAIL_USER ? `✓ ${process.env.GMAIL_USER}` : '✗ NOT SET');
     console.log('[Email] GMAIL_PASSWORD:', process.env.GMAIL_PASSWORD ? `✓ Length ${process.env.GMAIL_PASSWORD.length}` : '✗ NOT SET');
 
-    if (process.env.EMAIL_PROVIDER === 'emailjs') {
+    if (process.env.EMAIL_PROVIDER === 'brevo') {
+      transporter = nodemailer.createTransport({
+        host: 'smtp-relay.brevo.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: process.env.BREVO_SMTP_USER,
+          pass: process.env.BREVO_SMTP_PASSWORD,
+        },
+      });
+    } else if (process.env.EMAIL_PROVIDER === 'emailjs') {
       transporter = new EmailJSTransporter(
         process.env.EMAILJS_SERVICE_ID,
         process.env.EMAILJS_TEMPLATE_ID,
