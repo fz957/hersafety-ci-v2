@@ -55,11 +55,12 @@ app.use(helmet({
 }));
 
 // CORS — uniquement le frontend autorisé, avec cookies
-// Accept dev (localhost) et déploiement Netlify spécifique
+// Accept dev (localhost) et déploiement Netlify/Vercel spécifique
 const allowedOrigins = [
   'http://localhost:5173',           // Dev local frontend
   'http://localhost:3000',           // Dev local (alt port)
   'https://hersafety-ci.netlify.app', // Production Netlify
+  'https://hersafety-ci-v2.vercel.app', // Production Vercel
   process.env.FRONTEND_URL,           // Custom frontend URL if set
 ].filter(Boolean);
 
