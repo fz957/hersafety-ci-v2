@@ -246,6 +246,45 @@ export default function Emergency() {
       contextKeys: Object.keys({ position, emergencyNumbers: emergencyNums, nearbyPlaces: places })
     });
 
+    let timeoutId = null;
+    let completed = false;
+
+    const handleSuccess = (r) => {
+      if (completed) return;
+      completed = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      console.log('  ✓ API response received');
+      console.log('  Response data:', r.data.data);
+      const initialMessage = { role: 'assistant', content: r.data.data.message };
+      console.log('  Setting messages with initial message');
+      setMessages([initialMessage]);
+      console.log('  Setting loadingAI = false');
+      setLoadingAI(false);
+      console.log('========== [Emergency INIT EFFECT] COMPLETED ==========');
+    };
+
+    const handleError = (err) => {
+      if (completed) return;
+      completed = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      console.error('  ✗ API ERROR:', err.message);
+      console.error('  Full error:', err);
+      const fallback = { role: 'assistant', content: 'Reste calme. Éloigne-toi calmement si possible. Le 110 est disponible.' };
+      console.log('  Setting fallback message');
+      setMessages([fallback]);
+      console.log('  Setting loadingAI = false');
+      setLoadingAI(false);
+      console.log('========== [Emergency INIT EFFECT] COMPLETED ==========');
+    };
+
+    // Timeout après 5 secondes si pas de réponse
+    timeoutId = setTimeout(() => {
+      if (!completed) {
+        console.warn('  ⚠️ API TIMEOUT after 5s');
+        handleError(new Error('API timeout'));
+      }
+    }, 5000);
+
     api.post('/api/claude/assist', {
       level,
       conversationHistory: [],
@@ -256,25 +295,8 @@ export default function Emergency() {
         vtcOptions: getVTCLinks(places[0])
       }
     })
-      .then((r) => {
-        console.log('  ✓ API response received');
-        console.log('  Response data:', r.data.data);
-        const initialMessage = { role: 'assistant', content: r.data.data.message };
-        console.log('  Setting messages with initial message');
-        setMessages([initialMessage]);
-      })
-      .catch((err) => {
-        console.error('  ✗ API ERROR:', err.message);
-        console.error('  Full error:', err);
-        const fallback = { role: 'assistant', content: 'Reste calme. Éloigne-toi calmement si possible. Le 110 est disponible.' };
-        console.log('  Setting fallback message');
-        setMessages([fallback]);
-      })
-      .finally(() => {
-        console.log('  Setting loadingAI = false');
-        setLoadingAI(false);
-        console.log('========== [Emergency INIT EFFECT] COMPLETED ==========');
-      });
+      .then(handleSuccess)
+      .catch(handleError);
   }, []);
 
   // Pas de scroll auto - chaque seconde compte en urgence
