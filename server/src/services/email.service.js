@@ -53,31 +53,31 @@ class MailerSendTransporter {
 
 // EmailJS API wrapper (compatible with nodemailer interface)
 class EmailJSTransporter {
-  constructor(serviceId, templateId, privateKey) {
+  constructor(serviceId, templateId, publicKey, privateKey) {
     this.serviceId = serviceId;
     this.templateId = templateId;
+    this.publicKey = publicKey;
     this.privateKey = privateKey;
-    this.baseUrl = 'https://api.emailjs.com/api/v1.0/email/send';
+    this.baseUrl = 'https://api.emailjs.com/api/v1.0/email/send-form';
   }
 
   async sendMail(mailOptions) {
     try {
+      const formData = new URLSearchParams();
+      formData.append('service_id', this.serviceId);
+      formData.append('template_id', this.templateId);
+      formData.append('user_id', this.publicKey);
+      formData.append('to_email', mailOptions.to);
+      formData.append('subject', mailOptions.subject);
+      formData.append('message', mailOptions.html);
+      formData.append('from_name', 'HerSafety');
+
       const response = await fetch(this.baseUrl, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({
-          service_id: this.serviceId,
-          template_id: this.templateId,
-          user_id: this.privateKey,
-          template_params: {
-            to_email: mailOptions.to,
-            subject: mailOptions.subject,
-            message: mailOptions.html,
-            from_name: 'HerSafety',
-          },
-        }),
+        body: formData.toString(),
       });
 
       if (!response.ok) {
@@ -162,6 +162,7 @@ const initializeTransporter = () => {
       transporter = new EmailJSTransporter(
         process.env.EMAILJS_SERVICE_ID,
         process.env.EMAILJS_TEMPLATE_ID,
+        process.env.EMAILJS_PUBLIC_KEY,
         process.env.EMAILJS_PRIVATE_KEY
       );
     } else if (process.env.EMAIL_PROVIDER === 'resend') {
