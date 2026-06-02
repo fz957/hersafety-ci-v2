@@ -86,8 +86,19 @@ class EmailJSTransporter {
         throw new Error(`EmailJS API error: ${error}`);
       }
 
-      const data = await response.json();
-      return { response: { messageId: data.id || 'email-sent' } };
+      // EmailJS returns "OK" as plain text, not JSON
+      const responseText = await response.text();
+      if (responseText.includes('OK') || responseText === 'OK') {
+        return { response: { messageId: 'email-sent' } };
+      }
+
+      // Fallback: try parsing as JSON
+      try {
+        const data = JSON.parse(responseText);
+        return { response: { messageId: data.id || 'email-sent' } };
+      } catch (e) {
+        return { response: { messageId: 'email-sent' } };
+      }
     } catch (err) {
       throw err;
     }
