@@ -68,18 +68,20 @@ class EmailJSTransporter {
       formData.append('template_id', this.templateId);
       formData.append('user_id', this.publicKey);
       formData.append('accessToken', this.privateKey);
-      formData.append('to_email', mailOptions.to || mailOptions.email || '');
+
+      // EmailJS template uses 'email' for recipient, 'subject' for subject
+      formData.append('email', mailOptions.to || mailOptions.email || '');
       formData.append('subject', mailOptions.subject || '');
 
-      // Send all fields as template variables - EmailJS expects them all
-      Object.keys(mailOptions).forEach(key => {
-        if (key !== 'to' && key !== 'email' && key !== 'subject' && key !== 'from' && key !== 'html' && key !== 'message') {
-          const value = mailOptions[key];
-          if (value !== null && value !== undefined) {
-            formData.append(key, String(value));
-          }
-        }
-      });
+      // Map alertData fields to template variable names
+      if (mailOptions.senderName) formData.append('senderName', mailOptions.senderName);
+      if (mailOptions.senderEmail) formData.append('senderEmail', mailOptions.senderEmail);
+      if (mailOptions.alertLevel) formData.append('alertLevel', mailOptions.alertLevel);
+      if (mailOptions.locationLabel) formData.append('location', mailOptions.locationLabel);
+      if (mailOptions.createdAt) {
+        const time = new Date(mailOptions.createdAt).toLocaleString('fr-FR');
+        formData.append('time', time);
+      }
 
       const response = await fetch(this.baseUrl, {
         method: 'POST',
