@@ -340,8 +340,19 @@ router.post('/logout', requireAuth, async (req, res) => {
   }
 
   const isProd = process.env.NODE_ENV === 'production';
-  res.clearCookie('token',        { httpOnly: true, secure: isProd, sameSite: isProd ? 'strict' : 'lax' });
-  res.clearCookie('refreshToken', { httpOnly: true, secure: isProd, sameSite: isProd ? 'strict' : 'lax', path: '/api/auth/refresh' });
+  // Clear cookies with EXACT same options as when they were set
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+  });
+  res.clearCookie('refreshToken', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/api/auth/refresh',
+  });
 
   return res.json({ success: true, data: { message: 'Déconnexion réussie' } });
 });
