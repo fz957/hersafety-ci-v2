@@ -70,11 +70,14 @@ class EmailJSTransporter {
       formData.append('accessToken', this.privateKey);
       formData.append('email', mailOptions.to);
       formData.append('subject', mailOptions.subject);
-      formData.append('message', mailOptions.html);
+      formData.append('message', mailOptions.html || mailOptions.message || '');
       formData.append('name', 'HerSafety');
       // Add optional fields if provided
       if (mailOptions.senderEmail) formData.append('senderEmail', mailOptions.senderEmail);
       if (mailOptions.senderName) formData.append('senderName', mailOptions.senderName);
+      if (mailOptions.location) formData.append('location', mailOptions.location);
+      if (mailOptions.time) formData.append('time', mailOptions.time);
+      if (mailOptions.alertLevel) formData.append('alertLevel', mailOptions.alertLevel);
 
       const response = await fetch(this.baseUrl, {
         method: 'POST',
@@ -338,6 +341,10 @@ const sendAlertEmail = async (email, alertData) => {
       text: `ALERTE ${levelLabels[alertLevel]}\n\n${senderName} a déclenché une alerte.\n${locationLabel ? `Localisation: ${locationLabel}` : ''}`,
       senderEmail: senderEmail,
       senderName: senderName,
+      location: locationLabel || 'Non précisée',
+      time: new Date(createdAt).toLocaleString('fr-FR'),
+      alertLevel: levelLabels[alertLevel],
+      message: htmlContent,
     });
 
     log(`✓ Alert email sent to ${email}:`, result.messageId);
