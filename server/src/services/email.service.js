@@ -68,10 +68,10 @@ class EmailJSTransporter {
       formData.append('template_id', this.templateId);
       formData.append('user_id', this.publicKey);
       formData.append('accessToken', this.privateKey);
-      formData.append('to_email', mailOptions.to);
+      formData.append('email', mailOptions.to);
       formData.append('subject', mailOptions.subject);
       formData.append('message', mailOptions.html);
-      formData.append('from_name', 'HerSafety');
+      formData.append('name', 'HerSafety');
 
       const response = await fetch(this.baseUrl, {
         method: 'POST',
