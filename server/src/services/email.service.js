@@ -51,6 +51,48 @@ class MailerSendTransporter {
   }
 }
 
+// EmailJS API wrapper (compatible with nodemailer interface)
+class EmailJSTransporter {
+  constructor(serviceId, templateId, publicKey) {
+    this.serviceId = serviceId;
+    this.templateId = templateId;
+    this.publicKey = publicKey;
+    this.baseUrl = 'https://api.emailjs.com/api/v1.0/email/send';
+  }
+
+  async sendMail(mailOptions) {
+    try {
+      const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          service_id: this.serviceId,
+          template_id: this.templateId,
+          user_id: this.publicKey,
+          template_params: {
+            to_email: mailOptions.to,
+            subject: mailOptions.subject,
+            message: mailOptions.html,
+            from_name: 'HerSafety',
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`EmailJS API error: ${error}`);
+      }
+
+      const data = await response.json();
+      return { response: { messageId: data.id || 'email-sent' } };
+    } catch (err) {
+      throw err;
+    }
+  }
+}
+
 // Resend API wrapper (compatible with nodemailer interface)
 class ResendTransporter {
   constructor(apiKey) {
@@ -116,7 +158,13 @@ const initializeTransporter = () => {
     console.log('[Email] GMAIL_USER:', process.env.GMAIL_USER ? `✓ ${process.env.GMAIL_USER}` : '✗ NOT SET');
     console.log('[Email] GMAIL_PASSWORD:', process.env.GMAIL_PASSWORD ? `✓ Length ${process.env.GMAIL_PASSWORD.length}` : '✗ NOT SET');
 
-    if (process.env.EMAIL_PROVIDER === 'resend') {
+    if (process.env.EMAIL_PROVIDER === 'emailjs') {
+      transporter = new EmailJSTransporter(
+        process.env.EMAILJS_SERVICE_ID,
+        process.env.EMAILJS_TEMPLATE_ID,
+        process.env.EMAILJS_PUBLIC_KEY
+      );
+    } else if (process.env.EMAIL_PROVIDER === 'resend') {
       transporter = new ResendTransporter(process.env.RESEND_API_KEY);
     } else if (process.env.EMAIL_PROVIDER === 'mailersend') {
       transporter = new MailerSendTransporter(process.env.MAILERSEND_API_KEY);
