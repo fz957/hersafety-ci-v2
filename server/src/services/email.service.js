@@ -89,6 +89,9 @@ class ResendTransporter {
 
 // Helper to get correct "from" email based on provider
 const getFromEmail = () => {
+  if (process.env.EMAIL_PROVIDER === 'resend') {
+    return 'onboarding@resend.dev'; // Resend test domain
+  }
   if (process.env.EMAIL_PROVIDER === 'mailersend' && process.env.MAILERSEND_DOMAIN) {
     return `noreply@${process.env.MAILERSEND_DOMAIN}`;
   }
