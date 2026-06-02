@@ -64,6 +64,8 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,           // Custom frontend URL if set
 ].filter(Boolean);
 
+console.log('[CORS] Allowed origins:', allowedOrigins);
+
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests without origin (like mobile apps or curl)
