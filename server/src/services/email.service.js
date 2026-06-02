@@ -51,6 +51,14 @@ class MailerSendTransporter {
   }
 }
 
+// Helper to get correct "from" email based on provider
+const getFromEmail = () => {
+  if (process.env.EMAIL_PROVIDER === 'mailersend' && process.env.MAILERSEND_DOMAIN) {
+    return `noreply@${process.env.MAILERSEND_DOMAIN}`;
+  }
+  return process.env.GMAIL_USER || process.env.SMTP_USER || 'noreply@hersafety.com';
+};
+
 /**
  * Initialize email transporter
  */
@@ -599,7 +607,7 @@ const sendAdminAlertNotification = async (adminEmail, alertData, userName) => {
     `;
 
     const result = await transporter.sendMail({
-      from: process.env.GMAIL_USER || process.env.SMTP_USER || 'noreply@hersafety.com',
+      from: getFromEmail(),
       to: adminEmail,
       subject: `🚨 Nouvelle alerte — ${userName || 'Utilisatrice'}`,
       html: htmlContent,
@@ -660,7 +668,7 @@ const sendAdminReportNotification = async (adminEmail, reportData, userName) => 
     `;
 
     const result = await transporter.sendMail({
-      from: process.env.GMAIL_USER || process.env.SMTP_USER || 'noreply@hersafety.com',
+      from: getFromEmail(),
       to: adminEmail,
       subject: `📍 Nouveau signalement — ${reportData.place_name || 'Zone dangereuse'}`,
       html: htmlContent,
@@ -722,7 +730,7 @@ const sendAdminCommentNotification = async (adminEmail, commentData, userName, c
     `;
 
     const result = await transporter.sendMail({
-      from: process.env.GMAIL_USER || process.env.SMTP_USER || 'noreply@hersafety.com',
+      from: getFromEmail(),
       to: adminEmail,
       subject: `💬 Nouveau commentaire à modérer — ${userName || 'Utilisatrice'}`,
       html: htmlContent,
