@@ -296,6 +296,85 @@ out center;`;
   }
 }
 
+// Fetch real places using Photon API (Komoot)
+// More precise than Nominatim - searches ALL real places from OpenStreetMap
+async function fetchPhoton(lat, lng, radius) {
+  try {
+    log(`[Photon] Searching nearby places around ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+
+    const photonUrl = new URL('https://photon.komoot.io/api/');
+    photonUrl.searchParams.append('lat', lat);
+    photonUrl.searchParams.append('lon', lng);
+    photonUrl.searchParams.append('limit', '50');
+    photonUrl.searchParams.append('lang', 'fr');
+    photonUrl.searchParams.append('radius', Math.min(radius / 1000, 50)); // Convert meters to km, max 50km
+
+    const response = await fetch(photonUrl.toString(), {
+      signal: AbortSignal.timeout(8000)
+    });
+
+    if (!response.ok) {
+      log(`[Photon] HTTP ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    if (!data.features || data.features.length === 0) {
+      log('[Photon] No features found');
+      return null;
+    }
+
+    log(`[Photon] Found ${data.features.length} features`);
+
+    // Convert Photon format to our format
+    const places = data.features
+      .filter(f => f.geometry && f.geometry.coordinates && f.properties && f.properties.name)
+      .map(f => {
+        const [lng_coord, lat_coord] = f.geometry.coordinates;
+        const props = f.properties;
+
+        // Determine type from OSM tags
+        let type = 'autre';
+        const osm_key = props.osm_key || '';
+        const osm_value = props.osm_value || '';
+
+        if (osm_key === 'amenity') {
+          if (['police', 'police_station'].includes(osm_value)) type = 'police';
+          else if (osm_value === 'pharmacy') type = 'pharmacie';
+          else if (['hospital', 'clinic', 'health_center'].includes(osm_value)) type = 'hopital';
+          else if (osm_value === 'fire_station') type = 'pompiers';
+        }
+
+        return {
+          id: `${props.osm_id}-photon`,
+          type: type,
+          name: props.name,
+          lat: lat_coord,
+          lng: lng_coord,
+          address: props.street ? `${props.street}, ${props.city || 'Abidjan'}` : (props.city || 'Abidjan'),
+          phone: null,
+          source: 'photon',
+          distance: getDistance(lat, lng, lat_coord, lng_coord)
+        };
+      })
+      // Filter by radius
+      .filter(p => p.distance <= (radius / 1000))
+      // Sort by distance
+      .sort((a, b) => a.distance - b.distance);
+
+    log(`[Photon] ${places.length} places within radius`);
+    if (places.length > 0) {
+      log('[Photon] Top results:', places.slice(0, 5).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(3)}km)`));
+    }
+
+    return places.length > 0 ? places : null;
+
+  } catch (err) {
+    console.error('[Photon] Error:', err.message);
+    return null;
+  }
+}
+
 // Fetch real places from OpenStreetMap using Nominatim API
 // Search in French for best results in Abidjan
 async function fetchNominatim(lat, lng, radius) {
@@ -496,16 +575,16 @@ router.get('/', async (req, res) => {
       return res.json({ success: true, data: nearest });
     }
 
-    // Fallback to Nominatim if Overpass fails
-    log(`[Places] Overpass returned no results, trying Nominatim...`);
-    const nominatimResults = await Promise.race([
-      fetchNominatim(userLat, userLng, radiusMeters),
+    // Fallback to Photon if Overpass fails (more precise than Nominatim!)
+    log(`[Places] Overpass returned no results, trying Photon...`);
+    const photonResults = await Promise.race([
+      fetchPhoton(userLat, userLng, radiusKm * 1000),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000))
     ]);
 
-    if (nominatimResults && nominatimResults.length > 0) {
-      log(`[Places] Got ${nominatimResults.length} results from Nominatim`);
-      const nearest = nominatimResults
+    if (photonResults && photonResults.length > 0) {
+      log(`[Places] Got ${photonResults.length} results from Photon`);
+      const nearest = photonResults
         .sort((a, b) => {
           const aPriority = typePriority[a.type] !== undefined ? typePriority[a.type] : 99;
           const bPriority = typePriority[b.type] !== undefined ? typePriority[b.type] : 99;
@@ -514,7 +593,7 @@ router.get('/', async (req, res) => {
         })
         .slice(0, 5);
 
-      log(`[Places] Returning ${nearest.length} from Nominatim`);
+      log(`[Places] Returning ${nearest.length} from Photon`);
       setCachedPlaces(cacheKey, nearest);
       return res.json({ success: true, data: nearest });
     }
