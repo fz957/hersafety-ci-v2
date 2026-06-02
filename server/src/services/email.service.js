@@ -51,7 +51,7 @@ class MailerSendTransporter {
   }
 }
 
-// EmailJS API wrapper (compatible with nodemailer interface)
+// EmailJS API wrapper - uses template with variables
 class EmailJSTransporter {
   constructor(serviceId, templateId, publicKey, privateKey) {
     this.serviceId = serviceId;
@@ -65,13 +65,18 @@ class EmailJSTransporter {
     try {
       const formData = new URLSearchParams();
       formData.append('service_id', this.serviceId);
-      // DO NOT use template_id - send HTML directly
+      formData.append('template_id', this.templateId); // Use the template
       formData.append('user_id', this.publicKey);
       formData.append('accessToken', this.privateKey);
       formData.append('to_email', mailOptions.to);
       formData.append('subject', mailOptions.subject);
-      formData.append('html_message', mailOptions.html || mailOptions.message || '');
-      formData.append('from_name', 'HerSafety');
+
+      // Send all mailOptions fields as template variables
+      Object.keys(mailOptions).forEach(key => {
+        if (key !== 'to' && key !== 'subject' && key !== 'from') {
+          formData.append(key, mailOptions[key] || '');
+        }
+      });
 
       const response = await fetch(this.baseUrl, {
         method: 'POST',
@@ -86,13 +91,11 @@ class EmailJSTransporter {
         throw new Error(`EmailJS API error: ${error}`);
       }
 
-      // EmailJS returns "OK" as plain text, not JSON
       const responseText = await response.text();
       if (responseText.includes('OK') || responseText === 'OK') {
         return { messageId: 'email-sent' };
       }
 
-      // Fallback: try parsing as JSON
       try {
         const data = JSON.parse(responseText);
         return { messageId: data.id || 'email-sent' };
@@ -171,16 +174,12 @@ const initializeTransporter = () => {
     console.log('[Email] GMAIL_PASSWORD:', process.env.GMAIL_PASSWORD ? `✓ Length ${process.env.GMAIL_PASSWORD.length}` : '✗ NOT SET');
 
     if (process.env.EMAIL_PROVIDER === 'emailjs') {
-      console.log('[Email] EmailJS configured, but EmailJS API requires templates. Switching to Gmail...');
-      transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        auth: {
-          user: process.env.GMAIL_USER,
-          pass: process.env.GMAIL_PASSWORD,
-        },
-      });
+      transporter = new EmailJSTransporter(
+        process.env.EMAILJS_SERVICE_ID,
+        process.env.EMAILJS_TEMPLATE_ID,
+        process.env.EMAILJS_PUBLIC_KEY,
+        process.env.EMAILJS_PRIVATE_KEY
+      );
     } else if (process.env.EMAIL_PROVIDER === 'resend') {
       transporter = new ResendTransporter(process.env.RESEND_API_KEY);
     } else if (process.env.EMAIL_PROVIDER === 'mailersend') {
@@ -865,39 +864,10 @@ const sendAdminCommentNotification = async (adminEmail, commentData, userName, c
   }
 };
 
-/**
- * Send alert email with pre-built HTML (no template needed)
- * Used by alerts.js for immediate alert notifications
- */
-const sendSimpleAlertEmail = async (email, subject, html) => {
-  try {
-    if (!transporter) initializeTransporter();
-    if (!transporter) {
-      console.warn('Email service not configured, skipping alert email');
-      return { success: false, error: 'Email service not configured' };
-    }
-
-    const result = await transporter.sendMail({
-      from: getFromEmail(),
-      to: email,
-      subject: subject,
-      html: html,
-      message: html,
-    });
-
-    log(`✓ Simple alert email sent to ${email}`);
-    return { success: true, messageId: result.messageId };
-  } catch (err) {
-    console.error('✗ Simple alert email failed:', err.message);
-    return { success: false, error: err.message };
-  }
-};
-
 module.exports = {
   initializeTransporter,
   sendVerificationEmail,
   sendAlertEmail,
-  sendSimpleAlertEmail,
   sendTrackNotification,
   sendProfileChangeEmail,
   sendAccountDeletionEmail,
