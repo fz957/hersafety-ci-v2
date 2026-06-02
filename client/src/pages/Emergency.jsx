@@ -21,7 +21,10 @@ function RoutingControl({ position, selectedPlace, onClose }) {
   const routingRef = useRef(null);
 
   useEffect(() => {
+    console.log('[Routing] selectedPlace:', selectedPlace, 'position:', position, 'map:', map ? 'OK' : 'NO');
     if (!position || !selectedPlace || !map) return;
+
+    console.log('[Routing] Creating route from', { lat: position.lat, lng: position.lng }, 'to', { lat: selectedPlace.lat, lng: selectedPlace.lng });
 
     // Remove old routing
     if (routingRef.current) {
@@ -29,17 +32,23 @@ function RoutingControl({ position, selectedPlace, onClose }) {
     }
 
     // Create new routing
-    routingRef.current = LRM.Routing.control({
-      waypoints: [
-        L.latLng(position.lat, position.lng),
-        L.latLng(selectedPlace.lat, selectedPlace.lng)
-      ],
-      routeWhileDragging: false,
-      showAlternatives: false,
-      lineOptions: {
-        styles: [{ color: HS.sakura, weight: 4, opacity: 0.8 }]
-      }
-    }).addTo(map);
+    try {
+      console.log('[Routing] LRM available?', LRM ? 'YES' : 'NO');
+      routingRef.current = LRM.Routing.control({
+        waypoints: [
+          L.latLng(position.lat, position.lng),
+          L.latLng(selectedPlace.lat, selectedPlace.lng)
+        ],
+        routeWhileDragging: false,
+        showAlternatives: false,
+        lineOptions: {
+          styles: [{ color: HS.sakura, weight: 4, opacity: 0.8 }]
+        }
+      }).addTo(map);
+      console.log('[Routing] ✓ Route added to map');
+    } catch (err) {
+      console.error('[Routing] ERROR:', err.message);
+    }
 
     return () => {
       if (routingRef.current) {
