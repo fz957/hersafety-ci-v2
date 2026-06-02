@@ -168,11 +168,14 @@ async function fetchNominatim(lat, lng, radius) {
   try {
     console.log(`[Nominatim] Searching French amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
 
-    // Search for each French term
+    // Search for each French term (with delay to avoid rate limiting)
     for (const query of queries) {
       try {
+        // Add delay between requests to avoid Nominatim rate limiting (429 errors)
+        await new Promise(resolve => setTimeout(resolve, 250));
+
         const url = `https://nominatim.openstreetmap.org/search?` +
-          `q=${encodeURIComponent(query)}&format=json&limit=100&` +
+          `q=${encodeURIComponent(query)}&format=json&limit=50&` +
           `viewbox=${bbox}&bounded=1&countrycodes=ci&accept-language=fr`;
 
         console.log(`[Nominatim] Searching: ${query}`);

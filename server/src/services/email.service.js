@@ -198,7 +198,6 @@ const initializeTransporter = () => {
             body: JSON.stringify({
               to: [{ email: mailOptions.to, name: mailOptions.toName || '' }],
               from: 'f.zreik04@gmail.com',
-              replyTo: 'f.zreik04@gmail.com',
               subject: mailOptions.subject || '',
               htmlContent: mailOptions.html || mailOptions.message || '',
               textContent: mailOptions.text || '',
