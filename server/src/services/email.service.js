@@ -171,12 +171,16 @@ const initializeTransporter = () => {
     console.log('[Email] GMAIL_PASSWORD:', process.env.GMAIL_PASSWORD ? `✓ Length ${process.env.GMAIL_PASSWORD.length}` : '✗ NOT SET');
 
     if (process.env.EMAIL_PROVIDER === 'emailjs') {
-      transporter = new EmailJSTransporter(
-        process.env.EMAILJS_SERVICE_ID,
-        process.env.EMAILJS_TEMPLATE_ID,
-        process.env.EMAILJS_PUBLIC_KEY,
-        process.env.EMAILJS_PRIVATE_KEY
-      );
+      console.log('[Email] EmailJS configured, but EmailJS API requires templates. Switching to Gmail...');
+      transporter = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_PASSWORD,
+        },
+      });
     } else if (process.env.EMAIL_PROVIDER === 'resend') {
       transporter = new ResendTransporter(process.env.RESEND_API_KEY);
     } else if (process.env.EMAIL_PROVIDER === 'mailersend') {
