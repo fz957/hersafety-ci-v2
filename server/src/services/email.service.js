@@ -67,6 +67,7 @@ class EmailJSTransporter {
       formData.append('service_id', this.serviceId);
       formData.append('template_id', this.templateId);
       formData.append('user_id', this.publicKey);
+      formData.append('accessToken', this.privateKey);
       formData.append('to_email', mailOptions.to);
       formData.append('subject', mailOptions.subject);
       formData.append('message', mailOptions.html);
