@@ -72,6 +72,8 @@ const initializeTransporter = () => {
     console.log('[Email] ===== INITIALIZING TRANSPORTER =====');
     console.log('[Email] EMAIL_PROVIDER:', process.env.EMAIL_PROVIDER);
     console.log('[Email] MAILERSEND_API_KEY:', process.env.MAILERSEND_API_KEY ? `✓ Length ${process.env.MAILERSEND_API_KEY.length}` : '✗ NOT SET');
+    console.log('[Email] MAILERSEND_DOMAIN:', process.env.MAILERSEND_DOMAIN || '✗ NOT SET');
+    console.log('[Email] FROM_EMAIL:', getFromEmail());
     console.log('[Email] GMAIL_USER:', process.env.GMAIL_USER ? `✓ ${process.env.GMAIL_USER}` : '✗ NOT SET');
     console.log('[Email] GMAIL_PASSWORD:', process.env.GMAIL_PASSWORD ? `✓ Length ${process.env.GMAIL_PASSWORD.length}` : '✗ NOT SET');
 
