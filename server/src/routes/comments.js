@@ -345,31 +345,6 @@ router.post('/:id/replies', requireAuth, async (req, res) => {
   }
 });
 
-// ─── GET /api/comments/:commentId/replies — Récupérer les réponses ─────────
-
-router.get('/:id/replies', requireAuth, async (req, res) => {
-  const { id: commentId } = req.params;
-
-  try {
-    const replies = await knex('comment_replies')
-      .join('users', 'comment_replies.user_id', '=', 'users.id')
-      .where({ comment_id: commentId })
-      .select(
-        'comment_replies.id',
-        'comment_replies.reply_text',
-        'comment_replies.created_at',
-        'users.full_name as user_name',
-        'comment_replies.user_id as author_id'
-      )
-      .orderBy('comment_replies.created_at', 'asc');
-
-    return res.json({ success: true, data: replies });
-  } catch (err) {
-    console.error('[Comments] Error fetching replies:', err);
-    return res.status(500).json({ success: false, error: 'Erreur récupération réponses' });
-  }
-});
-
 // ─── DELETE /api/comments/replies/:id — Supprimer une réponse ────────────────
 
 router.delete('/replies/:id', requireAuth, async (req, res) => {
