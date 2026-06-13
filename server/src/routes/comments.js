@@ -102,6 +102,8 @@ router.post('/', requireAuth, async (req, res) => {
       })
       .returning('*');
 
+    console.log('[Comments] Created comment:', { id: comment?.id, content_type: value.content_type, content_id: value.content_id });
+
     // Récupérer les infos de l'auteur
     const user = await knex('users').where({ id: userId }).first();
 
