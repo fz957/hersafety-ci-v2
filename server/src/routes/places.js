@@ -150,111 +150,82 @@ async function fetchOverpass(lat, lng, radius) {
 // Fetch real places from OpenStreetMap using Nominatim API
 // Search in French for best results in Abidjan
 async function fetchNominatim(lat, lng, radius) {
-  // Search queries in FRENCH only - Abidjan uses French names
-  const queries = [
-    'pharmacie',
-    'police',
-    'hopital',
-    'hôpital',
-    'pompiers',
-    'clinique'
-  ];
-
-  const allPlaces = [];
-
-  // Large bounding box: 0.3 degrees ≈ 33km - cast a wide net
+  const radiusKm = radius / 1000;
   const bbox = `${lng - 0.3},${lat - 0.3},${lng + 0.3},${lat + 0.3}`;
 
   try {
-    console.log(`[Nominatim] Searching French amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    console.log(`[Nominatim] Searching all amenities around ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
 
-    // Search for each French term (with delay to avoid rate limiting)
-    for (const query of queries) {
-      try {
-        // Add delay between requests to avoid Nominatim rate limiting (429 errors)
-        await new Promise(resolve => setTimeout(resolve, 250));
+    // ONE GENERIC QUERY for ALL amenities - fast, no rate limiting
+    const url = `https://nominatim.openstreetmap.org/search?` +
+      `q=amenity&format=json&limit=100&` +
+      `viewbox=${bbox}&bounded=1&countrycodes=ci&accept-language=fr`;
 
-        const url = `https://nominatim.openstreetmap.org/search?` +
-          `q=${encodeURIComponent(query)}&format=json&limit=50&` +
-          `viewbox=${bbox}&bounded=1&countrycodes=ci&accept-language=fr`;
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(8000),
+      headers: { 'User-Agent': 'HerSafety-CI/1.0' }
+    });
 
-        console.log(`[Nominatim] Searching: ${query}`);
-
-        const response = await fetch(url, {
-          signal: AbortSignal.timeout(8000),
-          headers: { 'User-Agent': 'HerSafety-CI/1.0' }
-        });
-
-        if (!response.ok) {
-          console.log(`[Nominatim] ${query}: HTTP ${response.status}`);
-          continue;
-        }
-
-        const results = await response.json();
-        if (!results || results.length === 0) {
-          console.log(`[Nominatim] ${query}: no results`);
-          continue;
-        }
-
-        console.log(`[Nominatim] ${query}: found ${results.length} results`);
-
-        // Convert all results to our format
-        const places = results
-          .filter(p => p.lat && p.lon && p.name && p.name.trim().length > 2)
-          .map(p => {
-            // Determine type based on query
-            let type = 'autre';
-            if (query === 'police') type = 'police';
-            else if (query === 'pharmacie') type = 'pharmacie';
-            else if (['hopital', 'hôpital', 'clinique'].includes(query)) type = 'hopital';
-            else if (query === 'pompiers') type = 'pompiers';
-
-            return {
-              id: `${p.osm_id}-${p.osm_type}`,
-              type: type,
-              name: p.name.trim(),
-              lat: parseFloat(p.lat),
-              lng: parseFloat(p.lon),
-              address: p.display_name.split(',').slice(0, 2).join(',').trim() || '',
-              phone: null,
-              source: 'osm'
-            };
-          });
-
-        if (places.length > 0) {
-          allPlaces.push(...places);
-          console.log(`[Nominatim] Added ${places.length} places from "${query}"`);
-        }
-      } catch (err) {
-        console.error(`[Nominatim] Error: ${query} -`, err.message);
-      }
-    }
-
-    if (allPlaces.length === 0) {
-      console.log('[Nominatim] No places found');
+    if (!response.ok) {
+      console.log(`[Nominatim] Amenity search: HTTP ${response.status}`);
       return null;
     }
 
-    // Remove duplicates by location (strict)
-    const unique = allPlaces.reduce((acc, p) => {
+    const results = await response.json();
+    if (!results || results.length === 0) {
+      console.log(`[Nominatim] No amenities found`);
+      return null;
+    }
+
+    console.log(`[Nominatim] Found ${results.length} amenities`);
+
+    // Convert and auto-detect type from name
+    const places = results
+      .filter(p => p.lat && p.lon && p.name && p.name.trim().length > 2)
+      .map(p => {
+        const nameUpper = p.name.toUpperCase();
+        let type = 'autre';
+
+        if (nameUpper.includes('PHARMACIE') || nameUpper.includes('PHARMA')) type = 'pharmacie';
+        else if (nameUpper.includes('POLICE') || nameUpper.includes('POSTE')) type = 'police';
+        else if (nameUpper.includes('HOPITAL') || nameUpper.includes('HÔPITAL') || nameUpper.includes('CHU') || nameUpper.includes('CLINIQUE')) type = 'hopital';
+        else if (nameUpper.includes('POMPIER') || nameUpper.includes('CASERNE')) type = 'pompiers';
+        else if (nameUpper.includes('RESTAURANT') || nameUpper.includes('PIZZA') || nameUpper.includes('CAFE') || nameUpper.includes('BAR')) type = 'restaurant';
+
+        return {
+          id: `${p.osm_id}-${p.osm_type}`,
+          type: type,
+          name: p.name.trim(),
+          lat: parseFloat(p.lat),
+          lng: parseFloat(p.lon),
+          address: p.display_name.split(',').slice(0, 2).join(',').trim() || '',
+          phone: null,
+          source: 'osm'
+        };
+      });
+
+    if (places.length === 0) {
+      console.log('[Nominatim] No valid places found');
+      return null;
+    }
+
+    // Remove duplicates
+    const unique = places.reduce((acc, p) => {
       const exists = acc.find(x => Math.abs(x.lat - p.lat) < 0.0001 && Math.abs(x.lng - p.lng) < 0.0001);
       return exists ? acc : [...acc, p];
     }, []);
 
-    // Calculate distances but DON'T filter strictly - return what we found
-    const withDistance = unique
-      .map(p => ({
-        ...p,
-        distance: getDistance(lat, lng, p.lat, p.lng)
-      }));
+    // Sort by distance
+    const withDistance = unique.map(p => ({
+      ...p,
+      distance: getDistance(lat, lng, p.lat, p.lng)
+    }));
 
-    // Sort by closest distance
     const sorted = withDistance.sort((a, b) => a.distance - b.distance);
 
-    console.log(`[Nominatim] Total: ${allPlaces.length}, unique: ${unique.length}, returning all`);
+    console.log(`[Nominatim] Unique: ${unique.length}, returning ${Math.min(20, sorted.length)}`);
     console.log('[Nominatim] Top 10:', sorted.slice(0, 10).map((p, i) => `${i+1}. ${p.name} (${p.distance.toFixed(2)}km, ${p.type})`));
 
-    // Remove distance field before returning
     const result = sorted.map(({ distance, ...p }) => p);
     return result.length > 0 ? result : null;
 
