@@ -424,52 +424,8 @@ export default function Emergency() {
         const base64Audio = reader.result.split(',')[1]; // Enlever le préfixe "data:..."
         console.log('[Emergency SAVE] Base64 audio size:', base64Audio ? base64Audio.length : 0, 'bytes');
 
-        // Chercher le VRAI NOM du lieu d'ACTIVATION
-        let activationLocationName = 'Position actuelle';
-        const posToUse = activationPosition || finalLocation;
-        console.log('[Emergency SAVE] posToUse:', posToUse);
-        if (posToUse?.lat && posToUse?.lng) {
-          console.log('[Emergency SAVE] Looking up activation location name...', { lat: posToUse.lat, lng: posToUse.lng });
-          try {
-            const response = await api.get('/api/places', {
-              params: {
-                lat: posToUse.lat,
-                lng: posToUse.lng,
-                radius: 500
-              }
-            });
-            const places = response.data.data || [];
-            if (places.length > 0) {
-              activationLocationName = places[0].name || 'Position actuelle';
-              console.log('[Emergency SAVE] Activation location name:', activationLocationName);
-            }
-          } catch (err) {
-            console.log('[Emergency SAVE] Activation location lookup failed:', err.message);
-          }
-        }
-
-        // Chercher le lieu le plus proche pour la position finale
-        let finalLocationName = 'Dernière position';
-        if (finalLocation) {
-          console.log('[Emergency SAVE] Looking up final location name from backend...');
-          // Use backend API to get nearby safe places (will return location context)
-          try {
-            const response = await api.get('/api/places', {
-              params: {
-                lat: finalLocation.lat,
-                lng: finalLocation.lng,
-                radius: 500 // 500m radius to find nearby places
-              }
-            });
-            const places = response.data.data || [];
-            if (places.length > 0) {
-              finalLocationName = places[0].name || 'Dernière position';
-              console.log('[Emergency SAVE] Final location name:', finalLocationName);
-            }
-          } catch (err) {
-            console.log('[Emergency SAVE] Places API request failed, using default name:', err.message);
-          }
-        }
+        // NE PAS chercher les lieux côté client
+        // Laisser le SERVEUR faire le reverse geocoding pour avoir les VRAIES adresses
 
         // Préparer les données
         const emergencyData = {
@@ -477,11 +433,11 @@ export default function Emergency() {
           trigger_type: 'emergency_page',
           latitude: position?.lat,
           longitude: position?.lng,
-          location_name: activationLocationName, // Lieu d'activation = vrai nom trouvé
+          location_name: 'Position actuelle', // Le serveur va faire le reverse geocoding
           // Localisation finale (lieu de refuge ou dernier endroit connu)
           final_latitude: finalLocation?.lat || position?.lat,
           final_longitude: finalLocation?.lng || position?.lng,
-          final_location_name: finalLocationName, // Lieu de refuge = où elle s'est arrêtée en dernier
+          final_location_name: 'Dernière position', // Le serveur va faire le reverse geocoding
           contacts_alerted: [], // À compléter si nécessaire
           sms_sent: [],
           audio_base64: base64Audio,
