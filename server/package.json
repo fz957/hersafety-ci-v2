@@ -1,6 +1,6 @@
 {
   "name": "hersafety-ci-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "HerSafety CI — Backend API",
   "main": "src/server.js",
   "scripts": {
