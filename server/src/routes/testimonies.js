@@ -554,6 +554,10 @@ router.post('/:testimonyId/comments', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Témoignage introuvable' });
     }
 
+    // Vérifier si l'utilisateur a déjà un commentaire
+    const existingComment = await knex('testimony_comments')
+      .where({ testimony_id: testimonyId, user_id: userId })
+      .first();
 
     let display_name = null;
     if (value.is_anonymous) {
@@ -561,7 +565,38 @@ router.post('/:testimonyId/comments', async (req, res) => {
       display_name = result.rows[0].name;
     }
 
-    const [comment] = await knex('testimony_comments')
+    let comment;
+    if (existingComment) {
+      // Mettre à jour le commentaire existant
+      await knex('testimony_comments')
+        .where({ id: existingComment.id })
+        .update({
+          content: value.content,
+          is_anonymous: value.is_anonymous,
+          display_name,
+          updated_at: knex.fn.now(),
+        });
+
+      comment = await knex('testimony_comments')
+        .where({ id: existingComment.id })
+        .first();
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          id: comment.id,
+          user_id: comment.user_id,
+          is_anonymous: comment.is_anonymous,
+          display_name: comment.display_name,
+          content: comment.content,
+          created_at: comment.created_at,
+          is_owner: true,
+        },
+      });
+    }
+
+    // Créer un nouveau commentaire
+    const [newComment] = await knex('testimony_comments')
       .insert({
         testimony_id: testimonyId,
         user_id: userId,
@@ -579,12 +614,12 @@ router.post('/:testimonyId/comments', async (req, res) => {
     return res.status(201).json({
       success: true,
       data: {
-        id: comment.id,
-        user_id: comment.user_id,
-        is_anonymous: comment.is_anonymous,
-        display_name: comment.display_name,
-        content: comment.content,
-        created_at: comment.created_at,
+        id: newComment.id,
+        user_id: newComment.user_id,
+        is_anonymous: newComment.is_anonymous,
+        display_name: newComment.display_name,
+        content: newComment.content,
+        created_at: newComment.created_at,
         is_owner: true,
       },
     });
