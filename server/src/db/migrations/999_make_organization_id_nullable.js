@@ -1,6 +1,6 @@
 exports.up = async (knex) => {
   // Rendre organization_id nullable dans toutes les tables
-  const tables = ['users', 'alerts', 'contacts', 'tracks', 'testimonies', 'reports', 'articles', 'photos', 'videos', 'emergency_history'];
+  const tables = ['users', 'alerts', 'contacts', 'tracks', 'testimonies', 'testimony_comments', 'reports', 'articles', 'photos', 'videos', 'emergency_history'];
 
   for (const table of tables) {
     try {
