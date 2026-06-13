@@ -339,8 +339,9 @@ router.post('/replies/:id', requireAuth, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Commentaire introuvable' });
     }
 
-    // Créer la réponse (fonctionne pour les deux types de commentaires)
-    const [reply] = await knex('comment_replies')
+    // Créer la réponse dans la bonne table selon le type
+    const repliesTable = isTestimonyComment ? 'testimony_comment_replies' : 'comment_replies';
+    const [reply] = await knex(repliesTable)
       .insert({
         comment_id: commentId,
         user_id: userId,
