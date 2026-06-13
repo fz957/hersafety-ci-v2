@@ -38,12 +38,12 @@ function RoutingControl({ position, selectedPlace, onClose }) {
 
     // Create new routing
     try {
-      console.log('[Routing] LRM available?', LRM ? 'YES' : 'NO', 'LRM.Routing?', LRM?.Routing ? 'YES' : 'NO');
-      if (!LRM || !LRM.Routing) {
+      console.log('[Routing] L.Routing available?', L?.Routing ? 'YES' : 'NO');
+      if (!L || !L.Routing) {
         console.warn('[Routing] leaflet-routing-machine not loaded, skipping route');
         return;
       }
-      routingRef.current = LRM.Routing.control({
+      routingRef.current = L.Routing.control({
         waypoints: [
           L.latLng(position.lat, position.lng),
           L.latLng(selectedPlace.lat, selectedPlace.lng)
