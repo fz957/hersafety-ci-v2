@@ -196,7 +196,7 @@ const initializeTransporter = () => {
               'api-key': apiKey,
             },
             body: JSON.stringify({
-              to: [{ email: mailOptions.to, name: mailOptions.toName || '' }],
+              to: [{ email: mailOptions.to, name: mailOptions.toName || 'Recipient' }],
               sender: { email: 'f.zreik04@gmail.com', name: 'HerSafety' },
               subject: mailOptions.subject || '',
               htmlContent: mailOptions.html || mailOptions.message || '',
