@@ -641,6 +641,7 @@ const sendAlertConfirmationEmail = async (email, userName, alertLevel, contactsC
       to: email,
       subject: `✓ Alerte ${levelLabels[alertLevel]} confirmée — ${contactsCount} contact(s) notifié(s)`,
       html: htmlContent,
+      text: `Alerte ${levelLabels[alertLevel]} confirmée\n\n${contactsCount} contact(s) a/ont reçu ta notification.\n\nLocalisation: ${locationLabel || 'Non précisée'}\nHeure: ${new Date().toLocaleString('fr-FR')}\n\nReste en sécurité!\n\n© HerSafety CI`,
     });
 
     log(`✓ Alert confirmation email sent to ${email}`);
