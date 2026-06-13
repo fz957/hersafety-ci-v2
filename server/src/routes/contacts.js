@@ -121,6 +121,12 @@ router.get('/verify-email', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     console.log('[DELETE /contacts/:id] Deleting contact:', { id: req.params.id, userId: req.user.userId });
+
+    // First: Delete any SMS logs for this contact (foreign key constraint)
+    await knex('sms_logs').where({ contact_id: req.params.id }).delete();
+    console.log('[DELETE /contacts/:id] SMS logs deleted');
+
+    // Then: Delete the contact itself
     const count = await knex('contacts')
       .where({ id: req.params.id, user_id: req.user.userId })
       .delete();
