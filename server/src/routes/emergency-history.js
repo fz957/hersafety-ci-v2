@@ -89,9 +89,10 @@ router.post('/', requireAuth, async (req, res) => {
           `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
         );
         const data = await response.json();
+        console.log('[EmergencyHistory] Nominatim response for', { lat, lng }, ':', JSON.stringify(data.address));
         if (data.address) {
           // Priorité: adresse vraie (rue, quartier, ville) - PAS les amenities (restaurants, shops)
-          return data.address.road ||
+          const result = data.address.road ||
                  data.address.residential ||
                  data.address.neighbourhood ||
                  data.address.suburb ||
@@ -100,6 +101,8 @@ router.post('/', requireAuth, async (req, res) => {
                  data.address.village ||
                  data.address.county ||
                  `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
+          console.log('[EmergencyHistory] Nominatim result:', result);
+          return result;
         }
         return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
       } catch (err) {
