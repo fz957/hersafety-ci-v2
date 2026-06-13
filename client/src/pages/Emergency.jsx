@@ -20,8 +20,10 @@ function RoutingControl({ position, selectedPlace, onClose }) {
   const map = useMap();
   const routingRef = useRef(null);
 
+  console.log('[Routing RENDER] selectedPlace:', selectedPlace, 'position:', position);
+
   useEffect(() => {
-    console.log('[Routing] selectedPlace:', selectedPlace, 'position:', position, 'map:', map ? 'OK' : 'NO');
+    console.log('[Routing EFFECT] selectedPlace:', selectedPlace, 'position:', position, 'map:', map ? 'OK' : 'NO');
     if (!position || !selectedPlace || !map) return;
 
     console.log('[Routing] Creating route from', { lat: position.lat, lng: position.lng }, 'to', { lat: selectedPlace.lat, lng: selectedPlace.lng });
