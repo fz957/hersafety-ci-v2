@@ -23,8 +23,11 @@ function RoutingControl({ position, selectedPlace, onClose }) {
   console.log('[Routing RENDER] selectedPlace:', selectedPlace, 'position:', position);
 
   useEffect(() => {
-    console.log('[Routing EFFECT] selectedPlace:', selectedPlace, 'position:', position, 'map:', map ? 'OK' : 'NO');
-    if (!position || !selectedPlace || !map) return;
+    console.log('[Routing EFFECT] TRIGGERED - selectedPlace:', selectedPlace?.name, 'position:', position, 'map:', map ? 'OK' : 'NO');
+    if (!position || !selectedPlace || !map) {
+      console.log('[Routing EFFECT] Early return: missing position/selectedPlace/map');
+      return;
+    }
 
     console.log('[Routing] Creating route from', { lat: position.lat, lng: position.lng }, 'to', { lat: selectedPlace.lat, lng: selectedPlace.lng });
 
