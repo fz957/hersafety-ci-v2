@@ -151,23 +151,6 @@ router.post('/', requireAuth, async (req, res) => {
     const id = Array.isArray(insertResult) ? insertResult[0]?.id || insertResult[0] : insertResult?.id || insertResult;
     log(`[EmergencyHistory] Emergency sauvegardé: ${id}`);
 
-    // Helper: Reverse geocoding to get place name from coordinates
-    const getPlaceName = async (lat, lng) => {
-      try {
-        const response = await fetch(
-          `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&limit=1`
-        );
-        const data = await response.json();
-        if (data.features && data.features[0]) {
-          return data.features[0].properties.name || `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
-        }
-        return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
-      } catch (err) {
-        console.log('[EmergencyHistory] Reverse geocoding failed, using coordinates:', err.message);
-        return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
-      }
-    };
-
     // SEND EMAILS IN BACKGROUND for levels 2, 3, 4
     if (['2', '3', '4'].includes(level)) {
       (async () => {
