@@ -339,11 +339,7 @@ router.post('/replies/:id', requireAuth, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Commentaire introuvable' });
     }
 
-    // Créer la réponse (pour content_comments seulement - testimony_comments n'a pas de replies)
-    if (isTestimonyComment) {
-      return res.status(400).json({ success: false, error: 'Les réponses ne sont pas supportées pour les commentaires de témoignages' });
-    }
-
+    // Créer la réponse (fonctionne pour les deux types de commentaires)
     const [reply] = await knex('comment_replies')
       .insert({
         comment_id: commentId,
