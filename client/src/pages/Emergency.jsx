@@ -64,7 +64,12 @@ function RoutingControl({ position, selectedPlace, onClose }) {
     };
   }, [position, selectedPlace, map]);
 
-  if (!selectedPlace) return null;
+  if (!selectedPlace) {
+    console.log('[Routing] selectedPlace is null, returning nothing');
+    return null;
+  }
+
+  console.log('[Routing] Rendering component with selectedPlace:', selectedPlace.name);
 
   return (
     <div style={{
