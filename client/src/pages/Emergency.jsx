@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
-import LRM from 'leaflet-routing-machine';
+import 'leaflet-routing-machine';
 import { useGPS } from '../hooks/useGPS';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import useSpeechRecognition from '../hooks/useSpeechRecognition';
@@ -12,6 +12,19 @@ import api from '../services/api';
 import { HS, ICONS } from '../tokens';
 import { Icon, Card, Eyebrow, BackButton, PageShell, ScrollArea, Spinner } from '../components/ui/index.jsx';
 import ConfirmationModal from '../components/ConfirmationModal.jsx';
+
+// Component to keep map centered on user position
+function FollowUser({ position }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (position && map) {
+      map.setView([position.lat, position.lng], 14);
+    }
+  }, [position, map]);
+
+  return null;
+}
 
 const NUM_COLORS = { police: '#4A6B8A', pompiers: '#C97B3B', hopital: '#5C7F4F', gendarmerie: '#5C5C8A', autre: HS.sakuraDeep };
 
@@ -395,7 +408,7 @@ export default function Emergency() {
   // Pas de scroll auto - chaque seconde compte en urgence
 
   // Sauvegarder l'urgence avec l'enregistrement audio
-  const saveEmergencyWithAudio = async (audioBlob, finalLocation = null) => {
+  const saveEmergencyWithAudio = async (audioBlob, finalLocation = null, activationPosition = null) => {
     console.log('[Emergency SAVE] saveEmergencyWithAudio called - audioBlob:', audioBlob ? 'YES' : 'NO', 'finalLocation:', finalLocation ? 'YES' : 'NO');
     try {
       if (!audioBlob) {
@@ -407,8 +420,33 @@ export default function Emergency() {
       const reader = new FileReader();
       reader.onload = async () => {
         console.log('[Emergency SAVE] FileReader onload triggered');
+        console.log('[Emergency SAVE] activationPosition:', activationPosition, 'finalLocation:', finalLocation);
         const base64Audio = reader.result.split(',')[1]; // Enlever le préfixe "data:..."
         console.log('[Emergency SAVE] Base64 audio size:', base64Audio ? base64Audio.length : 0, 'bytes');
+
+        // Chercher le VRAI NOM du lieu d'ACTIVATION
+        let activationLocationName = 'Position actuelle';
+        const posToUse = activationPosition || finalLocation;
+        console.log('[Emergency SAVE] posToUse:', posToUse);
+        if (posToUse?.lat && posToUse?.lng) {
+          console.log('[Emergency SAVE] Looking up activation location name...', { lat: posToUse.lat, lng: posToUse.lng });
+          try {
+            const response = await api.get('/api/places', {
+              params: {
+                lat: posToUse.lat,
+                lng: posToUse.lng,
+                radius: 500
+              }
+            });
+            const places = response.data.data || [];
+            if (places.length > 0) {
+              activationLocationName = places[0].name || 'Position actuelle';
+              console.log('[Emergency SAVE] Activation location name:', activationLocationName);
+            }
+          } catch (err) {
+            console.log('[Emergency SAVE] Activation location lookup failed:', err.message);
+          }
+        }
 
         // Chercher le lieu le plus proche pour la position finale
         let finalLocationName = 'Dernière position';
@@ -439,7 +477,7 @@ export default function Emergency() {
           trigger_type: 'emergency_page',
           latitude: position?.lat,
           longitude: position?.lng,
-          location_name: 'Position actuelle', // Lieu d'activation = où elle était vraiment
+          location_name: activationLocationName, // Lieu d'activation = vrai nom trouvé
           // Localisation finale (lieu de refuge ou dernier endroit connu)
           final_latitude: finalLocation?.lat || position?.lat,
           final_longitude: finalLocation?.lng || position?.lng,
@@ -620,7 +658,7 @@ export default function Emergency() {
               if (audioBlob) {
                 // Utiliser la position actuelle comme lieu final (refuge ou dernier endroit connu)
                 console.log('[Emergency SAFE] Saving with final location:', position);
-                await saveEmergencyWithAudio(audioBlob, position);
+                await saveEmergencyWithAudio(audioBlob, position, position);
               }
               // Aller au dashboard
               console.log('[Emergency SAFE] Navigating to dashboard');
@@ -692,6 +730,7 @@ export default function Emergency() {
               <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
+              <FollowUser position={position} />
               <RoutingControl position={position} selectedPlace={selectedPlace} onClose={() => setSelectedPlace(null)} />
               {/* Vous êtes ici — marqueur central */}
               {position && (

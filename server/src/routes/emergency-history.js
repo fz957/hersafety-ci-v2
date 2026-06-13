@@ -43,6 +43,8 @@ router.post('/', requireAuth, async (req, res) => {
     const { level, trigger_type, latitude, longitude, location_name, final_latitude, final_longitude, final_location_name, contacts_alerted, sms_sent, lyra_messages, notes, status, audio_base64 } = value;
     const { userId, organizationId } = req.user;
 
+    console.log('[EmergencyHistory] RECEIVED DATA:', { level, latitude, longitude, location_name, final_latitude, final_longitude, final_location_name });
+
     // Sauvegarder le fichier audio s'il existe
     let audioFilePath = null;
     let audioDuration = null;
@@ -80,6 +82,47 @@ router.post('/', requireAuth, async (req, res) => {
       log('[EmergencyHistory] Pas d\'audio fourni');
     }
 
+    // Helper: Reverse geocoding to get place name from coordinates (using Nominatim)
+    const getPlaceName = async (lat, lng) => {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+        );
+        const data = await response.json();
+        if (data.address) {
+          // Essayer de trouver le nom du lieu
+          return data.address.amenity ||
+                 data.address.shop ||
+                 data.address.tourism ||
+                 data.address.cafe ||
+                 data.address.restaurant ||
+                 data.address.road ||
+                 data.name ||
+                 `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
+        }
+        return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
+      } catch (err) {
+        console.log('[EmergencyHistory] Reverse geocoding failed:', err.message);
+        return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
+      }
+    };
+
+    // Récupérer le VRAI NOM du lieu d'activation via reverse geocoding
+    let finalLocationName = 'Position actuelle';
+    if (latitude && longitude) {
+      const realName = await getPlaceName(latitude, longitude);
+      console.log('[EmergencyHistory] Reverse geocoding activation:', { lat: latitude, lng: longitude }, 'result:', realName);
+      finalLocationName = realName; // Toujours utiliser le résultat du reverse geocoding
+    }
+
+    // Récupérer le VRAI NOM du lieu de refuge via reverse geocoding
+    let realFinalLocationName = 'Dernière position';
+    if (final_latitude && final_longitude) {
+      const finalName = await getPlaceName(final_latitude, final_longitude);
+      console.log('[EmergencyHistory] Reverse geocoding final location:', { lat: final_latitude, lng: final_longitude }, 'result:', finalName);
+      realFinalLocationName = finalName; // Toujours utiliser le résultat du reverse geocoding
+    }
+
     // Insérer dans la BDD
     // Note: JSON columns in PostgreSQL should store JSON, not stringified strings
     const insertResult = await knex('emergency_history').insert({
@@ -89,10 +132,10 @@ router.post('/', requireAuth, async (req, res) => {
       trigger_type,
       latitude,
       longitude,
-      location_name,
+      location_name: finalLocationName,
       final_latitude,
       final_longitude,
-      final_location_name,
+      final_location_name: realFinalLocationName,
       contacts_alerted: Array.isArray(contacts_alerted) ? contacts_alerted : [],
       sms_sent: Array.isArray(sms_sent) ? sms_sent : [],
       lyra_messages: Array.isArray(lyra_messages) ? lyra_messages : [],
@@ -129,6 +172,7 @@ router.post('/', requireAuth, async (req, res) => {
     if (['2', '3', '4'].includes(level)) {
       (async () => {
         try {
+          console.log('[EmergencyHistory] Background email task started, id:', id);
           // Récupérer l'utilisateur
           const sender = await knex('users').where({ id: userId }).first();
 
@@ -173,6 +217,15 @@ router.post('/', requireAuth, async (req, res) => {
         <li>Contacte les services (110)</li>
         <li>Aide-la si possible</li>
       </ul>
+    </div>
+
+    <div style="text-align: center; margin: 20px 0; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+      ${sender.phone ? `<a href="tel:${sender.phone}" style="display: inline-block; background: #1B5E20; color: white; padding: 14px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px;">
+        ☎️ Appeler immédiatement
+      </a>` : ''}
+      <a href="${process.env.FRONTEND_URL}/track/${id}" style="display: inline-block; background: #C2185B; color: white; padding: 14px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px;">
+        🗺️ Voir sa position en direct
+      </a>
     </div>
 
     <p style="font-size: 18px; text-align: center; color: #C2185B; margin: 20px 0; font-weight: bold;">
@@ -309,11 +362,61 @@ router.get('/:id', requireAuth, async (req, res) => {
   }
 });
 
-// PATCH /api/emergency-history/:id - Mettre à jour le statut
+// GET /api/emergency-history/:id/public - Récupérer position pour suivi PUBLIC (sans authentification)
+router.get('/:id/public', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { token } = req.query;
+
+    const emergency = await knex('emergency_history')
+      .where('id', id)
+      .first();
+
+    if (!emergency) {
+      return res.status(404).json({ success: false, error: 'Alerte non trouvée' });
+    }
+
+    // Vérifier le token public (pour la sécurité, on peut valider un token spécifique)
+    // Pour maintenant, on accepte les urgences de niveau 2, 3, 4 (alertes envoyées)
+    if (!['2', '3', '4'].includes(emergency.level)) {
+      return res.status(403).json({ success: false, error: 'Alerte non disponible' });
+    }
+
+    // Récupérer infos utilisatrice
+    const user = await knex('users').where({ id: emergency.user_id }).first();
+
+    // Retourner uniquement les infos publiques
+    return res.json({
+      success: true,
+      data: {
+        id: emergency.id,
+        level: emergency.level,
+        latitude: emergency.latitude,
+        longitude: emergency.longitude,
+        location_name: emergency.location_name,
+        status: emergency.status,
+        created_at: emergency.created_at,
+        updated_at: emergency.updated_at,
+        user: {
+          full_name: user?.full_name || 'Utilisatrice',
+          phone: user?.phone || null
+        }
+      }
+    });
+  } catch (err) {
+    console.error('[EmergencyHistory] Erreur public access:', err);
+    return res.status(500).json({ success: false, error: 'Erreur récupération' });
+  }
+});
+
+// PATCH /api/emergency-history/:id - Mettre à jour le statut et la position finale
 router.patch('/:id', requireAuth, async (req, res) => {
   const schema = Joi.object({
     status: Joi.string().valid('active', 'resolved', 'false_alarm'),
     notes: Joi.string().optional(),
+    final_latitude: Joi.number().min(-90).max(90).optional(),
+    final_longitude: Joi.number().min(-180).max(180).optional(),
+    final_location_name: Joi.string().optional(),
   });
 
   const { error, value } = schema.validate(req.body);
@@ -323,7 +426,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
 
   try {
     const { id } = req.params;
-    const { status, notes } = value;
+    const { status, notes, final_latitude, final_longitude, final_location_name } = value;
     const userId = req.user.userId;
 
     // Vérifier l'accès
@@ -336,15 +439,45 @@ router.patch('/:id', requireAuth, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Enregistrement non trouvé' });
     }
 
+    // Helper: Reverse geocoding
+    const getPlaceName = async (lat, lng) => {
+      try {
+        const response = await fetch(
+          `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&limit=1`
+        );
+        const data = await response.json();
+        if (data.features && data.features[0]) {
+          return data.features[0].properties.name || `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
+        }
+        return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
+      } catch (err) {
+        console.log('[EmergencyHistory] Reverse geocoding failed:', err.message);
+        return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
+      }
+    };
+
+    // Récupérer le vrai nom du lieu de refuge si pas fourni
+    let realFinalLocationName = final_location_name;
+    if (final_latitude && final_longitude && !final_location_name) {
+      realFinalLocationName = await getPlaceName(final_latitude, final_longitude);
+    }
+
     // Mettre à jour
+    const updateData = {
+      status: status || emergency.status,
+      notes: notes !== undefined ? notes : emergency.notes,
+      resolved_at: status === 'resolved' ? knex.fn.now() : null,
+      updated_at: knex.fn.now(),
+    };
+
+    // Ajouter la position finale si fournie
+    if (final_latitude !== undefined) updateData.final_latitude = final_latitude;
+    if (final_longitude !== undefined) updateData.final_longitude = final_longitude;
+    if (realFinalLocationName !== undefined) updateData.final_location_name = realFinalLocationName;
+
     await knex('emergency_history')
       .where('id', id)
-      .update({
-        status: status || emergency.status,
-        notes: notes !== undefined ? notes : emergency.notes,
-        resolved_at: status === 'resolved' ? knex.fn.now() : null,
-        updated_at: knex.fn.now(),
-      });
+      .update(updateData);
 
     return res.json({ success: true, data: { id, status } });
   } catch (err) {

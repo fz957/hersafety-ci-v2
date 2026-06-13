@@ -43,6 +43,7 @@ import Landing    from './pages/Landing.jsx';
 import Login      from './pages/Login.jsx';
 import Register   from './pages/Register.jsx';
 import VerifyEmail from './pages/VerifyEmail.jsx';
+import EmergencyTrack from './pages/EmergencyTrack.jsx';
 
 // Pages protégées
 import Dashboard  from './pages/Dashboard.jsx';
@@ -204,6 +205,7 @@ function AppRoutes() {
       <Route path="/login"    element={<GuestRoute><Login /></GuestRoute>} />
       <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/track/:emergencyId" element={<EmergencyTrack />} />
 
       {/* Protégées — enveloppées dans AppLayout */}
       <Route path="/dashboard"  element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
