@@ -4,6 +4,9 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 
+// Force redeploy
+const BUILD_TIME = new Date().toISOString();
+
 const authRoutes         = require('./routes/auth');
 const usersRoutes        = require('./routes/users');
 const alertsRoutes       = require('./routes/alerts');
