@@ -420,4 +420,10 @@ router.post('/replies/like/:id', requireAuth, async (req, res) => {
   }
 });
 
+// ─── CATCH-ALL ROUTE — Debug all requests ────────────────────────────────────
+router.all('/*', (req, res) => {
+  console.log('[Comments CATCH-ALL]', { method: req.method, path: req.path, params: req.params });
+  return res.status(404).json({ success: false, error: `No route matches ${req.method} ${req.path}` });
+});
+
 module.exports = router;
