@@ -177,30 +177,37 @@ router.post('/like/:id', requireAuth, async (req, res) => {
   console.log('[Comments] ✓ LIKE ENDPOINT CALLED', { userId, commentId: id });
 
   try {
-    const comment = await knex('content_comments').where({ id }).first();
+    // Vérifier d'abord dans content_comments (articles/photos/vidéos)
+    let comment = await knex('content_comments').where({ id }).first();
+    let isTestimonyComment = false;
+
+    // Si pas trouvé, chercher dans testimony_comments
+    if (!comment) {
+      comment = await knex('testimony_comments').where({ id }).first();
+      isTestimonyComment = true;
+    }
 
     if (!comment) {
       console.log('[Comments] Comment not found:', id);
       return res.status(404).json({ success: false, error: 'Commentaire introuvable' });
     }
 
-    // Vérifier si déjà liké
-    const existingLike = await knex('content_comment_likes')
+    // Vérifier si déjà liké (utiliser la bonne table selon le type)
+    const likesTable = isTestimonyComment ? 'comment_likes' : 'content_comment_likes';
+    const existingLike = await knex(likesTable)
       .where({ comment_id: id, user_id: userId })
       .first();
 
     if (existingLike) {
       console.log('[Comments] Removing like:', { userId, commentId: id });
-      // Contrairement au like, on supprime
-      await knex('content_comment_likes')
+      await knex(likesTable)
         .where({ comment_id: id, user_id: userId })
         .delete();
 
       return res.json({ success: true, data: { comment_id: id, liked: false } });
     } else {
       console.log('[Comments] Adding like:', { userId, commentId: id });
-      // Ajouter le like
-      await knex('content_comment_likes').insert({
+      await knex(likesTable).insert({
         comment_id: id,
         user_id: userId,
       });
@@ -319,14 +326,24 @@ router.post('/replies/:id', requireAuth, async (req, res) => {
   const { id: commentId } = req.params;
 
   try {
-    // Vérifier que le commentaire existe
-    const comment = await knex('content_comments').where({ id: commentId }).first();
+    // Vérifier que le commentaire existe (chercher dans les deux tables)
+    let comment = await knex('content_comments').where({ id: commentId }).first();
+    let isTestimonyComment = false;
+
+    if (!comment) {
+      comment = await knex('testimony_comments').where({ id: commentId }).first();
+      isTestimonyComment = true;
+    }
 
     if (!comment) {
       return res.status(404).json({ success: false, error: 'Commentaire introuvable' });
     }
 
-    // Créer la réponse
+    // Créer la réponse (pour content_comments seulement - testimony_comments n'a pas de replies)
+    if (isTestimonyComment) {
+      return res.status(400).json({ success: false, error: 'Les réponses ne sont pas supportées pour les commentaires de témoignages' });
+    }
+
     const [reply] = await knex('comment_replies')
       .insert({
         comment_id: commentId,
