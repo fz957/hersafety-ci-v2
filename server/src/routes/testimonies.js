@@ -574,7 +574,6 @@ router.post('/:testimonyId/comments', async (req, res) => {
           content: value.content,
           is_anonymous: value.is_anonymous,
           display_name,
-          updated_at: knex.fn.now(),
         });
 
       comment = await knex('testimony_comments')
@@ -624,8 +623,9 @@ router.post('/:testimonyId/comments', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Comment create error:', err);
-    return res.status(500).json({ success: false, error: 'Erreur création commentaire' });
+    console.error('Comment create error:', err.message || err);
+    console.error('Error stack:', err.stack);
+    return res.status(500).json({ success: false, error: 'Erreur création commentaire', debug: err.message });
   }
 });
 
