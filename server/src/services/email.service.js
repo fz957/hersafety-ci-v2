@@ -343,8 +343,10 @@ const sendAlertEmail = async (email, alertData) => {
 
     // Générer lien OpenStreetMap si on a les coordonnées
     let mapsLink = '';
+    let locationDisplay = locationLabel || 'Non précisée';
     if (locationLat && locationLng) {
       mapsLink = `https://openstreetmap.org/?mlat=${locationLat}&mlon=${locationLng}&zoom=17`;
+      locationDisplay = `${locationLat.toFixed(4)}°, ${locationLng.toFixed(4)}° <a href="${mapsLink}" style="color: #C2185B; text-decoration: none;">Voir sur la carte</a>`;
     }
     const levelLabels = { '1': 'Vigilance', '2': 'Malaise', '3': 'DANGER', '4': 'SOS' };
     const levelColors = { '1': '#7B9171', '2': '#F48FB1', '3': '#C97B3B', '4': '#B71C1C' };
@@ -359,7 +361,7 @@ const sendAlertEmail = async (email, alertData) => {
         </div>
 
         <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin-bottom: 24px;">
-          ${locationLabel ? `<p><strong>📍 Localisation:</strong> ${locationLabel}</p>` : ''}
+          <p><strong>📍 Localisation:</strong> ${locationDisplay}</p>
           <p><strong>⏰ Heure:</strong> ${new Date(createdAt).toLocaleString('fr-FR')}</p>
           <p><strong>🆘 Niveau:</strong> ${levelLabels[alertLevel]}</p>
         </div>
