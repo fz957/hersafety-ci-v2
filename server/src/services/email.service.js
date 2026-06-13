@@ -152,7 +152,7 @@ class ResendTransporter {
 // Helper to get correct "from" email based on provider
 const getFromEmail = () => {
   if (process.env.EMAIL_PROVIDER === 'resend') {
-    return 'onboarding@resend.dev'; // Resend test domain
+    return 'HerSafety <onboarding@resend.dev>'; // Resend requires their domain
   }
   if (process.env.EMAIL_PROVIDER === 'mailersend' && process.env.MAILERSEND_DOMAIN) {
     return `noreply@${process.env.MAILERSEND_DOMAIN}`;
@@ -313,7 +313,7 @@ const sendVerificationEmail = async (email, verificationToken, senderName) => {
     `;
 
     const result = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@hersafety.ci',
+      from: getFromEmail(),
       to: email,
       subject: '✓ Vérification email — HerSafety',
       html: htmlContent,
@@ -377,7 +377,7 @@ const sendAlertEmail = async (email, alertData) => {
     `;
 
     const result = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@hersafety.ci',
+      from: getFromEmail(),
       to: email,
       subject: `🚨 ALERTE ${levelLabels[alertLevel]} — ${senderName}`,
       html: htmlContent,
@@ -449,7 +449,7 @@ const sendTrackNotification = async (email, trackData) => {
     `;
 
     const result = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@hersafety.ci',
+      from: getFromEmail(),
       to: email,
       subject: `📍 ${senderName} partage sa position en direct`,
       html: htmlContent,
@@ -522,7 +522,7 @@ const sendProfileChangeEmail = async (email, userName, changes) => {
 
     console.log('[Email] Calling transporter.sendMail()...');
     const result = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@hersafety.ci',
+      from: getFromEmail(),
       to: email,
       subject: '✏️ Ton profil HerSafety CI a été modifié',
       html: htmlContent,
@@ -577,7 +577,7 @@ const sendAccountDeletionEmail = async (email, userName) => {
     `;
 
     const result = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@hersafety.ci',
+      from: getFromEmail(),
       to: email,
       subject: '⚠️ Ton compte HerSafety CI a été supprimé',
       html: htmlContent,
@@ -637,7 +637,7 @@ const sendAlertConfirmationEmail = async (email, userName, alertLevel, contactsC
     `;
 
     const result = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@hersafety.ci',
+      from: getFromEmail(),
       to: email,
       subject: `✓ Alerte ${levelLabels[alertLevel]} confirmée — ${contactsCount} contact(s) notifié(s)`,
       html: htmlContent,
@@ -708,7 +708,7 @@ const sendWeeklyReport = async (email, userName, reportData) => {
     `;
 
     const result = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@hersafety.ci',
+      from: getFromEmail(),
       to: email,
       subject: '📊 Ton rapport hebdomadaire HerSafety CI',
       html: htmlContent,
