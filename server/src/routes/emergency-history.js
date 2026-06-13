@@ -90,22 +90,15 @@ router.post('/', requireAuth, async (req, res) => {
         );
         const data = await response.json();
         if (data.address) {
-          // Priorité: amenities spécifiques → adresse générale → ville
-          return data.address.amenity ||
-                 data.address.shop ||
-                 data.address.tourism ||
-                 data.address.cafe ||
-                 data.address.restaurant ||
-                 data.address.bar ||
-                 data.address.house_number ||
-                 data.address.road ||
+          // Priorité: adresse vraie (rue, quartier, ville) - PAS les amenities (restaurants, shops)
+          return data.address.road ||
                  data.address.residential ||
                  data.address.neighbourhood ||
                  data.address.suburb ||
                  data.address.city ||
                  data.address.town ||
                  data.address.village ||
-                 data.name ||
+                 data.address.county ||
                  `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
         }
         return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
