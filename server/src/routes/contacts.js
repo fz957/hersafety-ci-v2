@@ -120,16 +120,19 @@ router.get('/verify-email', async (req, res) => {
 // DELETE /api/contacts/:id
 router.delete('/:id', async (req, res) => {
   try {
+    console.log('[DELETE /contacts/:id] Deleting contact:', { id: req.params.id, userId: req.user.userId });
     const count = await knex('contacts')
       .where({ id: req.params.id, user_id: req.user.userId })
       .delete();
 
+    console.log('[DELETE /contacts/:id] Delete result:', count);
     if (!count) {
       return res.status(404).json({ success: false, error: 'Contact introuvable' });
     }
     return res.json({ success: true, data: { message: 'Contact supprimé' } });
   } catch (err) {
-    return res.status(500).json({ success: false, error: 'Erreur suppression contact' });
+    console.error('[DELETE /contacts/:id] ERROR:', err.message, err);
+    return res.status(500).json({ success: false, error: 'Erreur suppression contact: ' + err.message });
   }
 });
 
