@@ -536,6 +536,8 @@ router.post('/:testimonyId/comments', async (req, res) => {
   const { userId } = req.user;
 
   try {
+    console.log('[POST /testimonies/:id/comments] Adding comment:', { testimonyId, userId, isAnonymous: value.is_anonymous });
+
     // Vérifier que le témoignage existe (approuvé OU pending pour le créateur)
     const testimony = await knex('testimonies')
       .where({ id: testimonyId })
