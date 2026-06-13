@@ -90,13 +90,21 @@ router.post('/', requireAuth, async (req, res) => {
         );
         const data = await response.json();
         if (data.address) {
-          // Essayer de trouver le nom du lieu
+          // Priorité: amenities spécifiques → adresse générale → ville
           return data.address.amenity ||
                  data.address.shop ||
                  data.address.tourism ||
                  data.address.cafe ||
                  data.address.restaurant ||
+                 data.address.bar ||
+                 data.address.house_number ||
                  data.address.road ||
+                 data.address.residential ||
+                 data.address.neighbourhood ||
+                 data.address.suburb ||
+                 data.address.city ||
+                 data.address.town ||
+                 data.address.village ||
                  data.name ||
                  `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
         }
