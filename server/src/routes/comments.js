@@ -167,7 +167,7 @@ router.post('/:id/like', requireAuth, async (req, res) => {
   const { userId } = req.user;
   const { id } = req.params;
 
-  console.log('[Comments] Like attempt:', { userId, commentId: id });
+  console.log('[Comments] ✓ LIKE ENDPOINT CALLED', { userId, commentId: id });
 
   try {
     const comment = await knex('content_comments').where({ id }).first();
