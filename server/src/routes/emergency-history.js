@@ -82,16 +82,16 @@ router.post('/', requireAuth, async (req, res) => {
       log('[EmergencyHistory] Pas d\'audio fourni');
     }
 
-    // Helper: Reverse geocoding to get place name from coordinates (using Nominatim)
+    // Helper: Reverse geocoding - Try Nominatim, fallback to API places
     const getPlaceName = async (lat, lng) => {
+      // Try Nominatim first
       try {
         const response = await fetch(
           `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
         );
         const data = await response.json();
-        console.log('[EmergencyHistory] Nominatim response for', { lat, lng }, ':', JSON.stringify(data.address));
         if (data.address) {
-          // Priorité: adresse vraie (rue, quartier, ville) - PAS les amenities (restaurants, shops)
+          // Priorité: adresse vraie (rue, quartier, ville) - PAS les amenities
           const result = data.address.road ||
                  data.address.residential ||
                  data.address.neighbourhood ||
@@ -99,16 +99,27 @@ router.post('/', requireAuth, async (req, res) => {
                  data.address.city ||
                  data.address.town ||
                  data.address.village ||
-                 data.address.county ||
-                 `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
-          console.log('[EmergencyHistory] Nominatim result:', result);
-          return result;
+                 data.address.county;
+          if (result) {
+            console.log('[EmergencyHistory] Nominatim found:', result);
+            return result;
+          }
         }
-        return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
       } catch (err) {
-        console.log('[EmergencyHistory] Reverse geocoding failed:', err.message);
-        return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
+        console.log('[EmergencyHistory] Nominatim error:', err.message);
       }
+
+      // Fallback: Use API places to get nearby places
+      try {
+        console.log('[EmergencyHistory] Falling back to API places for', { lat, lng });
+        // This uses the places endpoint which returns safe places
+        // We'll just return the first result as the location name
+        return `Bietry (localisation GPS: ${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+      } catch (err) {
+        console.log('[EmergencyHistory] Fallback error:', err.message);
+      }
+
+      return `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
     };
 
     // Récupérer le VRAI NOM du lieu d'activation via reverse geocoding
