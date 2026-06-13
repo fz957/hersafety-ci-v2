@@ -7,6 +7,11 @@ const { sendAdminCommentNotification } = require('../services/email.service');
 
 const router = express.Router();
 
+// TEST ENDPOINT
+router.get('/test-route', (req, res) => {
+  return res.json({ success: true, message: 'TEST ROUTE WORKS - Render is updated!' });
+});
+
 // ─── GET /api/comments/count — Compter les commentaires ────────────────────
 // Usage: /api/comments/count?content_type=testimony&content_id=UUID
 
