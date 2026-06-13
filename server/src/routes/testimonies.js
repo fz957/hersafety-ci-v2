@@ -623,9 +623,8 @@ router.post('/:testimonyId/comments', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Comment create error:', err.message || err);
-    console.error('Error stack:', err.stack);
-    return res.status(500).json({ success: false, error: 'Erreur création commentaire', debug: err.message });
+    console.error('Comment create error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur création commentaire' });
   }
 });
 
