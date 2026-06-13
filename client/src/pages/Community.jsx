@@ -183,7 +183,7 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
 
     try {
       // Appeler d'ABORD l'API pour liker/unliker
-      await api.post(`/api/comments/${commentId}/like`);
+      await api.post(`/api/comments/${commentId}-like`);
 
       // PUIS mettre à jour l'UI seulement si l'API réussit
       setCommentLikes({ ...commentLikes, [commentId]: !liked });
@@ -209,7 +209,7 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
 
     try {
       // Appeler l'API pour ajouter la réponse
-      const res = await api.post(`/api/comments/${replyingTo}/replies`, {
+      const res = await api.post(`/api/comments/${replyingTo}-replies`, {
         reply_text: replyText.trim(),
       });
 
@@ -375,7 +375,7 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
                               <div style={{ display: 'flex', gap: 12, fontSize: 11 }}>
                                 <button onClick={async () => {
                                   try {
-                                    await api.post(`/api/comments/replies/${r.id}/like`);
+                                    await api.post(`/api/comments/replies/${r.id}-like`);
                                     const isLiked = replyLikes[r.id];
                                     setReplyLikes({ ...replyLikes, [r.id]: !isLiked });
                                     const updatedComments = comments.map(cmt => {

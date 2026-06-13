@@ -163,7 +163,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 
 // ─── POST /api/comments/:id/like — Liker un commentaire ──────────────────────
 
-router.post('/:id/like', requireAuth, async (req, res) => {
+router.post('/:id-like', requireAuth, async (req, res) => {
   const { userId } = req.user;
   const { id } = req.params;
 
@@ -302,7 +302,7 @@ const replySchema = Joi.object({
   reply_text: Joi.string().min(1).max(2000).required(),
 });
 
-router.post('/:id/replies', requireAuth, async (req, res) => {
+router.post('/:id-replies', requireAuth, async (req, res) => {
   const { error, value } = replySchema.validate(req.body);
   if (error) {
     return res.status(400).json({ success: false, error: error.details[0].message });
@@ -375,7 +375,7 @@ router.delete('/replies/:id', requireAuth, async (req, res) => {
 
 // ─── POST /api/comments/replies/:id/like — Liker une réponse ────────────────
 
-router.post('/replies/:id/like', requireAuth, async (req, res) => {
+router.post('/replies/:id-like', requireAuth, async (req, res) => {
   const { userId } = req.user;
   const { id } = req.params;
 
