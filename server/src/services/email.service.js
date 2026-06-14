@@ -523,11 +523,13 @@ const sendProfileChangeEmail = async (email, userName, changes) => {
     `;
 
     console.log('[Email] Calling transporter.sendMail()...');
+    const textContent = `Profil mis à jour\n\nTon profil a été modifié avec les changements suivants:\n${Object.entries(changes).map(([k, v]) => `${k}: ${v}`).join('\n')}`;
     const result = await transporter.sendMail({
       from: getFromEmail(),
       to: email,
       subject: '✏️ Ton profil HerSafety CI a été modifié',
       html: htmlContent,
+      text: textContent,
     });
 
     console.log('✓ [Email] Profile change email SENT:', result.messageId);
