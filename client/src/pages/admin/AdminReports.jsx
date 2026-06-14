@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Icon, Card, Eyebrow, H2, BackButton, PageShell, ScrollArea, Toast, Spinner } from '../../components/ui/index.jsx';
 
 export default function AdminReports() {
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast]     = useState(null);
@@ -45,22 +45,6 @@ export default function AdminReports() {
           <Eyebrow>Modération</Eyebrow>
           <H2 style={{ marginTop: 2, color: theme.chocolate }}>Signalements</H2>
         </div>
-        <button
-          onClick={toggleTheme}
-          style={{
-            background: theme.surface,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 8,
-            padding: '6px 10px',
-            color: theme.text,
-            cursor: 'pointer',
-            fontSize: 16,
-            display: 'flex',
-            alignItems: 'center'
-          }}
-        >
-          {isDark ? '☀️' : '🌙'}
-        </button>
         {reports.length > 0 && (
           <span style={{ background: theme.warn, color: '#fff', borderRadius: 10,
             padding: '2px 8px', fontSize: 11, fontWeight: 800 }}>{reports.length}</span>

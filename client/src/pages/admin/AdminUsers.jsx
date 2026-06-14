@@ -53,7 +53,7 @@ function ConfirmModal({ user, onConfirm, onCancel, theme }) {
 
 // ─── Page principale ─────────────────────────────────────────────────────────
 export default function AdminUsers() {
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const [users, setUsers]         = useState([]);
   const [loading, setLoading]     = useState(true);
   const [query, setQuery]         = useState('');
@@ -130,29 +130,11 @@ export default function AdminUsers() {
             <Eyebrow>Administration</Eyebrow>
             <H2 style={{ marginTop: 2, color: theme.chocolate }}>Utilisatrices</H2>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button
-              onClick={toggleTheme}
-              style={{
-                background: theme.surface,
-                border: `1px solid ${theme.border}`,
-                borderRadius: 8,
-                padding: '6px 10px',
-                color: theme.text,
-                cursor: 'pointer',
-                fontSize: 16,
-                display: 'flex',
-                alignItems: 'center'
-              }}
-            >
-              {isDark ? '☀️' : '🌙'}
-            </button>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontFamily: theme.serif, fontSize: 26, color: theme.chocolate, lineHeight: 1, fontWeight: 800 }}>
-                {users.length}
-              </div>
-              <div style={{ fontSize: 10, color: theme.textMute }}>comptes</div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontFamily: theme.serif, fontSize: 26, color: theme.chocolate, lineHeight: 1, fontWeight: 800 }}>
+              {users.length}
             </div>
+            <div style={{ fontSize: 10, color: theme.textMute }}>comptes</div>
           </div>
         </div>
 

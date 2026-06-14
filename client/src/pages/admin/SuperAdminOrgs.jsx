@@ -239,7 +239,7 @@ function CreateForm({ onCreated, theme }) {
 
 // ─── Page principale ─────────────────────────────────────────────────────────
 export default function SuperAdminOrgs() {
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const [orgs, setOrgs]         = useState([]);
   const [loading, setLoading]   = useState(true);
   const [tab, setTab]           = useState('list');
@@ -300,22 +300,6 @@ export default function SuperAdminOrgs() {
             <Eyebrow>Super Administration</Eyebrow>
             <H2 style={{ marginTop: 2, color: theme.chocolate }}>Organisations</H2>
           </div>
-          <button
-            onClick={toggleTheme}
-            style={{
-              background: theme.surface,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 8,
-              padding: '6px 10px',
-              color: theme.text,
-              cursor: 'pointer',
-              fontSize: 16,
-              display: 'flex',
-              alignItems: 'center'
-            }}
-          >
-            {isDark ? '☀️' : '🌙'}
-          </button>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontFamily: theme.serif, fontSize: 26, color: theme.chocolate, lineHeight: 1, fontWeight: 800 }}>
               {orgs.length}

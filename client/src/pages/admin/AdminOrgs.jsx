@@ -11,7 +11,7 @@ function getTypeColors(theme) {
 }
 
 export default function AdminOrgs() {
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const TYPE_COLORS = getTypeColors(theme);
   const [orgs, setOrgs]       = useState([]);
   const [loading, setLoading] = useState(true);

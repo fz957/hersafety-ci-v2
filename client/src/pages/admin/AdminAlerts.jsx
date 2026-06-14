@@ -8,7 +8,7 @@ import api from '../../services/api';
 
 export default function AdminAlerts() {
   const { user } = useAuth();
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -59,25 +59,6 @@ export default function AdminAlerts() {
             <div style={{ fontSize: 12, color: theme.textMute }}>Historique</div>
             <div style={{ fontSize: 24, fontWeight: 800, color: theme.chocolate }}>Alertes</div>
           </div>
-          <button
-            onClick={toggleTheme}
-            title={isDark ? 'Mode clair' : 'Mode sombre'}
-            style={{
-              background: theme.surface,
-              border: `1px solid ${theme.border}`,
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              color: theme.chocolate,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              fontSize: 18,
-            }}
-          >
-            {isDark ? '☀️' : '🌙'}
-          </button>
         </header>
 
         {/* Content Area */}

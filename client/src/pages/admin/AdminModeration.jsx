@@ -12,7 +12,7 @@ const CONTENT_TYPES = [
 ];
 
 export default function AdminModeration() {
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const [contentType, setContentType] = useState('testimonies');
   const [allContent, setAllContent] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -208,19 +208,6 @@ export default function AdminModeration() {
           <Eyebrow>Modération</Eyebrow>
           <H2 style={{ marginTop: 2, color: theme.chocolate }}>Communauté</H2>
         </div>
-        <button onClick={toggleTheme} style={{
-          background: theme.surface,
-          border: `1px solid ${theme.border}`,
-          borderRadius: 8,
-          padding: '6px 10px',
-          color: theme.text,
-          cursor: 'pointer',
-          fontSize: 16,
-          display: 'flex',
-          alignItems: 'center'
-        }}>
-          {isDark ? '☀️' : '🌙'}
-        </button>
         <span style={{
           background: theme.sakura,
           color: theme.chocolate,

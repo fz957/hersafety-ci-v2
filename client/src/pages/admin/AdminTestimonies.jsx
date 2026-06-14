@@ -12,7 +12,7 @@ function getCatColors(theme) {
 }
 
 export default function AdminTestimonies() {
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const [testimonies, setTestimonies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast]     = useState(null);
@@ -61,22 +61,6 @@ export default function AdminTestimonies() {
           <Eyebrow>Modération</Eyebrow>
           <H2 style={{ marginTop: 2, color: theme.chocolate }}>Témoignages en attente</H2>
         </div>
-        <button
-          onClick={toggleTheme}
-          style={{
-            background: theme.surface,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 8,
-            padding: '6px 10px',
-            color: theme.text,
-            cursor: 'pointer',
-            fontSize: 16,
-            display: 'flex',
-            alignItems: 'center'
-          }}
-        >
-          {isDark ? '☀️' : '🌙'}
-        </button>
         {testimonies.length > 0 && (
           <span style={{ background: theme.sakura, color: theme.chocolate, borderRadius: 10,
             padding: '2px 8px', fontSize: 11, fontWeight: 800 }}>{filtered.length}</span>
