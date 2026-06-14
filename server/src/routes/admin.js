@@ -103,6 +103,42 @@ router.get('/alerts/recent', async (req, res) => {
   }
 });
 
+// ─── GET /api/admin/alerts/by-hour ─────────────────────────────────────────
+// Retourne les alertes groupées par heure pour le diagramme
+
+router.get('/alerts/by-hour', async (req, res) => {
+  try {
+    // Obtenir les alertes d'aujourd'hui groupées par heure
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const alertsByHour = await knex('alerts')
+      .whereRaw("DATE(created_at AT TIME ZONE 'UTC') = CURRENT_DATE")
+      .select(
+        knex.raw("EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC') as hour"),
+        knex.raw('COUNT(*) as count')
+      )
+      .groupBy(knex.raw("EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC')"))
+      .orderBy(knex.raw("EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC')"));
+
+    // Initialiser un tableau de 24 heures avec 0
+    const hours = Array(24).fill(0);
+
+    // Remplir avec les vraies données
+    alertsByHour.forEach(row => {
+      const hour = parseInt(row.hour, 10);
+      if (hour >= 0 && hour < 24) {
+        hours[hour] = parseInt(row.count, 10);
+      }
+    });
+
+    return res.json({ success: true, data: hours });
+  } catch (err) {
+    console.error('[ADMIN ALERTS BY HOUR ERROR]', err.message);
+    return res.status(500).json({ success: false, error: 'Erreur récupération alertes par heure' });
+  }
+});
+
 // GET /api/admin/alerts/active - Only ACTIVE alerts (currently in progress)
 router.get('/alerts/active', async (req, res) => {
   try {

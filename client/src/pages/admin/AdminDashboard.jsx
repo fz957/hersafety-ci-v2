@@ -15,6 +15,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [users, setUsers] = useState([]);
+  const [alertsByHour, setAlertsByHour] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,15 +25,17 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const statsRes = await api.get('/api/admin/stats');
+      const [statsRes, alertsRes, usersRes, hourlyRes] = await Promise.all([
+        api.get('/api/admin/stats'),
+        api.get('/api/admin/alerts/active'),
+        api.get('/api/admin/users/list'),
+        api.get('/api/admin/alerts/by-hour'),
+      ]);
+
       setStats(statsRes.data.data);
-
-      // Fetch only ACTIVE alerts for the dashboard (not resolved ones)
-      const alertsRes = await api.get('/api/admin/alerts/active');
       setAlerts(alertsRes.data.data || []);
-
-      const usersRes = await api.get('/api/admin/users/list');
       setUsers(usersRes.data.data || []);
+      setAlertsByHour(hourlyRes.data.data || []);
     } catch (err) {
       console.error('Error fetching admin data:', err);
     } finally {
@@ -194,19 +197,24 @@ export default function AdminDashboard() {
                     gap: 8,
                     paddingBottom: 16,
                   }}>
-                    {[40, 35, 45, 42, 50, 55, 65, 58, 45, 35, 28, 20].map((h, i) => (
-                      <div key={i} style={{ textAlign: 'center', flex: 1 }}>
-                        <div style={{
-                          height: `${(h / 70) * 150}px`,
-                          background: `linear-gradient(to top, ${theme.sakura}, ${theme.sakura}80)`,
-                          borderRadius: '4px 4px 0 0',
-                          marginBottom: 8,
-                        }} />
-                        <div style={{ fontSize: 10, color: theme.textMute }}>
-                          {String(i).padStart(2, '0')}h
+                    {alertsByHour.map((count, i) => {
+                      const maxCount = Math.max(...alertsByHour, 1);
+                      const height = (count / maxCount) * 150;
+                      return (
+                        <div key={i} style={{ textAlign: 'center', flex: 1 }}>
+                          <div style={{
+                            height: `${height}px`,
+                            background: `linear-gradient(to top, ${theme.sakura}, ${theme.sakura}80)`,
+                            borderRadius: '4px 4px 0 0',
+                            marginBottom: 8,
+                            minHeight: count > 0 ? 2 : 0,
+                          }} title={`${count} alertes`} />
+                          <div style={{ fontSize: 10, color: theme.textMute }}>
+                            {String(i).padStart(2, '0')}h
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
