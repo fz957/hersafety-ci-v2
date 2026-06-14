@@ -13,7 +13,7 @@
   <rect width="192" height="192" rx="50" ry="50" fill="url(#bg)"/>
 
   <!-- Logo HerSafety centré avec ombre -->
-  <g transform="translate(96, 75) scale(4)" filter="url(#shadow)">
+  <g transform="translate(96, 96) scale(4.5)" filter="url(#shadow)">
     <!-- Bouclier (sakura #EC9C9D) -->
     <path d="M11 1 L21 4 V13 C21 19 16.5 23.5 11 25 C5.5 23.5 1 19 1 13 V4 Z"
       fill="#EC9C9D" stroke="#D67E80" strokeWidth="0.8" strokeLinejoin="round" />
@@ -22,9 +22,4 @@
     <path d="M11 9 C9.6 7.2 6 7.8 6 11 C6 13.6 9 15.6 11 17 C13 15.6 16 13.6 16 11 C16 7.8 12.4 7.2 11 9 Z"
       fill="#443025" />
   </g>
-
-  <!-- Texte HerSafety -->
-  <text x="96" y="155" font-size="20" font-weight="700" fill="#443025" text-anchor="middle" font-family="Arial, sans-serif" letter-spacing="-0.5">
-    HerSafety
-  </text>
 </svg>
