@@ -21,9 +21,12 @@ router.use((req, res, next) => {
 
 router.get('/stats', async (req, res) => {
   try {
+    // Get alerts from last 24 hours (not just today)
+    const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
     const [alertsToday, activeUsers, verifiedReports, pendingTestimonies] = await Promise.all([
       knex('alerts')
-        .whereRaw("DATE(created_at AT TIME ZONE 'UTC') = CURRENT_DATE")
+        .whereRaw('created_at >= ?', [last24h])
         .count('id as total').first(),
 
       knex('users')
