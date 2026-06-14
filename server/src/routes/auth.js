@@ -43,20 +43,20 @@ function generateRefreshToken(user) {
 }
 
 function setAuthCookies(res, accessToken, refreshToken) {
-  const isProd = process.env.NODE_ENV === 'production';
+  const isProd = process.env.APP_MODE === 'production';
 
   res.cookie('token', accessToken, {
     httpOnly: true,
     secure:   isProd,
-    sameSite: isProd ? 'none' : 'lax', // 'none' for cross-domain (requires Secure)
+    sameSite: isProd ? 'none' : 'lax',
     maxAge:   24 * 60 * 60 * 1000, // 24h
-    path:     '/',  // Important: envoi à tous les endpoints
+    path:     '/',
   });
 
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
     secure:   isProd,
-    sameSite: isProd ? 'none' : 'lax', // 'none' for cross-domain (requires Secure)
+    sameSite: isProd ? 'none' : 'lax',
     maxAge:   7 * 24 * 60 * 60 * 1000, // 7j
     path:     '/api/auth/refresh',
   });
