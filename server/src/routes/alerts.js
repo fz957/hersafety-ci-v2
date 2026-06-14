@@ -245,18 +245,15 @@ router.patch('/resolve-latest', requireAuth, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Aucune alerte active' });
     }
 
-    // Résoudre l'alerte avec cast ENUM explicite
-    const updateResult = await knex('alerts')
-      .where({ id: alert.id })
-      .update({
-        status: knex.raw(`'${value.status}'::alert_status`),
-        resolved_at: new Date()
-      })
-      .returning('*');
+    // Résoudre l'alerte avec SQL brut pour gérer l'ENUM correctement
+    const result = await knex.raw(
+      `UPDATE alerts SET status = ?::alert_status, resolved_at = NOW()
+       WHERE id = ? RETURNING *`,
+      [value.status, alert.id]
+    );
 
-    console.log(`[Alert] Alert ${alert.id} resolved as ${value.status}. Updated rows:`, updateResult.length);
-    const updated = updateResult[0] || {};
-    console.log(`[Alert] Updated alert status is now:`, updated.status);
+    const updated = result.rows[0] || {};
+    console.log(`[Alert] Alert ${alert.id} resolved. New status:`, updated.status);
     return res.json({ success: true, data: updated });
   } catch (err) {
     console.error('Alert resolve-latest error:', err);
