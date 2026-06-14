@@ -109,11 +109,7 @@ router.get('/alerts/active', async (req, res) => {
     const alerts = await knex('alerts')
       .leftJoin('users', 'alerts.user_id', 'users.id')
       .where('alerts.status', 'active')
-      .where(function() {
-        this.where('alerts.level', '2')
-            .orWhere('alerts.level', '3')
-            .orWhere('alerts.level', '4');
-      })
+      .whereIn('alerts.level', ['2', '3', '4'])
       .select(
         'alerts.id',
         'alerts.user_id',
@@ -129,6 +125,7 @@ router.get('/alerts/active', async (req, res) => {
       .orderBy('alerts.created_at', 'desc')
       .limit(50);
 
+    console.log('[ADMIN ALERTS ACTIVE] Found', alerts.length, 'active alerts');
     return res.json({ success: true, data: alerts });
   } catch (err) {
     console.error('[ADMIN ALERTS ACTIVE ERROR]', err.message);
