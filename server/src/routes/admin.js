@@ -483,7 +483,7 @@ router.post('/create-admin', async (req, res) => {
 
     // Générer un mot de passe temporaire
     const tempPassword = Math.random().toString(36).slice(-12).toUpperCase();
-    const bcrypt = require('bcrypt');
+    const bcrypt = require('bcryptjs');
     const password_hash = await bcrypt.hash(tempPassword, 12);
 
     // Créer l'admin
