@@ -909,6 +909,56 @@ const sendAdminCommentNotification = async (adminEmail, commentData, userName, c
   }
 };
 
+const sendPasswordChangeEmail = async (userEmail, userName = 'Utilisateur') => {
+  try {
+    const htmlContent = `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; background: #f5f5f5;">
+  <div style="background: white; padding: 20px; border-radius: 8px;">
+    <h2 style="color: #C2185B; margin-bottom: 16px;">🔐 Mot de passe changé — HerSafety</h2>
+
+    <p style="font-size: 16px; margin-bottom: 12px;">
+      Bonjour ${userName},
+    </p>
+
+    <p style="font-size: 14px; margin-bottom: 20px; color: #666;">
+      Votre mot de passe HerSafety a été changé avec succès. Si vous n'avez pas fait ce changement, veuillez contacter notre support immédiatement.
+    </p>
+
+    <div style="background: #f9f9f9; padding: 12px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #C2185B;">
+      <p style="margin: 8px 0; font-size: 13px;">
+        <strong>⏰ Heure du changement:</strong> ${new Date().toLocaleString('fr-FR')}
+      </p>
+    </div>
+
+    <div style="margin: 20px 0; padding: 12px; background: #e8f5e9; border-radius: 4px;">
+      <p style="margin: 0; font-size: 13px; color: #2e7d32;">
+        ✓ Votre compte est sécurisé avec le nouveau mot de passe.
+      </p>
+    </div>
+
+    <p style="font-size: 12px; color: #999; margin-top: 20px;">
+      © HerSafety - Plateforme de sécurité personnelle
+    </p>
+  </div>
+</div>
+    `;
+
+    const result = await transporter.sendMail({
+      from: getFromEmail(),
+      to: userEmail,
+      subject: '🔐 Votre mot de passe a été changé — HerSafety',
+      html: htmlContent,
+      text: `Votre mot de passe HerSafety a été changé avec succès.\n\nSi vous n'avez pas fait ce changement, contactez le support immédiatement.`,
+    });
+
+    log(`✓ Password change email sent to ${userEmail}`);
+    return { success: true, messageId: result.messageId };
+  } catch (err) {
+    console.error('✗ Password change email failed:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
 module.exports = {
   initializeTransporter,
   sendVerificationEmail,
@@ -916,6 +966,7 @@ module.exports = {
   sendTrackNotification,
   sendProfileChangeEmail,
   sendAccountDeletionEmail,
+  sendPasswordChangeEmail,
   sendWeeklyReport,
   sendAlertConfirmationEmail,
   sendAdminAlertNotification,

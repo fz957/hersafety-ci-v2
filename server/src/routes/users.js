@@ -218,6 +218,12 @@ router.post('/change-password', async (req, res) => {
       .where({ id: userId })
       .update({ password_hash: newPasswordHash, updated_at: new Date() });
 
+    // Envoyer email de confirmation (EN BACKGROUND - ne pas bloquer la réponse)
+    if (user && user.email) {
+      emailService.sendPasswordChangeEmail(user.email, user.full_name || 'Utilisateur')
+        .catch(err => console.error('[Email] Error sending password change email:', err.message));
+    }
+
     return res.json({ success: true, message: 'Mot de passe changé avec succès' });
   } catch (err) {
     console.error('Erreur changement mot de passe:', err);
