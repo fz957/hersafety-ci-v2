@@ -22,6 +22,13 @@ export default function Settings() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(user?.email_notifications_enabled !== false);
   const [showModal, setShowModal] = useState(null); // 'privacy', 'terms', 'about'
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    current_password: '',
+    new_password: '',
+    confirm_password: ''
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const handleLogout = async () => {
     if (!window.confirm('Confirmer la déconnexion?')) return;
@@ -73,6 +80,33 @@ export default function Settings() {
       setToast({ message: 'Erreur mise à jour profil', type: 'error' });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (passwordData.new_password !== passwordData.confirm_password) {
+      setToast({ message: 'Les mots de passe ne correspondent pas', type: 'error' });
+      return;
+    }
+
+    if (passwordData.new_password.length < 8) {
+      setToast({ message: 'Le mot de passe doit contenir au moins 8 caractères', type: 'error' });
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await api.post('/api/users/change-password', {
+        current_password: passwordData.current_password,
+        new_password: passwordData.new_password,
+      });
+      setToast({ message: 'Mot de passe changé avec succès', type: 'success' });
+      setPasswordData({ current_password: '', new_password: '', confirm_password: '' });
+      setShowPasswordForm(false);
+    } catch (err) {
+      setToast({ message: err.response?.data?.error || 'Erreur changement mot de passe', type: 'error' });
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -150,6 +184,69 @@ export default function Settings() {
                       phone: user?.phone || '',
                     });
                   }}
+                    style={{
+                      flex: 1, padding: '10px', borderRadius: 10, border: 'none',
+                      background: theme.textMute, color: '#fff', fontSize: 12, fontWeight: 700,
+                      fontFamily: theme.font, cursor: 'pointer'
+                    }}>
+                    ✕ Annuler
+                  </button>
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
+
+        {/* Sécurité */}
+        <div style={{ marginBottom: 28 }}>
+          <Eyebrow style={{ marginBottom: 14, color: theme.textDim }}>Sécurité</Eyebrow>
+          <Card style={{ padding: 16, background: theme.surface, border: `1px solid ${theme.border}` }}>
+            {!showPasswordForm ? (
+              <button onClick={() => setShowPasswordForm(true)}
+                style={{
+                  width: '100%', padding: '10px', borderRadius: 10, border: 'none',
+                  background: theme.mistyRose, color: theme.chocolate, fontSize: 12, fontWeight: 700,
+                  fontFamily: theme.font, cursor: 'pointer'
+                }}>
+                🔐 Changer le mot de passe
+              </button>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <Input
+                  label="Mot de passe actuel"
+                  type="password"
+                  value={passwordData.current_password}
+                  onChange={(e) => setPasswordData({ ...passwordData, current_password: e.target.value })}
+                />
+                <Input
+                  label="Nouveau mot de passe"
+                  type="password"
+                  value={passwordData.new_password}
+                  onChange={(e) => setPasswordData({ ...passwordData, new_password: e.target.value })}
+                />
+                <Input
+                  label="Confirmer le mot de passe"
+                  type="password"
+                  value={passwordData.confirm_password}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirm_password: e.target.value })}
+                />
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    onClick={handleChangePassword}
+                    disabled={isChangingPassword}
+                    style={{
+                      flex: 1, padding: '10px', borderRadius: 10, border: 'none',
+                      background: theme.safe, color: '#fff', fontSize: 12, fontWeight: 700,
+                      fontFamily: theme.font, cursor: isChangingPassword ? 'not-allowed' : 'pointer',
+                      opacity: isChangingPassword ? 0.6 : 1
+                    }}>
+                    {isChangingPassword ? '⏳ Changement...' : '💾 Valider'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowPasswordForm(false);
+                      setPasswordData({ current_password: '', new_password: '', confirm_password: '' });
+                    }}
                     style={{
                       flex: 1, padding: '10px', borderRadius: 10, border: 'none',
                       background: theme.textMute, color: '#fff', fontSize: 12, fontWeight: 700,
