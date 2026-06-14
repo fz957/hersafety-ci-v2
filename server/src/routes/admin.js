@@ -591,32 +591,4 @@ router.delete('/admins/:id', async (req, res) => {
   }
 });
 
-// ─── POST /api/admin/alerts/cleanup ────────────────────────────────────────
-// Nettoyer: mettre à jour toutes les alertes actives à resolved
-// Endpoint pour nettoyer les données de test/migration
-router.post('/alerts/cleanup', async (req, res) => {
-  try {
-    console.log('[ADMIN CLEANUP] Starting cleanup of all active alerts...');
-
-    const result = await knex.raw(
-      `UPDATE alerts SET status = ?::alert_status, resolved_at = NOW()
-       WHERE status = ?::alert_status
-       RETURNING id, status`,
-      ['resolved', 'active']
-    );
-
-    const updated = result.rows || [];
-    console.log(`[ADMIN CLEANUP] ✅ Updated ${updated.length} alerts to resolved`);
-
-    return res.json({
-      success: true,
-      message: `${updated.length} alertes mises à jour`,
-      data: { updated_count: updated.length }
-    });
-  } catch (err) {
-    console.error('[ADMIN CLEANUP ERROR]', err.message);
-    return res.status(500).json({ success: false, error: 'Erreur nettoyage alertes' });
-  }
-});
-
 module.exports = router;
