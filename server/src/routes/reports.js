@@ -97,13 +97,11 @@ router.get('/categorized-locations', async (req, res) => {
   const radius = parseFloat(req.query.radius) || 50000;
 
   try {
-    // Récupérer les reports vérifiés du type 'lieu'
-    // If user has no organization (new users), show all verified reports
-    const query = knex('reports').where({ report_type: 'lieu', status: 'verified' });
-    if (organizationId) {
-      query.andWhere({ organization_id: organizationId });
-    }
-    const reports = await query.select('*');
+    // Récupérer les reports vérifiés du type 'lieu' - TOUS les utilisateurs voient tous les signalements
+    // Communal map: every user sees all verified danger zones from all users in the system
+    const reports = await knex('reports')
+      .where({ report_type: 'lieu', status: 'verified' })
+      .select('*');
 
     // Grouper par location (lat, lng) et compter les incidents
     const locationMap = {};
