@@ -83,9 +83,18 @@ router.patch('/me', async (req, res) => {
       if (value.email) changes['Email'] = value.email;
       if (value.phone) changes['Téléphone'] = value.phone;
 
+      console.log('[Users] Profile changed, sending email to:', user.email);
+      console.log('[Users] Changes:', changes);
+
       // Send email in background without awaiting (don't block API response)
       emailService.sendProfileChangeEmail(user.email, user.full_name || 'Utilisateur', changes)
-        .catch(err => console.error('[Email] Error sending profile change email:', err.message));
+        .then(result => {
+          console.log('[Users] ✓ Profile change email sent successfully:', result.messageId);
+        })
+        .catch(err => {
+          console.error('[Users] ✗ Error sending profile change email:', err.message);
+          console.error('[Users] Full error:', err);
+        });
     }
 
     return res.json({ success: true, data: user });
