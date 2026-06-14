@@ -44,13 +44,23 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
           const comms = r.data.data || [];
           setComments(comms);
           setCommentCount(comms.length);
-          const likedComments = JSON.parse(localStorage.getItem('lesgirls_comment_likes') || '{}');
+          // Use server-returned user_liked status
           const likes = {};
+          const replyLikes = {};
           comms.forEach(c => {
-            likes[c.id] = likedComments[c.id] || false;
+            likes[c.id] = c.user_liked || false;
+            if (c.replies && Array.isArray(c.replies)) {
+              c.replies.forEach(reply => {
+                replyLikes[reply.id] = reply.user_liked || false;
+              });
+            }
           });
           setCommentLikes(likes);
-        }).catch(() => setComments([]));
+          setReplyLikes(replyLikes);
+        }).catch(err => {
+          console.error('[Testimony Comments] Load error:', err);
+          setComments([]);
+        });
       } else if (['article', 'photo', 'video'].includes(type)) {
         // Utiliser le nouvel endpoint /api/comments
         api.get(`/api/comments?content_type=${type}&content_id=${item.id}`).then(r => {
