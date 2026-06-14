@@ -116,57 +116,20 @@ router.post('/register', async (req, res) => {
       expires_at: expiresAt,
     });
 
-    // Envoyer l'email de vérification
+    // Envoyer l'email de vérification via emailService (Brevo)
     const verificationLink = `${process.env.APP_URL || 'http://localhost:5173'}/verify-email?token=${verificationToken}`;
     const emailService = require('../services/email.service');
 
     await emailService.initializeTransporter();
-    const transporter = require('nodemailer').createTransport({
-      host: process.env.SMTP_HOST || 'localhost',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: process.env.SMTP_USER ? {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD,
-      } : undefined,
-    });
 
-    const htmlContent = `
-      <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
-        <h2 style="color: #C2185B;">✓ Vérifiez votre email — HerSafety</h2>
-        <p>Bonjour ${full_name},</p>
-        <p>Merci de vous être inscrite sur HerSafety! Pour confirmer votre compte, cliquez sur le bouton ci-dessous:</p>
-
-        <div style="margin: 24px 0;">
-          <a href="${verificationLink}"
-             style="background: #C2185B; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block; font-weight: bold;">
-            ✓ Vérifier mon email
-          </a>
-        </div>
-
-        <p style="font-size: 12px; color: #666;">
-          Ou copie ce lien: <br>
-          <code style="word-break: break-all;">${verificationLink}</code>
-        </p>
-
-        <p style="font-size: 12px; color: #999;">
-          Ce lien expire dans 24 heures.<br>
-          Si vous n'avez pas créé de compte, ignorez cet email.
-        </p>
-      </div>
-    `;
-
-    try {
-      await transporter.sendMail({
-        from: process.env.GMAIL_USER || process.env.SMTP_USER || 'noreply@hersafety.com',
-        to: email,
-        subject: '✓ Vérifiez votre email — HerSafety',
-        html: htmlContent,
+    // Envoyer l'email en background (ne pas bloquer la réponse)
+    emailService.sendSignupVerificationEmail(email, full_name, verificationLink)
+      .then(result => {
+        console.log('[Register] ✓ Signup verification email sent to:', email);
+      })
+      .catch(err => {
+        console.error('[Register] ✗ Signup verification email failed:', err.message);
       });
-    } catch (emailErr) {
-      console.warn('Verification email failed:', emailErr.message);
-      // Continuer même si l'email échoue
-    }
 
     return res.status(201).json({
       success: true,

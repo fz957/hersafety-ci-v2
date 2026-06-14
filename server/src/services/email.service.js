@@ -909,6 +909,69 @@ const sendAdminCommentNotification = async (adminEmail, commentData, userName, c
   }
 };
 
+const sendSignupVerificationEmail = async (userEmail, userName = 'Utilisateur', verificationLink) => {
+  try {
+    if (!transporter) await initializeTransporter();
+    if (!transporter) {
+      console.warn('Email service not configured, skipping signup verification email');
+      return { success: false, error: 'Email service not configured' };
+    }
+
+    const htmlContent = `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; background: #f5f5f5;">
+  <div style="background: white; padding: 20px; border-radius: 8px;">
+    <h2 style="color: #C2185B; margin-bottom: 16px;">✓ Vérifiez votre email — HerSafety</h2>
+
+    <p style="font-size: 16px; margin-bottom: 12px;">
+      Bonjour ${userName},
+    </p>
+
+    <p style="font-size: 14px; margin-bottom: 20px; color: #666;">
+      Merci de vous être inscrite sur HerSafety! Pour confirmer votre compte, cliquez sur le bouton ci-dessous:
+    </p>
+
+    <div style="margin: 24px 0;">
+      <a href="${verificationLink}"
+         style="background: #C2185B; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block; font-weight: bold;">
+        ✓ Vérifier mon email
+      </a>
+    </div>
+
+    <p style="font-size: 12px; color: #666; margin: 20px 0;">
+      Ou copie ce lien: <br>
+      <code style="word-break: break-all;">${verificationLink}</code>
+    </p>
+
+    <div style="background: #e8f5e9; padding: 12px; border-radius: 6px; margin: 20px 0;">
+      <p style="margin: 0; font-size: 12px; color: #2e7d32;">
+        Ce lien expire dans 24 heures.<br>
+        Si vous n'avez pas créé de compte, ignorez cet email.
+      </p>
+    </div>
+
+    <p style="font-size: 12px; color: #999; margin-top: 20px;">
+      © HerSafety - Plateforme de sécurité personnelle
+    </p>
+  </div>
+</div>
+    `;
+
+    const result = await transporter.sendMail({
+      from: getFromEmail(),
+      to: userEmail,
+      subject: '✓ Vérifiez votre email — HerSafety',
+      html: htmlContent,
+      text: `Vérifiez votre email pour confirmer votre compte HerSafety.\n\nLien: ${verificationLink}\n\nCe lien expire dans 24 heures.`,
+    });
+
+    log(`✓ Signup verification email sent to ${userEmail}`);
+    return { success: true, messageId: result.messageId };
+  } catch (err) {
+    console.error('✗ Signup verification email failed:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
 const sendPasswordChangeEmail = async (userEmail, userName = 'Utilisateur') => {
   try {
     const htmlContent = `
@@ -962,6 +1025,7 @@ const sendPasswordChangeEmail = async (userEmail, userName = 'Utilisateur') => {
 module.exports = {
   initializeTransporter,
   sendVerificationEmail,
+  sendSignupVerificationEmail,
   sendAlertEmail,
   sendTrackNotification,
   sendProfileChangeEmail,
