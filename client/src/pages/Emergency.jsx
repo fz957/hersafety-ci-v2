@@ -608,6 +608,16 @@ export default function Emergency() {
               console.log('[Emergency SAFE] "Je suis en sécurité" clicked');
               // Marquer que on gère la sauvegarde
               recordingHandledRef.current = true;
+
+              // Résoudre la dernière alerte active
+              try {
+                console.log('[Emergency SAFE] Resolving latest alert...');
+                await api.patch('/api/alerts/resolve-latest', { status: 'resolved' });
+                console.log('[Emergency SAFE] Alert resolved');
+              } catch (err) {
+                console.error('[Emergency SAFE] Error resolving alert:', err);
+              }
+
               // Arrêter l'enregistrement et sauvegarder avec la position finale
               const audioBlob = await stopRecording();
               console.log('[Emergency SAFE] Audio blob:', audioBlob ? 'YES' : 'NO');
