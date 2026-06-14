@@ -44,18 +44,12 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
           const comms = r.data.data || [];
           setComments(comms);
           setCommentCount(comms.length);
+          const likedComments = JSON.parse(localStorage.getItem('lesgirls_comment_likes') || '{}');
           const likes = {};
-          const replyLikesMap = {};
           comms.forEach(c => {
-            likes[c.id] = c.user_liked || false; // Utiliser user_liked du serveur
-            if (c.replies) {
-              c.replies.forEach(reply => {
-                replyLikesMap[reply.id] = reply.user_liked || false;
-              });
-            }
+            likes[c.id] = likedComments[c.id] || false;
           });
           setCommentLikes(likes);
-          setReplyLikes(replyLikesMap);
         }).catch(() => setComments([]));
       } else if (['article', 'photo', 'video'].includes(type)) {
         // Utiliser le nouvel endpoint /api/comments
