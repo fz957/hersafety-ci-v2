@@ -780,15 +780,40 @@ router.get('/:id/comments', requireAuth, async (req, res) => {
       )
       .orderBy('testimony_comments.created_at', 'asc');
 
-    // Add like_count and user_liked for each comment
-    const commentsWithLikes = comments.map((c) => ({
-      ...c,
-      like_count: 0,
-      user_liked: false,
-      replies: []
-    }));
+    // Add like_count, user_liked, and replies for each comment
+    const commentsWithData = await Promise.all(
+      comments.map(async (c) => {
+        // Récupérer les vraies likes
+        const likes = await knex('comment_likes')
+          .where({ comment_id: c.id });
 
-    return res.json({ success: true, data: commentsWithLikes });
+        // Vérifier si l'utilisateur a liké
+        const userLiked = likes.some(l => l.user_id === userId);
+
+        // Récupérer les réponses
+        const replies = await knex('testimony_comment_replies')
+          .join('users', 'testimony_comment_replies.user_id', '=', 'users.id')
+          .where({ comment_id: c.id })
+          .select(
+            'testimony_comment_replies.id',
+            'testimony_comment_replies.reply_text',
+            'testimony_comment_replies.created_at',
+            'users.id as user_id',
+            'users.full_name as user_name',
+            'testimony_comment_replies.user_id as author_id'
+          )
+          .orderBy('testimony_comment_replies.created_at', 'asc');
+
+        return {
+          ...c,
+          like_count: likes.length,
+          user_liked: userLiked,
+          replies: replies
+        };
+      })
+    );
+
+    return res.json({ success: true, data: commentsWithData });
   } catch (err) {
     console.error('Get comments error:', err);
     return res.status(500).json({ success: false, error: 'Erreur récupération commentaires' });

@@ -44,12 +44,18 @@ const Post = ({ item, type, onDelete, onReport, user, setToast, CATEGORIES }) =>
           const comms = r.data.data || [];
           setComments(comms);
           setCommentCount(comms.length);
-          const likedComments = JSON.parse(localStorage.getItem('lesgirls_comment_likes') || '{}');
           const likes = {};
+          const replyLikesMap = {};
           comms.forEach(c => {
-            likes[c.id] = likedComments[c.id] || false;
+            likes[c.id] = c.user_liked || false; // Utiliser user_liked du serveur
+            if (c.replies) {
+              c.replies.forEach(reply => {
+                replyLikesMap[reply.id] = reply.user_liked || false;
+              });
+            }
           });
           setCommentLikes(likes);
+          setReplyLikes(replyLikesMap);
         }).catch(() => setComments([]));
       } else if (['article', 'photo', 'video'].includes(type)) {
         // Utiliser le nouvel endpoint /api/comments
@@ -522,17 +528,17 @@ export default function Community() {
         api.get('/api/videos'),
       ]);
 
-      // Traiter les témoignages
+      // Traiter les témoignages (garder les données existantes si la requête échoue)
       if (testimonyRes.status === 'fulfilled') {
         const apiTestimonies = testimonyRes.value.data.data || [];
         console.log('[Community LOAD] API returned', apiTestimonies.length, 'testimonies');
         setTestimonies(apiTestimonies);
       } else {
         console.error('[Community LOAD] Testimonies API error:', testimonyRes.reason);
-        setTestimonies([]);
+        // Garder les données existantes au lieu de vider
       }
 
-      // Traiter les articles
+      // Traiter les articles (garder les données existantes si la requête échoue)
       if (articlesRes.status === 'fulfilled') {
         const apiArticles = articlesRes.value.data.data || [];
         console.log('[Community LOAD] API returned', apiArticles.length, 'articles');
@@ -549,20 +555,20 @@ export default function Community() {
         }
       } else {
         console.error('[Community LOAD] Articles API error:', articlesRes.reason);
-        setArticles([]);
+        // Garder les données existantes au lieu de vider
       }
 
-      // Traiter les photos
+      // Traiter les photos (garder les données existantes si la requête échoue)
       if (photosRes.status === 'fulfilled') {
         const apiPhotos = photosRes.value.data.data || [];
         console.log('[Community LOAD] API returned', apiPhotos.length, 'photos');
         setPhotos(apiPhotos);
       } else {
         console.error('[Community LOAD] Photos API error:', photosRes.reason);
-        setPhotos([]);
+        // Garder les données existantes au lieu de vider
       }
 
-      // Traiter les vidéos
+      // Traiter les vidéos (garder les données existantes si la requête échoue)
       if (videosRes.status === 'fulfilled') {
         const apiVideos = videosRes.value.data.data || [];
         console.log('[Community LOAD] API returned', apiVideos.length, 'videos');
