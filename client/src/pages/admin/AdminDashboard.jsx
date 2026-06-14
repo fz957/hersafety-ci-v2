@@ -242,7 +242,6 @@ export default function AdminDashboard() {
                         <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute, width: '100px' }}>TYPE</th>
                         <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute, width: '100px' }}>NIVEAU</th>
                         <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute, width: '80px' }}>HEURE</th>
-                        <th style={{ padding: '0 12px', textAlign: 'left', color: theme.textMute, width: '80px' }}>ACTION</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -278,29 +277,6 @@ export default function AdminDashboard() {
                               </td>
                               <td style={{ padding: '0 12px', color: theme.textMute, fontSize: 12 }}>
                                 {formatTime(alert.created_at)}
-                              </td>
-                              <td style={{ padding: '0 12px' }}>
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      await api.patch(`/api/alerts/${alert.id}/resolve`, { status: 'resolved' });
-                                      fetchData(); // Refresh data
-                                    } catch (err) {
-                                      console.error('Error resolving alert:', err);
-                                    }
-                                  }}
-                                  style={{
-                                    background: HS.chocolate,
-                                    color: '#fff',
-                                    border: 'none',
-                                    padding: '6px 12px',
-                                    borderRadius: 8,
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    cursor: 'pointer'
-                                  }}>
-                                  Presser
-                                </button>
                               </td>
                             </tr>
                           );
