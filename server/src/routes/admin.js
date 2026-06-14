@@ -66,11 +66,12 @@ router.get('/stats', async (req, res) => {
 // Retourne les urgences ACTIVES de emergency_history (status='active' uniquement)
 router.get('/alerts/recent', async (req, res) => {
   try {
-    // Get alerts from last 24 hours
+    // Get ACTIVE alerts from last 24 hours (status='active' only)
     const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     const alerts = await knex('alerts')
       .leftJoin('users', 'alerts.user_id', 'users.id')
+      .where('alerts.status', 'active')  // Only active alerts
       .whereRaw('alerts.created_at >= ?', [last24h])
       .where(function() {
         this.where('alerts.level', '2')
@@ -86,6 +87,7 @@ router.get('/alerts/recent', async (req, res) => {
         'alerts.location_lat',
         'alerts.location_lng',
         'alerts.location_label',
+        'alerts.status',
         'alerts.created_at'
       )
       .orderBy('alerts.created_at', 'desc')
