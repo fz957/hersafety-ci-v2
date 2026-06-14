@@ -66,9 +66,12 @@ router.get('/stats', async (req, res) => {
 // Retourne les urgences ACTIVES de emergency_history (status='active' uniquement)
 router.get('/alerts/recent', async (req, res) => {
   try {
+    // Get alerts from last 24 hours (regardless of status)
+    const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
     const alerts = await knex('emergency_history')
       .leftJoin('users', 'emergency_history.user_id', 'users.id')
-      .where('emergency_history.status', '=', 'active')
+      .where('emergency_history.created_at', '>=', last24h)
       .select(
         'emergency_history.id',
         'emergency_history.user_id',
@@ -82,7 +85,7 @@ router.get('/alerts/recent', async (req, res) => {
         'emergency_history.created_at'
       )
       .orderBy('emergency_history.created_at', 'desc')
-      .limit(20);
+      .limit(50);
 
     return res.json({ success: true, data: alerts });
   } catch (err) {
