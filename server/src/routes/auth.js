@@ -117,7 +117,7 @@ router.post('/register', async (req, res) => {
     });
 
     // Envoyer l'email de vérification via emailService (Brevo)
-    const verificationLink = `${process.env.APP_URL || 'http://localhost:5173'}/verify-email?token=${verificationToken}`;
+    const verificationLink = `${process.env.APP_URL || 'http://localhost:5001'}/api/auth/verify-email?token=${verificationToken}`;
     const emailService = require('../services/email.service');
 
     await emailService.initializeTransporter();
