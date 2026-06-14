@@ -279,16 +279,25 @@ export default function AdminDashboard() {
                                 {formatTime(alert.created_at)}
                               </td>
                               <td style={{ padding: '0 12px' }}>
-                                <button style={{
-                                  background: HS.chocolate,
-                                  color: '#fff',
-                                  border: 'none',
-                                  padding: '6px 12px',
-                                  borderRadius: 8,
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  cursor: 'pointer'
-                                }}>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await api.patch(`/api/alerts/${alert.id}/resolve`, { status: 'resolved' });
+                                      fetchData(); // Refresh data
+                                    } catch (err) {
+                                      console.error('Error resolving alert:', err);
+                                    }
+                                  }}
+                                  style={{
+                                    background: HS.chocolate,
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '6px 12px',
+                                    borderRadius: 8,
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}>
                                   Presser
                                 </button>
                               </td>
