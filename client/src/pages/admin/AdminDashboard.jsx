@@ -40,6 +40,21 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleCleanupAlerts = async () => {
+    if (!confirm('⚠️ Cela va résoudre TOUTES les alertes actives. Continuer?')) {
+      return;
+    }
+
+    try {
+      const res = await api.post('/api/admin/alerts/cleanup');
+      alert(`✅ ${res.data.data.updated_count} alertes nettoyées!`);
+      fetchData();
+    } catch (err) {
+      console.error('Cleanup error:', err);
+      alert('❌ Erreur nettoyage');
+    }
+  };
+
   // Format alert ID (show first 8 chars uppercase)
   const formatAlertId = (id) => {
     if (!id) return '—';
@@ -123,6 +138,26 @@ export default function AdminDashboard() {
               }}
             >
               {isDark ? '☀️' : '🌙'}
+            </button>
+          </div>
+
+          {/* Cleanup button */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <button
+              onClick={handleCleanupAlerts}
+              title="Résoudre toutes les alertes actives"
+              style={{
+                background: theme.warnSoft,
+                color: theme.warn,
+                border: `1px solid ${theme.warn}`,
+                padding: '8px 12px',
+                borderRadius: 10,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              🧹 Nettoyer alertes
             </button>
           </div>
 
