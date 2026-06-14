@@ -10,6 +10,17 @@ import { Icon, Avatar, Eyebrow, TestBanner, BottomNav, PageShell, Toast, Card, B
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 
+// Hook pour détecter mobile vs desktop
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  return isMobile;
+}
+
 const LEVELS = [
   { level: '1', color: '#7B9171', glow: 'rgba(123,145,113,0.35)', label: 'Je suis méfiante',  sub: 'Check-in · Suivi GPS',           gesture: 'Tap simple',           icon: ICONS.heart },
   { level: '3', color: '#C97B3B', glow: 'rgba(201,123,59,0.45)', label: 'Situation tendue',   sub: 'Mes proches sont notifiés',    gesture: 'Double tap',            icon: ICONS.alert },
@@ -19,6 +30,7 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const { triggerAlert, loading } = useEmergency();
   const { theme, isDark, toggleTheme } = useTheme();
+  const isMobile = useIsMobile();
   // Active le suivi GPS continu si un track est actif
   const { position, error: gpsError } = useGPS({ watch: true });
   const navigate = useNavigate();
@@ -220,10 +232,10 @@ export default function Dashboard() {
       </div>
 
       {/* Boutons de niveau */}
-      <div style={{ flex: 1, padding: '4px 16px 90px', display: 'flex',
-        flexDirection: 'column', gap: 10 }}>
+      <div style={{ flex: 1, padding: isMobile ? '4px 12px 90px' : '4px 16px 90px', display: 'flex',
+        flexDirection: 'column', gap: isMobile ? 8 : 10 }}>
 
-        <Eyebrow style={{ marginTop: 8 }}>Comment tu te sens ?</Eyebrow>
+        <Eyebrow style={{ marginTop: 8, fontSize: isMobile ? 12 : 13 }}>Comment tu te sens ?</Eyebrow>
 
         {LEVELS.map((lv) => (
           <button
@@ -231,23 +243,26 @@ export default function Dashboard() {
             disabled={loading}
             onClick={() => handleLevel(lv)}
             style={{
-              width: '100%', textAlign: 'left', padding: '16px 18px', borderRadius: 22,
+              width: '100%', textAlign: 'left',
+              padding: isMobile ? '12px 14px' : '16px 18px',
+              borderRadius: 22,
               background: `linear-gradient(135deg, ${lv.color}, ${lv.color}dd)`,
               border: 'none', color: '#fff', cursor: loading ? 'wait' : 'pointer',
               boxShadow: `0 6px 18px ${lv.glow}, inset 0 1px 0 rgba(255,255,255,0.18)`,
-              display: 'flex', alignItems: 'center', gap: 14, minHeight: 84,
+              display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14,
+              minHeight: isMobile ? 64 : 84,
               transition: 'transform .1s, opacity .1s',
               opacity: loading ? 0.7 : 1,
             }}
           >
-            <div style={{ width: 48, height: 48, borderRadius: 14,
+            <div style={{ width: isMobile ? 40 : 48, height: isMobile ? 40 : 48, borderRadius: 14,
               background: 'rgba(255,255,255,0.22)', display: 'flex',
               alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Icon d={lv.icon} size={24} color="#fff" />
+              <Icon d={lv.icon} size={isMobile ? 20 : 24} color="#fff" />
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: -0.2 }}>{lv.label}</div>
-              <div style={{ fontSize: 12, opacity: 0.92, marginTop: 2 }}>{lv.sub}</div>
+              <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, letterSpacing: -0.2 }}>{lv.label}</div>
+              <div style={{ fontSize: isMobile ? 11 : 12, opacity: 0.92, marginTop: 2 }}>{lv.sub}</div>
               <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6,
                 background: 'rgba(0,0,0,0.18)', padding: '3px 10px', borderRadius: 100,
                 fontSize: 10.5, fontWeight: 700, letterSpacing: 0.3 }}>
