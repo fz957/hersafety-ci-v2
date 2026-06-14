@@ -64,14 +64,14 @@ router.get('/stats', async (req, res) => {
 
 // ─── GET /api/admin/alerts/recent ───────────────────────────────────────────
 // Retourne les urgences ACTIVES de emergency_history (status='active' uniquement)
+// GET /api/admin/alerts/recent - ALL alerts from last 24h (for dashboard overview)
 router.get('/alerts/recent', async (req, res) => {
   try {
-    // Get ACTIVE alerts from last 24 hours (status='active' only)
+    // Get ALL alerts from last 24 hours (regardless of status)
     const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     const alerts = await knex('alerts')
       .leftJoin('users', 'alerts.user_id', 'users.id')
-      .where('alerts.status', 'active')  // Only active alerts
       .whereRaw('alerts.created_at >= ?', [last24h])
       .where(function() {
         this.where('alerts.level', '2')
@@ -97,6 +97,39 @@ router.get('/alerts/recent', async (req, res) => {
   } catch (err) {
     console.error('[ADMIN ALERTS RECENT ERROR]', err.message);
     return res.status(500).json({ success: false, error: 'Erreur récupération alertes récentes' });
+  }
+});
+
+// GET /api/admin/alerts/active - Only ACTIVE alerts (currently in progress)
+router.get('/alerts/active', async (req, res) => {
+  try {
+    const alerts = await knex('alerts')
+      .leftJoin('users', 'alerts.user_id', 'users.id')
+      .where('alerts.status', 'active')
+      .where(function() {
+        this.where('alerts.level', '2')
+            .orWhere('alerts.level', '3')
+            .orWhere('alerts.level', '4');
+      })
+      .select(
+        'alerts.id',
+        'alerts.user_id',
+        'users.full_name',
+        'users.email',
+        'alerts.level',
+        'alerts.location_lat',
+        'alerts.location_lng',
+        'alerts.location_label',
+        'alerts.status',
+        'alerts.created_at'
+      )
+      .orderBy('alerts.created_at', 'desc')
+      .limit(50);
+
+    return res.json({ success: true, data: alerts });
+  } catch (err) {
+    console.error('[ADMIN ALERTS ACTIVE ERROR]', err.message);
+    return res.status(500).json({ success: false, error: 'Erreur récupération alertes actives' });
   }
 });
 
