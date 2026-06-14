@@ -262,6 +262,35 @@ export default function AdminAdmins() {
                     ✓ C'est toi
                   </div>
                 )}
+
+                {/* Bouton supprimer (pas pour soi-même) */}
+                {admin.id !== user?.id && (
+                  <button
+                    onClick={async () => {
+                      if (confirm(`Supprimer ${admin.full_name}? Il n'aura plus accès à l'admin.`)) {
+                        try {
+                          await api.delete(`/api/admin/admins/${admin.id}`);
+                          setMessage({ type: 'success', text: '✅ Admin supprimé' });
+                          fetchAdmins();
+                        } catch (err) {
+                          const errorMsg = err.response?.data?.error || 'Erreur suppression admin';
+                          setMessage({ type: 'error', text: errorMsg });
+                        }
+                      }
+                    }}
+                    style={{
+                      background: theme.danger,
+                      color: '#fff',
+                      border: 'none',
+                      padding: '6px 12px',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}>
+                    Supprimer
+                  </button>
+                )}
               </div>
             ))
           )}

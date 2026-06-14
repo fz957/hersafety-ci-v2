@@ -563,4 +563,32 @@ router.post('/create-admin', async (req, res) => {
   }
 });
 
+// ─── DELETE /api/admin/admins/:id ─────────────────────────────────────────────
+// Supprimer un admin (ne peut pas se supprimer soi-même)
+router.delete('/admins/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Récupérer l'admin à supprimer
+    const admin = await knex('users').where({ id }).first();
+    if (!admin) {
+      return res.status(404).json({ success: false, error: 'Admin non trouvé' });
+    }
+
+    // Vérifier que ce n'est pas un utilisateur normal (role doit être admin ou superadmin)
+    if (admin.role !== 'admin' && admin.role !== 'superadmin') {
+      return res.status(400).json({ success: false, error: 'Cet utilisateur n\'est pas un admin' });
+    }
+
+    // Supprimer l'admin
+    await knex('users').where({ id }).delete();
+
+    console.log(`[ADMIN DELETED] Admin ${id} (${admin.email}) has been deleted`);
+    return res.json({ success: true, message: 'Admin supprimé avec succès' });
+  } catch (err) {
+    console.error('[DELETE ADMIN ERROR]', err.message);
+    return res.status(500).json({ success: false, error: 'Erreur suppression admin' });
+  }
+});
+
 module.exports = router;
