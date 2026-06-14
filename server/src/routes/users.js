@@ -1,5 +1,6 @@
 const express = require('express');
 const Joi     = require('joi');
+const bcrypt  = require('bcryptjs');
 
 const knex              = require('../db/knex');
 const { requireAuth }   = require('../middlewares/auth');
@@ -176,6 +177,51 @@ router.delete('/me', async (req, res) => {
   } catch (err) {
     console.error('Erreur suppression compte:', err);
     return res.status(500).json({ success: false, error: 'Erreur suppression compte' });
+  }
+});
+
+// ─── POST /api/users/change-password ──────────────────────────────────────────
+
+const changePasswordSchema = Joi.object({
+  current_password: Joi.string().required(),
+  new_password: Joi.string().min(8).required(),
+});
+
+router.post('/change-password', async (req, res) => {
+  const { error, value } = changePasswordSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ success: false, error: error.details[0].message });
+  }
+
+  const userId = req.user.userId;
+
+  try {
+    // Récupérer l'utilisateur
+    const user = await knex('users').where({ id: userId }).first();
+
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Utilisateur introuvable' });
+    }
+
+    // Vérifier le mot de passe actuel
+    const isPasswordValid = await bcrypt.compare(value.current_password, user.password_hash);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ success: false, error: 'Mot de passe actuel incorrect' });
+    }
+
+    // Hasher le nouveau mot de passe
+    const newPasswordHash = await bcrypt.hash(value.new_password, 12);
+
+    // Mettre à jour le mot de passe
+    await knex('users')
+      .where({ id: userId })
+      .update({ password_hash: newPasswordHash, updated_at: new Date() });
+
+    return res.json({ success: true, message: 'Mot de passe changé avec succès' });
+  } catch (err) {
+    console.error('Erreur changement mot de passe:', err);
+    return res.status(500).json({ success: false, error: 'Erreur changement mot de passe' });
   }
 });
 
