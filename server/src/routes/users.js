@@ -14,6 +14,9 @@ const updateSchema = Joi.object({
   phone:           Joi.string().trim().max(20).allow('', null).optional(),
   onboarding_done: Joi.boolean().optional(),
   email_notifications_enabled: Joi.boolean().optional(),
+  notify_alerts:   Joi.boolean().optional(),
+  notify_reports:  Joi.boolean().optional(),
+  notify_comments: Joi.boolean().optional(),
 }).min(1); // Au moins un champ requis
 
 // ─── GET /api/users/me ────────────────────────────────────────────────────────
@@ -32,6 +35,9 @@ router.get('/me', async (req, res) => {
         'is_active',
         'onboarding_done',
         'email_notifications_enabled',
+        'notify_alerts',
+        'notify_reports',
+        'notify_comments',
         'created_at',
       )
       .first();
@@ -78,7 +84,7 @@ router.patch('/me', async (req, res) => {
     const [user] = await knex('users')
       .where({ id: req.user.userId })
       .update({ ...value, updated_at: new Date() })
-      .returning(['id', 'email', 'full_name', 'phone', 'role', 'onboarding_done', 'email_notifications_enabled', 'updated_at']);
+      .returning(['id', 'email', 'full_name', 'phone', 'role', 'onboarding_done', 'email_notifications_enabled', 'notify_alerts', 'notify_reports', 'notify_comments', 'updated_at']);
 
     // Envoyer email de confirmation si changements profil (EN BACKGROUND - ne pas bloquer la réponse)
     if (value.full_name || value.email || value.phone) {
