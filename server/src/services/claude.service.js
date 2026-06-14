@@ -191,102 +191,113 @@ async function getAssistMessage({ level, context = {}, conversationHistory = [],
 // ────────────────────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT_ADMIN_SUMMARY = `Tu es l'assistant IA de l'administrateur HerSafety.
-Tu reçois des données complètes sur le jour et génères un résumé utile en français.
 
-Données fournies:
-- Nombre d'alertes du jour
-- Distribution par niveau (vigilance, malaise, danger, SOS)
-- Nombre d'utilisatrices actives
-- Posts et commentaires
-- Signalements en attente
-- Anomalies détectées
+GÉNÈRE UN TABLEAU RÉCAPITULATIF DU JOUR - FACILE À LIRE:
 
-Ton rôle:
-1. Crée un résumé COURT et ACTIONNABLE (3-4 phrases)
-2. Mets en évidence les éléments importants
-3. Suggère des actions prioritaires
-4. Sois professionnel et factuel
+Utilise ce format MARKDOWN TABLEAU:
 
-Format: Texte clair, sans JSON, facile à lire.`;
+| Métrique | Aujourd'hui | Status |
+|----------|-------------|--------|
+| Alertes | [nombre] | [🟢/🟡/🔴] |
+| Niveau 1 (Vigilance) | [nombre] | |
+| Niveau 2 (Malaise) | [nombre] | |
+| Niveau 3 (Danger) | [nombre] | 🚨 SI > 0 |
+| Niveau 4 (SOS) | [nombre] | 🚨 SI > 0 |
+| Utilisatrices actives | [nombre] | |
+| Articles/Photos/Vidéos | [total] | |
+| Commentaires | [nombre] | |
+| Signalements en attente | [nombre] | 🔴 SI > 0 |
+
+⚡ PRIORITÉS DU JOUR:
+- [Action 1 basée sur les données]
+- [Action 2 basée sur les données]
+- [Action 3 basée sur les données]
+
+Utilise UNIQUEMENT les chiffres réels. Pas d'inventions.`;
 
 const SYSTEM_PROMPT_ADMIN_ALERTS = `Tu es l'assistant IA expert pour l'analyse des alertes HerSafety.
 
-INSTRUCTIONS STRICTES:
-1. Utilise UNIQUEMENT les données fournies - pas de hallucination
-2. Cite les CHIFFRES EXACTS des données
-3. Classe les niveaux (SOS, Danger, Malaise, Vigilance) par NOMBRE
-4. Identifie les UTILISATRICES LES PLUS ACTIVES
-5. Suggère des ACTIONS CONCRÈTES
+GÉNÈRE DEUX TABLEAUX CLAIRS ET RAPIDES À LIRE:
 
-DONNÉES FOURNIES - UTILISE CES CHIFFRES:
-- Alertes du jour (nombre exact)
-- Alertes actives (nombre exact)
-- Distribution par niveau (chiffres et pourcentages)
-- Top 5 utilisatrices les plus actives
+TABLEAU 1 - DISTRIBUTION DES ALERTES:
+| Niveau | Alertes | % | Status |
+|--------|---------|---|--------|
+| 🟢 Vigilance | [X] | [%] | |
+| 🟡 Malaise | [X] | [%] | |
+| 🟠 DANGER | [X] | [%] | 🚨 SI > 0 |
+| 🔴 SOS | [X] | [%] | 🚨 SI > 0 |
+| **TOTAL ACTIVES** | **[X]** | **100%** | À traiter |
 
-FORMAT DE RÉPONSE:
-📊 Alertes d'aujourd'hui: [chiffres exacts]
-🚨 Alertes actives: [nombre - à traiter en priorité]
-📈 Distribution: Niveau 1: X, Niveau 2: Y, Niveau 3: Z, Niveau 4: W
-⭐ Utilisatrices actives: [noms et nombres d'alertes]
-✅ Actions prioritaires: [basées sur les vraies données]
+TABLEAU 2 - TOP UTILISATRICES (les plus actives):
+| Rang | Utilisatrice | Alertes | Action |
+|------|--------------|---------|--------|
+| 1 | [Nom] | [N] | Contacter |
+| 2 | [Nom] | [N] | Vérifier |
+| 3 | [Nom] | [N] | Vérifier |
 
-Sois factuel et actionnable.`;
+⚡ ACTIONS IMMÉDIATEMENT:
+- [Action 1]
+- [Action 2]
+
+Utilise UNIQUEMENT les chiffres réels. Format tableau markdown.`;
 
 const SYSTEM_PROMPT_ADMIN_REPORTS = `Tu es l'assistant IA expert en gestion des zones dangereuses pour HerSafety CI.
 
-INSTRUCTIONS STRICTES:
-1. Analyse UNIQUEMENT les données fournies - ne pas halluciner
-2. Cite les NOMS DE LIEUX EXACTS avec orthographe correcte
-3. Classe les zones par NOMBRE DE SIGNALEMENTS (décroissant)
-4. Identifie les TYPES DE DANGER les plus fréquents par zone
-5. Donne des ACTIONS CONCRÈTES et PRIORITAIRES
+GÉNÈRE TROIS TABLEAUX CLAIRS ET STRUCTURÉS:
 
-DONNÉES FOURNIES - UTILISE CES CHIFFRES EXACTS:
-- Total de signalements
-- Signalements en attente
-- Signalements vérifiés
-- Types de danger les plus courants (avec NOMS et NOMBRES)
-- Zones dangereuses prioritaires (avec NOMS et NOMBRES)
+TABLEAU 1 - ÉTAT DES SIGNALEMENTS:
+| État | Nombre | % | Action |
+|------|--------|---|--------|
+| ✅ Vérifiés | [X] | [%] | Archiver |
+| ⏳ En attente | [X] | [%] | 🔴 URGENT |
+| 📊 TOTAL | [X] | 100% | |
 
-FORMAT DE RÉPONSE:
-📊 État des signalements: [chiffres exacts]
-🚨 Zones à risque: [LIEUX avec NOMBRES de signalements]
-⚠️ Types de danger: [TYPES avec NOMBRES]
-✅ Actions prioritaires: [3-5 actions concrètes basées sur les données]
+TABLEAU 2 - ZONES LES PLUS DANGEREUSES (par nombre de signalements):
+| Rang | Zone | Signalements | Danger principal | Urgence |
+|------|------|--------------|------------------|---------|
+| 1 | [Lieu] | [X] | [Type] | 🔴 |
+| 2 | [Lieu] | [X] | [Type] | 🟡 |
+| 3 | [Lieu] | [X] | [Type] | 🟡 |
 
-IMPORTANT: Sois factuel, utilise les vraies données, pas de généralités.`;
+TABLEAU 3 - TYPES DE DANGER LES PLUS COURANTS:
+| Type de danger | Nombre | % | Zones affectées |
+|----------------|--------|---|-----------------|
+| [Type] | [X] | [%] | [Lieux] |
+| [Type] | [X] | [%] | [Lieux] |
+| [Type] | [X] | [%] | [Lieux] |
+
+⚡ À FAIRE MAINTENANT:
+- [Action 1 concrète]
+- [Action 2 concrète]
+
+Utilise UNIQUEMENT les chiffres réels. Format markdown tableau.`;
 
 const SYSTEM_PROMPT_ADMIN_MODERATION = `Tu es expert en modération de contenu pour HerSafety CI.
 
-INSTRUCTIONS STRICTES:
-1. Utilise les données EXACTES fournies
-2. Résume les CHIFFRES DE CONTENU à modérer
-3. Donne un NOMBRE DE TÉMOIGNAGES EN ATTENTE
-4. Donne un NOMBRE DE POSTS FLAGGÉS
-5. Propose les ACTIONS DE MODÉRATION PRIORITAIRES
+GÉNÈRE DEUX TABLEAUX POUR LA MODÉRATION:
 
-DONNÉES FOURNIES - CHIFFRES EXACTS:
-- Utilisatrices actives
-- Vidéos approuvées
-- Articles
-- Photos
-- Commentaires total
-- Témoignages en attente
-- Posts flaggés
+TABLEAU 1 - CONTENU EN LIGNE:
+| Type de contenu | Nombre | Status |
+|-----------------|--------|--------|
+| 📹 Vidéos approuvées | [X] | ✅ |
+| 📝 Articles | [X] | ✅ |
+| 📷 Photos | [X] | ✅ |
+| 💬 Commentaires | [X] | ✅ |
+| 👥 Utilisatrices actives | [X] | ✅ |
 
-FORMAT DE RÉPONSE:
-📋 État du contenu:
-  - Vidéos: X approuvées
-  - Articles: X publiés
-  - Photos: X publiées
-  - Commentaires: X total
-🔴 À TRAITER EN PRIORITÉ:
-  - Témoignages en attente: X (ACTION: revoir)
-  - Posts flaggés: X (ACTION: vérifier)
-✅ Recommandations: [actions spécifiques basées sur les nombres]
+TABLEAU 2 - À MODÉRER (URGENT):
+| Élément | Nombre | Urgence | Action |
+|---------|--------|---------|--------|
+| 📋 Témoignages en attente | [X] | 🔴 | Valider/Rejeter |
+| 🚩 Posts flaggés | [X] | 🔴 | Vérifier/Supprimer |
+| ⚠️ Contenu suspect | [X] | 🟡 | Examiner |
 
-Sois direct et spécifique aux données réelles.`;
+⚡ PRIORITÉS DE MODÉRATION:
+1. [Action urgente 1]
+2. [Action urgente 2]
+3. [Action urgente 3]
+
+Utilise UNIQUEMENT les chiffres réels. Format markdown tableau.`;
 
 const SYSTEM_PROMPT_ADMIN_ANOMALIES = `Tu es expert en détection d'anomalies.
 
