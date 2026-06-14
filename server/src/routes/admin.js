@@ -66,29 +66,31 @@ router.get('/stats', async (req, res) => {
 // Retourne les urgences ACTIVES de emergency_history (status='active' uniquement)
 router.get('/alerts/recent', async (req, res) => {
   try {
-    // Get alerts from last 24 hours (regardless of status)
+    // Get alerts from last 24 hours
     const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    console.log('[ADMIN] Fetching alerts from:', last24h);
 
-    const alerts = await knex('emergency_history')
-      .leftJoin('users', 'emergency_history.user_id', 'users.id')
-      .whereRaw('emergency_history.created_at >= ?', [last24h])
+    const alerts = await knex('alerts')
+      .leftJoin('users', 'alerts.user_id', 'users.id')
+      .whereRaw('alerts.created_at >= ?', [last24h])
+      .where(function() {
+        this.where('alerts.level', '2')
+            .orWhere('alerts.level', '3')
+            .orWhere('alerts.level', '4');
+      })
       .select(
-        'emergency_history.id',
-        'emergency_history.user_id',
+        'alerts.id',
+        'alerts.user_id',
         'users.full_name',
         'users.email',
-        'emergency_history.level',
-        'emergency_history.latitude as location_lat',
-        'emergency_history.longitude as location_lng',
-        'emergency_history.location_name as location_label',
-        'emergency_history.status',
-        'emergency_history.created_at'
+        'alerts.level',
+        'alerts.location_lat',
+        'alerts.location_lng',
+        'alerts.location_label',
+        'alerts.created_at'
       )
-      .orderBy('emergency_history.created_at', 'desc')
+      .orderBy('alerts.created_at', 'desc')
       .limit(50);
 
-    console.log('[ADMIN] Found', alerts.length, 'alerts');
     return res.json({ success: true, data: alerts });
   } catch (err) {
     console.error('[ADMIN ALERTS RECENT ERROR]', err.message);
