@@ -197,7 +197,7 @@ const initializeTransporter = () => {
             },
             body: JSON.stringify({
               to: [{ email: mailOptions.to, name: mailOptions.toName || 'Recipient' }],
-              sender: { email: 'f.zreik04@gmail.com', name: 'HerSafety' },
+              sender: { email: mailOptions.from || getFromEmail(), name: 'HerSafety' },
               subject: mailOptions.subject || '',
               htmlContent: mailOptions.html || mailOptions.message || '',
               textContent: mailOptions.text || '',
