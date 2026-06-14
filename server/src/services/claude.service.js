@@ -192,87 +192,106 @@ async function getAssistMessage({ level, context = {}, conversationHistory = [],
 
 const SYSTEM_PROMPT_ADMIN_SUMMARY = `Tu es l'assistant IA de l'administrateur HerSafety.
 
-RÉSUMÉ DU JOUR - ULTRA SIMPLE:
+UTILISE CE FORMAT EXACT:
 
-**📊 CHIFFRES CLÉS**
-| Alertes | Utilisatrices actives | Signalements en attente |
-|---------|---------------------|----------------------|
-| [X] | [X] | [X] |
+📊 RÉSUMÉ DU JOUR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Alertes:                  [X]
+Utilisatrices actives:    [X]
+Signalements en attente:  [X]
 
-**🚨 NIVEAUX D'ALERTE CRITIQUES** (si > 0)
-- Danger (Niveau 3): [X]
-- SOS (Niveau 4): [X]
+🚨 ALERTES CRITIQUES (si > 0)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Danger (Niveau 3):        [X]
+SOS (Niveau 4):           [X]
 
-**⚡ À FAIRE AUJOURD'HUI:**
-1. [Action 1 - la plus urgente]
-2. [Action 2]
-3. [Action 3]
+⚡ À FAIRE AUJOURD'HUI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• [Action 1 - plus urgente]
+• [Action 2]
+• [Action 3]
 
-C'est tout! Simple et clair.`;
+Utilise les chiffres réels exactement.`;
 
 const SYSTEM_PROMPT_ADMIN_ALERTS = `Tu es l'assistant IA expert pour l'analyse des alertes HerSafety.
 
-ALERTES - SUPER SIMPLE:
+UTILISE CE FORMAT EXACT:
 
-**📊 DISTRIBUTION RAPIDE**
-| Vigilance | Malaise | Danger 🚨 | SOS 🚨 | TOTAL |
-|-----------|---------|----------|--------|-------|
-| [X] | [X] | [X] | [X] | [X] |
+📊 DISTRIBUTION DES ALERTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Vigilance (Niveau 1):     [X]
+Malaise (Niveau 2):       [X]
+Danger (Niveau 3):        [X] 🚨
+SOS (Niveau 4):           [X] 🚨
+TOTAL:                    [X]
 
-**⭐ TOP 3 UTILISATRICES (plus actives)**
-1. [Nom] - [X] alertes
-2. [Nom] - [X] alertes
-3. [Nom] - [X] alertes
+⭐ TOP 3 UTILISATRICES (plus actives)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. [Nom] ..................... [X] alertes
+2. [Nom] ..................... [X] alertes
+3. [Nom] ..................... [X] alertes
 
-**⚡ À FAIRE TOUT DE SUITE:**
-- Contacter les utilisatrices du top 3
-- Vérifier tous les alertes Danger/SOS
+⚡ À FAIRE TOUT DE SUITE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Contacter les utilisatrices du top 3
+• Vérifier tous les Danger/SOS
 
-Simple!`;
+Chiffres réels uniquement.`;
 
 const SYSTEM_PROMPT_ADMIN_REPORTS = `Tu es l'assistant IA expert en gestion des zones dangereuses pour HerSafety CI.
 
-SOIS ULTRA SIMPLE - Juste les infos essentielles:
+UTILISE CE FORMAT EXACT:
 
-**📊 ÉTAT RAPIDE**
-| Vérifiés | En attente | TOTAL |
-|----------|-----------|-------|
-| [X] | [X] | [X] |
+📊 ÉTAT DES SIGNALEMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Vérifiés:     [X]
+En attente:   [X]
+TOTAL:        [X]
 
-**🚨 ZONES À INTERVENIR (par urgence)**
-| Zone | Signalements | Action |
-|------|--------------|--------|
-| [Zone] | [X] | À vérifier |
-| [Zone] | [X] | À vérifier |
+🚨 ZONES À INTERVENIR (par urgence)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. [Zone] ..................... [X] signalements
+2. [Zone] ..................... [X] signalements
+3. [Zone] ..................... [X] signalements
+4. [Zone] ..................... [X] signalements
+5. [Zone] ..................... [X] signalements
 
-**⚠️ DANGERS LES PLUS FRÉQUENTS**
-- [Type danger] ([X]) → Zones: [liste simple]
-- [Type danger] ([X]) → Zones: [liste simple]
+⚠️ DANGERS LES PLUS FRÉQUENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• [Type] ([X]) → Zones: [liste simple]
+• [Type] ([X]) → Zones: [liste simple]
+• [Type] ([X]) → Zones: [liste simple]
 
-**⚡ À FAIRE IMMÉDIATEMENT:**
-- Vérifier [Zone] (le plus urgent)
-- Contacter les utilisatrices à [Zone]
+⚡ À FAIRE IMMÉDIATEMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Vérifier [Zone] (la plus urgente)
+• Contacter les utilisatrices là-bas
 
-C'est tout! Simple, clair, rapide à lire.`;
+Chiffres réels uniquement.`;
 
 const SYSTEM_PROMPT_ADMIN_MODERATION = `Tu es expert en modération de contenu pour HerSafety CI.
 
-MODÉRATION - ULTRA SIMPLE:
+UTILISE CE FORMAT EXACT:
 
-**📋 CONTENU EN LIGNE**
-| Vidéos | Articles | Photos | Commentaires |
-|--------|----------|--------|--------------|
-| [X] | [X] | [X] | [X] |
+📋 CONTENU EN LIGNE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Vidéos approuvées:    [X]
+Articles:             [X]
+Photos:               [X]
+Commentaires:         [X]
+Utilisatrices actives: [X]
 
-**🔴 À MODÉRER (URGENT)**
-- Témoignages en attente: [X] → Valider/Rejeter
-- Posts flaggés: [X] → Vérifier/Supprimer
+🔴 À MODÉRER (URGENT)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Témoignages en attente:  [X] → Valider/Rejeter
+Posts flaggés:           [X] → Vérifier/Supprimer
 
-**⚡ EN PRIORITÉ:**
-- Modérer les témoignages en attente
-- Vérifier les posts flaggés
+⚡ EN PRIORITÉ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Modérer les témoignages en attente
+• Vérifier et supprimer les posts flaggés
 
-Voilà!`;
+Chiffres réels uniquement.`;
 
 const SYSTEM_PROMPT_ADMIN_ANOMALIES = `Tu es expert en détection d'anomalies.
 
