@@ -56,6 +56,19 @@ export default function Dashboard() {
   const [loadingTrack, setLoadingTrack] = useState(true);
   const [showGpsHelp, setShowGpsHelp] = useState(false);
   const [contactCount, setContactCount] = useState(0);
+  const [gpsToastShown, setGpsToastShown] = useState(false);
+
+  // Afficher un toast quand le GPS est prêt ou en erreur
+  useEffect(() => {
+    if (position && !gpsToastShown) {
+      if (position.isFallback) {
+        setToast({ message: '📍 GPS désactivé - position par défaut utilisée', type: 'info' });
+      } else {
+        setToast({ message: '✓ Position localisée avec succès', type: 'success' });
+      }
+      setGpsToastShown(true);
+    }
+  }, [position, gpsToastShown]);
 
   // Hook pour les check-ins automatiques
   const {
