@@ -70,6 +70,11 @@ router.patch('/me', async (req, res) => {
       }
     }
 
+    // Get old values BEFORE update
+    const oldUser = await knex('users')
+      .where({ id: req.user.userId })
+      .first();
+
     const [user] = await knex('users')
       .where({ id: req.user.userId })
       .update({ ...value, updated_at: new Date() })
@@ -79,22 +84,33 @@ router.patch('/me', async (req, res) => {
     if (value.full_name || value.email || value.phone) {
       const emailService = require('../services/email.service');
       const changes = {};
-      if (value.full_name) changes['Nom complet'] = value.full_name;
-      if (value.email) changes['Email'] = value.email;
-      if (value.phone) changes['Téléphone'] = value.phone;
 
-      console.log('[Users] Profile changed, sending email to:', user.email);
-      console.log('[Users] Changes:', changes);
+      // Compare old vs new values
+      if (value.full_name && oldUser.full_name !== value.full_name) {
+        changes['Nom complet'] = `${oldUser.full_name} → ${value.full_name}`;
+      }
+      if (value.email && oldUser.email !== value.email) {
+        changes['Email'] = `${oldUser.email} → ${value.email}`;
+      }
+      if (value.phone && oldUser.phone !== value.phone) {
+        changes['Téléphone'] = `${oldUser.phone} → ${value.phone}`;
+      }
 
-      // Send email in background without awaiting (don't block API response)
-      emailService.sendProfileChangeEmail(user.email, user.full_name || 'Utilisateur', changes)
-        .then(result => {
-          console.log('[Users] ✓ Profile change email sent successfully:', result.messageId);
-        })
-        .catch(err => {
-          console.error('[Users] ✗ Error sending profile change email:', err.message);
-          console.error('[Users] Full error:', err);
-        });
+      // Only send email if there are actual changes
+      if (Object.keys(changes).length > 0) {
+        console.log('[Users] Profile changed, sending email to:', user.email);
+        console.log('[Users] Changes:', changes);
+
+        // Send email in background without awaiting (don't block API response)
+        emailService.sendProfileChangeEmail(user.email, user.full_name || 'Utilisateur', changes)
+          .then(result => {
+            console.log('[Users] ✓ Profile change email sent successfully:', result.messageId);
+          })
+          .catch(err => {
+            console.error('[Users] ✗ Error sending profile change email:', err.message);
+            console.error('[Users] Full error:', err);
+          });
+      }
     }
 
     return res.json({ success: true, data: user });
