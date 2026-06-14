@@ -98,9 +98,12 @@ router.get('/categorized-locations', async (req, res) => {
 
   try {
     // Récupérer les reports vérifiés du type 'lieu'
-    const reports = await knex('reports')
-      .where({ organization_id: organizationId, report_type: 'lieu', status: 'verified' })
-      .select('*');
+    // If user has no organization (new users), show all verified reports
+    const query = knex('reports').where({ report_type: 'lieu', status: 'verified' });
+    if (organizationId) {
+      query.andWhere({ organization_id: organizationId });
+    }
+    const reports = await query.select('*');
 
     // Grouper par location (lat, lng) et compter les incidents
     const locationMap = {};
