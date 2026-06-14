@@ -27,7 +27,8 @@ export default function AdminDashboard() {
       const statsRes = await api.get('/api/admin/stats');
       setStats(statsRes.data.data);
 
-      const alertsRes = await api.get('/api/admin/alerts/recent');
+      // Fetch only ACTIVE alerts for the dashboard (not resolved ones)
+      const alertsRes = await api.get('/api/admin/alerts/active');
       setAlerts(alertsRes.data.data || []);
 
       const usersRes = await api.get('/api/admin/users/list');

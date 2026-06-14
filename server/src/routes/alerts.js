@@ -225,6 +225,43 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ─── PATCH /api/alerts/resolve-latest ────────────────────────────────────────
+// Résoudre la dernière alerte ACTIVE de l'utilisateur (sans avoir besoin de l'ID)
+router.patch('/resolve-latest', requireAuth, async (req, res) => {
+  const { userId } = req.user;
+  const { error, value } = resolveSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ success: false, error: error.details[0].message });
+  }
+
+  try {
+    // Trouver la dernière alerte ACTIVE
+    const alert = await knex('alerts')
+      .where({ user_id: userId, status: 'active' })
+      .orderBy('created_at', 'desc')
+      .first();
+
+    if (!alert) {
+      return res.status(404).json({ success: false, error: 'Aucune alerte active' });
+    }
+
+    // Résoudre l'alerte
+    const [updated] = await knex('alerts')
+      .where({ id: alert.id })
+      .update({
+        status: value.status,
+        resolved_at: new Date()
+      })
+      .returning('*');
+
+    console.log(`[Alert] Alert ${alert.id} resolved as ${value.status}`);
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('Alert resolve-latest error:', err);
+    return res.status(500).json({ success: false, error: 'Erreur résolution alerte' });
+  }
+});
+
 // ─── PATCH /api/alerts/:id/resolve ────────────────────────────────────────────
 
 router.patch('/:id/resolve', async (req, res) => {
