@@ -27,6 +27,16 @@ function isPublicPage() {
   return PUBLIC_PATHS.includes(window.location.pathname);
 }
 
+// Intercepteur requête
+// Envoyer le token en Authorization header (fallback pour mobile où les cookies cross-domain ne marchent pas)
+api.interceptors.request.use((config) => {
+  const token = sessionStorage.getItem('authToken');
+  if (token && !config.headers.Authorization) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Intercepteur réponse
 // Redirige vers /login sur 401 UNIQUEMENT si :
 //  • l'endpoint n'est pas une vérification de session / route publique
@@ -39,6 +49,7 @@ api.interceptors.response.use(
       !isPublicEndpoint(error.config?.url) &&
       !isPublicPage()
     ) {
+      sessionStorage.removeItem('authToken');
       window.location.href = '/login';
     }
     return Promise.reject(error);
