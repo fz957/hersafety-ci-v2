@@ -52,11 +52,11 @@ router.post('/', async (req, res) => {
     // Récupérer l'utilisateur et son organization_id
     const sender = await knex('users').where({ id: userId }).first();
 
-    // Envoyer notification à l'admin si les notifications sont activées
+    // Envoyer notification à l'admin si les notifications d'alertes sont activées
     if (sender && sender.organization_id) {
       const admin = await knex('users')
         .where({ organization_id: sender.organization_id, role: 'admin' })
-        .where('email_notifications_enabled', '!=', false)
+        .where('notify_alerts', '=', true)
         .first();
 
       if (admin && admin.email) {

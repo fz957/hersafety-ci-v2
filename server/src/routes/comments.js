@@ -107,11 +107,11 @@ router.post('/', requireAuth, async (req, res) => {
     // Récupérer les infos de l'auteur
     const user = await knex('users').where({ id: userId }).first();
 
-    // Envoyer notification à l'admin si les notifications sont activées
+    // Envoyer notification à l'admin si les notifications de commentaires sont activées
     if (user && user.organization_id) {
       const admin = await knex('users')
         .where({ organization_id: user.organization_id, role: 'admin' })
-        .where('email_notifications_enabled', '!=', false)
+        .where('notify_comments', '=', true)
         .first();
 
       if (admin && admin.email) {

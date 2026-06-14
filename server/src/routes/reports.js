@@ -45,12 +45,12 @@ router.post('/', async (req, res) => {
       })
       .returning('*');
 
-    // Envoyer notification à l'admin si les notifications sont activées
+    // Envoyer notification à l'admin si les notifications de signalements sont activées
     if (organizationId) {
       const sender = await knex('users').where({ id: userId }).first();
       const admin = await knex('users')
         .where({ organization_id: organizationId, role: 'admin' })
-        .where('email_notifications_enabled', '!=', false)
+        .where('notify_reports', '=', true)
         .first();
 
       if (admin && admin.email) {
